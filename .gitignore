@@ -1,0 +1,39 @@
+# PlatformIO
+.pio/
+.vscode/
+build/
+.clang_complete
+.gcc-flags.json
+
+# IDE
+.vscode/
+*.code-workspace
+.DS_Store
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.obj
+*.exe
+*.elf
+*.bin
+*.hex
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Project-specific
+*.log
+.env
+secrets.h
