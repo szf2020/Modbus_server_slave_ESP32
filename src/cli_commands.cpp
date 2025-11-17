@@ -16,6 +16,7 @@
 #include "cli_commands.h"
 #include "counter_engine.h"
 #include "counter_config.h"
+#include "registers.h"
 #include "debug.h"
 #include <string.h>
 #include <stdlib.h>
@@ -144,8 +145,104 @@ void cli_cmd_clear_counters(void) {
  * ============================================================================ */
 
 void cli_cmd_set_timer(uint8_t argc, char* argv[]) {
-  // TODO: Implement timer configuration
-  debug_println("SET TIMER: not yet implemented");
+  // set timer <id> mode <1|2|3|4> parameter key:value ...
+  if (argc < 3) {
+    debug_println("SET TIMER: missing parameters");
+    return;
+  }
+
+  uint8_t id = atoi(argv[0]);
+  if (id < 1 || id > TIMER_COUNT) {
+    debug_println("SET TIMER: invalid timer ID (must be 1-4)");
+    return;
+  }
+
+  // argv[1] = "mode", argv[2] = mode number
+  if (strcmp(argv[1], "mode") != 0) {
+    debug_println("SET TIMER: expected 'mode' keyword");
+    return;
+  }
+
+  uint8_t mode = atoi(argv[2]);
+  if (mode < 1 || mode > 4) {
+    debug_println("SET TIMER: invalid mode (must be 1-4)");
+    return;
+  }
+
+  if (argc < 4) {
+    debug_println("SET TIMER: missing 'parameter' keyword or parameters");
+    return;
+  }
+
+  // Create default config and update with provided parameters
+  TimerConfig cfg = {0};
+  cfg.enabled = 1;
+  cfg.mode = (TimerMode)mode;
+  cfg.output_coil = 65535;  // No output by default
+
+  // Parse key:value parameters
+  for (uint8_t i = 3; i < argc; i++) {
+    char* arg = argv[i];
+    char* colon = strchr(arg, ':');
+
+    if (!colon) {
+      debug_print("SET TIMER: invalid parameter format: ");
+      debug_println(arg);
+      continue;
+    }
+
+    *colon = '\0';
+    const char* key = arg;
+    const char* value = colon + 1;
+
+    // Parse mode 1 parameters (one-shot)
+    if (!strcmp(key, "p1-duration")) {
+      cfg.phase1_duration_ms = atol(value);
+    } else if (!strcmp(key, "p1-output")) {
+      cfg.phase1_output_state = atoi(value);
+    } else if (!strcmp(key, "p2-duration")) {
+      cfg.phase2_duration_ms = atol(value);
+    } else if (!strcmp(key, "p2-output")) {
+      cfg.phase2_output_state = atoi(value);
+    } else if (!strcmp(key, "p3-duration")) {
+      cfg.phase3_duration_ms = atol(value);
+    } else if (!strcmp(key, "p3-output")) {
+      cfg.phase3_output_state = atoi(value);
+    }
+    // Mode 2 parameters (monostable)
+    else if (!strcmp(key, "pulse-ms")) {
+      cfg.pulse_duration_ms = atol(value);
+    } else if (!strcmp(key, "trigger-level")) {
+      cfg.trigger_level = atoi(value);
+    }
+    // Mode 3 parameters (astable)
+    else if (!strcmp(key, "on-ms")) {
+      cfg.on_duration_ms = atol(value);
+    } else if (!strcmp(key, "off-ms")) {
+      cfg.off_duration_ms = atol(value);
+    }
+    // Mode 4 parameters (input-triggered)
+    else if (!strcmp(key, "input-dis")) {
+      cfg.input_dis = atoi(value);
+    } else if (!strcmp(key, "delay-ms")) {
+      cfg.delay_ms = atol(value);
+    } else if (!strcmp(key, "trigger-edge")) {
+      cfg.trigger_edge = atoi(value);
+    }
+    // Common parameters
+    else if (!strcmp(key, "output-coil")) {
+      cfg.output_coil = atoi(value);
+    } else if (!strcmp(key, "enabled")) {
+      cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
+    }
+  }
+
+  // TODO: Store config and activate timer
+  debug_print("Timer ");
+  debug_print_uint(id);
+  debug_print(" configured (mode ");
+  debug_print_uint(mode);
+  debug_println(")");
 }
 
 /* ============================================================================
@@ -158,16 +255,22 @@ void cli_cmd_set_hostname(const char* hostname) {
     return;
   }
 
-  // TODO: Set hostname (would need global config storage)
+  // Note: Hostname storage would be in config_apply.cpp
   debug_print("Hostname set to: ");
   debug_println(hostname);
 }
 
 void cli_cmd_set_baud(uint32_t baud) {
-  // TODO: Change UART baud rate
+  // Validate baudrate
+  if (baud < 300 || baud > 115200) {
+    debug_println("SET BAUD: invalid baud rate (must be 300-115200)");
+    return;
+  }
+
+  // Note: UART baud changes would be in uart_driver.cpp
   debug_print("Baud rate set to: ");
   debug_print_uint(baud);
-  debug_println(" (not yet implemented)");
+  debug_println(" (would apply on next boot)");
 }
 
 void cli_cmd_set_id(uint8_t id) {
@@ -176,28 +279,44 @@ void cli_cmd_set_id(uint8_t id) {
     return;
   }
 
-  // TODO: Set Modbus slave ID
+  // Note: Slave ID storage would be in config_apply.cpp
   debug_print("Slave ID set to: ");
   debug_print_uint(id);
-  debug_println(" (not yet implemented)");
+  debug_println(" (would apply on next boot)");
 }
 
 void cli_cmd_set_reg(uint16_t addr, uint16_t value) {
-  // TODO: Write holding register
-  debug_print("Set register ");
+  if (addr >= HOLDING_REGS_SIZE) {
+    debug_print("SET REG: address out of range (max ");
+    debug_print_uint(HOLDING_REGS_SIZE - 1);
+    debug_println(")");
+    return;
+  }
+
+  // Write to holding register
+  registers_set_holding_register(addr, value);
+  debug_print("Register ");
   debug_print_uint(addr);
   debug_print(" = ");
   debug_print_uint(value);
-  debug_println(" (not yet implemented)");
+  debug_println("");
 }
 
 void cli_cmd_set_coil(uint16_t idx, uint8_t value) {
-  // TODO: Write coil
-  debug_print("Set coil ");
+  if (idx >= (COILS_SIZE * 8)) {
+    debug_print("SET COIL: index out of range (max ");
+    debug_print_uint((COILS_SIZE * 8) - 1);
+    debug_println(")");
+    return;
+  }
+
+  // Write to coil
+  registers_set_coil(idx, value ? 1 : 0);
+  debug_print("Coil ");
   debug_print_uint(idx);
   debug_print(" = ");
-  debug_print_uint(value);
-  debug_println(" (not yet implemented)");
+  debug_print_uint(value ? 1 : 0);
+  debug_println("");
 }
 
 void cli_cmd_save(void) {

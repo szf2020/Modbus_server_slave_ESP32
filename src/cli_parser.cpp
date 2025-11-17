@@ -90,6 +90,13 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
 
+  // System commands (for SET context)
+  if (!strcmp(s, "REG") || !strcmp(s, "reg")) return "REG";
+  if (!strcmp(s, "COIL") || !strcmp(s, "coil")) return "COIL";
+  if (!strcmp(s, "ID") || !strcmp(s, "id")) return "ID";
+  if (!strcmp(s, "HOSTNAME") || !strcmp(s, "hostname")) return "HOSTNAME";
+  if (!strcmp(s, "BAUD") || !strcmp(s, "baud")) return "BAUD";
+
   return s;  // Return as-is if not an alias
 }
 
