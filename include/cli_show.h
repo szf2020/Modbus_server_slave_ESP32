@@ -75,5 +75,31 @@ void cli_cmd_show_version(void);
  */
 void cli_cmd_show_gpio(void);
 
+/**
+ * @brief Handle "show echo" command (remote echo status)
+ */
+void cli_cmd_show_echo(void);
+
+/**
+ * @brief Handle "read reg <id> <antal>" command
+ * @param argc Argument count (must be 2)
+ * @param argv Argument array (argv[0] = start addr, argv[1] = count)
+ */
+void cli_cmd_read_reg(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "read coil <id> <antal>" command
+ * @param argc Argument count (must be 2)
+ * @param argv Argument array (argv[0] = start addr, argv[1] = count)
+ */
+void cli_cmd_read_coil(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "read input <id> <antal>" command
+ * @param argc Argument count (must be 2)
+ * @param argv Argument array (argv[0] = start addr, argv[1] = count)
+ */
+void cli_cmd_read_input(uint8_t argc, char* argv[]);
+
 #endif // CLI_SHOW_H
 

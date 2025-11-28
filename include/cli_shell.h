@@ -28,4 +28,16 @@ void cli_shell_init(void);
  */
 void cli_shell_loop(void);
 
+/**
+ * @brief Enable/disable remote echo (for serial terminals)
+ * @param enabled 1 to enable echo, 0 to disable
+ */
+void cli_shell_set_remote_echo(uint8_t enabled);
+
+/**
+ * @brief Get current remote echo state
+ * @return 1 if enabled, 0 if disabled
+ */
+uint8_t cli_shell_get_remote_echo(void);
+
 #endif // cli_shell_H

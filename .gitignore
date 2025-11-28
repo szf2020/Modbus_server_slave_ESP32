@@ -37,3 +37,8 @@ Thumbs.db
 *.log
 .env
 secrets.h
+nul
+COM11
+*.pyc
+test_*.py
+*_output.txt

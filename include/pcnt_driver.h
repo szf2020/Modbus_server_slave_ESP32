@@ -37,7 +37,14 @@ void pcnt_unit_configure(uint8_t unit, uint8_t gpio_pin,
 /**
  * @brief Get current PCNT count
  * @param unit PCNT unit (0-3)
- * @return Current count value
+ * @return Current count value (NOTE: PCNT hardware is int16_t, range -32768 to +32767)
+ *
+ * IMPORTANT: ESP32 PCNT hardware counter is 16-bit SIGNED (-32768 to +32767).
+ * This function returns uint32_t for interface compatibility, but the actual
+ * hardware value wraps at ±32768. Callers must handle signed wrap-around.
+ *
+ * At high frequencies (e.g., 20 kHz), PCNT will wrap every ~1.6 seconds.
+ * Use software delta accumulation to track total count beyond 16-bit range.
  */
 uint32_t pcnt_unit_get_count(uint8_t unit);
 

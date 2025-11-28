@@ -30,8 +30,10 @@
 #include "counter_frequency.h"
 #include "registers.h"
 #include "constants.h"
+#include "debug.h"
 #include <string.h>
 #include <math.h>
+#include <Arduino.h>  // For millis()
 
 /* ============================================================================
  * INITIALIZATION
@@ -41,11 +43,13 @@ void counter_engine_init(void) {
   // Initialize configuration system
   counter_config_init();
 
-  // Initialize all 4 counters for all modes
+  // BUG FIX 1.6: Don't init counters here with default config
+  // Init will be called by counter_engine_configure() when config is applied
+  // This ensures start_value and other parameters are read from actual config,
+  // not from defaults
+
+  // Initialize frequency tracking for all counters (safe to do with defaults)
   for (uint8_t id = 1; id <= 4; id++) {
-    counter_sw_init(id);
-    counter_sw_isr_init(id);
-    counter_hw_init(id);
     counter_frequency_init(id);
   }
 }
@@ -123,12 +127,19 @@ bool counter_engine_configure(uint8_t id, const CounterConfig* cfg) {
 
     case COUNTER_HW_PCNT:
       counter_hw_init(id);
-      // Configure PCNT if mode enabled
-      if (cfg->enabled) {
-        // Determine GPIO pin for this counter
-        // For now: use a default based on counter ID
-        uint8_t gpio_pin = 19 + (id - 1) * 6;  // GPIO 19, 25, 31, 37
-        counter_hw_configure(id, gpio_pin);
+      // BUG FIX 1.9: Configure PCNT with GPIO from config (not hardcoded)
+      debug_print("  DEBUG: Counter ");
+      debug_print_uint(id);
+      debug_print(" PCNT mode, hw_gpio = ");
+      debug_print_uint(cfg->hw_gpio);
+      debug_print(", enabled = ");
+      debug_print_uint(cfg->enabled);
+      debug_println("");
+
+      if (cfg->enabled && cfg->hw_gpio > 0) {
+        counter_hw_configure(id, cfg->hw_gpio);
+      } else {
+        debug_println("  WARNING: PCNT not configured (hw_gpio = 0 or not enabled)");
       }
       break;
 
@@ -202,9 +213,45 @@ void counter_engine_handle_control(uint8_t id) {
     registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0001);
   }
 
-  // Bit 1: Start command (not implemented in modular version yet)
-  // Bit 2: Stop command (not implemented in modular version yet)
-  // These would enable/disable the counter runtime
+  // BUG FIX 2.1: Bit 1: Start command
+  if (ctrl_val & 0x0002) {
+    // Start the counter based on mode
+    switch (cfg.hw_mode) {
+      case COUNTER_HW_SW:
+        counter_sw_start(id);
+        break;
+      case COUNTER_HW_SW_ISR:
+        // BUG FIX 3.2: Reattach interrupt to ensure ISR is active
+        if (cfg.interrupt_pin > 0) {
+          counter_sw_isr_attach(id, cfg.interrupt_pin);
+        }
+        break;
+      case COUNTER_HW_PCNT:
+        counter_hw_start(id);
+        break;
+    }
+    // Clear the start bit after executing
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0002);
+  }
+
+  // BUG FIX 2.1: Bit 2: Stop command
+  if (ctrl_val & 0x0004) {
+    // Stop the counter based on mode
+    switch (cfg.hw_mode) {
+      case COUNTER_HW_SW:
+        counter_sw_stop(id);
+        break;
+      case COUNTER_HW_SW_ISR:
+        // BUG FIX 3.2: Detach interrupt to prevent ISR calls when stopped
+        counter_sw_isr_detach(id);
+        break;
+      case COUNTER_HW_PCNT:
+        counter_hw_stop(id);
+        break;
+    }
+    // Clear the stop bit after executing
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0004);
+  }
 
   // Bit 3: Reset-on-read (sticky bit, remains set until cleared by user)
   // This is handled at Modbus FC level, not here
@@ -225,6 +272,15 @@ void counter_engine_store_value_to_registers(uint8_t id) {
 
   // Get current value from appropriate mode
   uint64_t counter_value = counter_engine_get_value(id);
+
+  // FIX P0.7: PCNT hardware counts ONLY the configured edges (rising/falling/both)
+  // Previous code incorrectly assumed PCNT always counts both edges and divided by 2
+  // PCNT_COUNT_DIS correctly disables edge counting, so no division needed
+  // The PCNT driver (pcnt_driver.cpp) configures pos_mode/neg_mode correctly:
+  //   - RISING: pos_mode=INC, neg_mode=DIS → counts only rising edges
+  //   - FALLING: pos_mode=DIS, neg_mode=INC → counts only falling edges
+  //   - BOTH: pos_mode=INC, neg_mode=INC → counts both edges
+  // Therefore counter_value is already correct, no adjustment needed
 
   // PRESCALER DIVISION: raw = counterValue / prescaler
   // (counterValue already includes ALL edges, no skipping)
@@ -298,8 +354,8 @@ void counter_engine_store_value_to_registers(uint8_t id) {
         overflow = counter_sw_isr_get_overflow(id);
         break;
       case COUNTER_HW_PCNT:
-        // HW mode: overflow tracking is built into PCNT ISR (not used currently)
-        overflow = 0;
+        // BUG FIX P0.3: Use actual overflow from HW counter state
+        overflow = counter_hw_get_overflow(id);
         break;
       default:
         break;

@@ -122,7 +122,7 @@ typedef enum {
  * ============================================================================ */
 
 #define CLI_BUFFER_SIZE     256         // CLI command buffer
-#define CLI_HISTORY_SIZE    3           // Command history buffer size
+#define CLI_HISTORY_SIZE    10          // Command history buffer size
 #define CLI_TOKEN_MAX       20          // Max tokens per command
 
 /* ============================================================================
@@ -170,7 +170,6 @@ typedef enum {
 
 #define PROJECT_NAME        "Modbus RTU Server (ESP32)"
 #define PROJECT_VERSION     "1.0.0"
-#define BUILD_DATE          __DATE__
-#define BUILD_TIME          __TIME__
+// BUILD_DATE and BUILD_NUMBER now in build_version.h (auto-generated)
 
 #endif // CONSTANTS_H

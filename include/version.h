@@ -6,6 +6,9 @@
 #ifndef version_H
 #define version_H
 
+// Auto-generated build information (updated by generate_build_info.py)
+#include "build_version.h"
+
 #define PROJECT_VERSION "1.0.0"
 #define PROJECT_BUILD_DATE __DATE__
 #define PROJECT_NAME "Modbus RTU Server (ESP32)"

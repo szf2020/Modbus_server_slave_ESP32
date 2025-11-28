@@ -207,7 +207,7 @@ void cli_cmd_set_coil_dynamic(uint8_t argc, char* argv[]) {
   if (source_type == DYNAMIC_SOURCE_COUNTER) {
     debug_print("counter");
     debug_print_uint(source_id);
-  } else {
+  } else if (source_type == DYNAMIC_SOURCE_TIMER) {
     debug_print("timer");
     debug_print_uint(source_id);
   }

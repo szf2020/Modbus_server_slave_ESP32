@@ -10,6 +10,7 @@
  * - Reading pulse counts directly from PCNT hardware
  * - Overflow handling
  * - Value accumulation and tracking
+ * - BUG FIX P0.6: Dedicated RTOS task for high-frequency PCNT polling
  */
 
 #include "counter_hw.h"
@@ -19,6 +20,11 @@
 #include "constants.h"
 #include "types.h"
 #include <string.h>
+#include <driver/pcnt.h>  // BUG FIX P0: Include ESP-IDF PCNT for pause/resume
+#include <esp_log.h>
+#include <Arduino.h>  // For millis()
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 /* ============================================================================
  * HW MODE RUNTIME STATE (per counter)
@@ -33,6 +39,87 @@ static CounterHWState hw_state[COUNTER_COUNT] = {0};
  * ============================================================================ */
 
 static const uint8_t counter_to_pcnt[COUNTER_COUNT] = {0, 1, 2, 3};
+
+/* ============================================================================
+ * RTOS TASK FOR HIGH-FREQUENCY PCNT POLLING (BUG FIX P0.6)
+ * Priority 10 = higher than loop() task (priority 1)
+ * Polls every 10ms to prevent PCNT wrap being missed
+ * ============================================================================ */
+
+static TaskHandle_t pcnt_task_handle = NULL;
+
+static void pcnt_poll_task(void* pvParameters) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xFrequency = pdMS_TO_TICKS(10);  // 10ms = 100 Hz poll rate
+
+  for (;;) {
+    // Poll all PCNT counters
+    for (uint8_t id = 1; id <= COUNTER_COUNT; id++) {
+      CounterConfig cfg;
+      if (!counter_config_get(id, &cfg)) continue;
+      if (!cfg.enabled || cfg.hw_mode != COUNTER_HW_PCNT) continue;
+
+      CounterHWState* state = &hw_state[id - 1];
+      if (!state->is_counting) continue;
+
+      uint8_t pcnt_unit = counter_to_pcnt[id - 1];
+      uint32_t hw_count = pcnt_unit_get_count(pcnt_unit);
+
+      // Calculate delta with wrap handling (same logic as counter_hw_loop)
+      if (hw_count != state->last_count) {
+        int16_t signed_current = (int16_t)hw_count;
+        int16_t signed_last = (int16_t)state->last_count;
+        int32_t delta = (int32_t)signed_current - (int32_t)signed_last;
+
+        // Handle wrap
+        if (delta < -32768) {
+          delta += 65536;
+        } else if (delta > 32768) {
+          delta -= 65536;
+        }
+
+        // Apply direction
+        if (cfg.direction == COUNTER_DIR_DOWN) {
+          delta = -delta;
+        }
+
+        // Apply delta
+        if (delta > 0) {
+          state->pcnt_value += (uint64_t)delta;
+        } else if (delta < 0 && state->pcnt_value >= (uint64_t)(-delta)) {
+          state->pcnt_value -= (uint64_t)(-delta);
+        }
+
+        state->last_count = hw_count;
+
+        // DEBUG: Log PCNT activity every 5 seconds (FIX P0.7 verification)
+        static uint32_t last_log[COUNTER_COUNT] = {0};
+        uint32_t now = millis();
+        if (now - last_log[id - 1] >= 5000 && state->pcnt_value > 0) {
+          ESP_LOGI("CNTR_HW", "C%d PCNT: hw_count=%d delta=%ld pcnt_value=%llu edge=%d",
+                   id, (int16_t)hw_count, delta, state->pcnt_value, cfg.edge_type);
+          last_log[id - 1] = now;
+        }
+      }
+
+      // Check overflow
+      uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
+      switch (cfg.bit_width) {
+        case 8: max_val = 0xFFULL; break;
+        case 16: max_val = 0xFFFFULL; break;
+        case 32: max_val = 0xFFFFFFFFULL; break;
+      }
+
+      if (state->pcnt_value > max_val) {
+        state->pcnt_value = cfg.start_value & max_val;
+        state->overflow_count++;
+      }
+    }
+
+    // Wait for next poll cycle
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+  }
+}
 
 /* ============================================================================
  * INITIALIZATION
@@ -55,6 +142,20 @@ void counter_hw_init(uint8_t id) {
   CounterConfig cfg;
   if (counter_config_get(id, &cfg)) {
     state->pcnt_value = cfg.start_value;
+  }
+
+  // BUG FIX P0.6: Start RTOS task on first init (only once)
+  if (id == 1 && pcnt_task_handle == NULL) {
+    xTaskCreatePinnedToCore(
+      pcnt_poll_task,       // Task function
+      "pcnt_poll",          // Task name
+      4096,                 // Stack size (bytes)
+      NULL,                 // Parameters
+      10,                   // Priority (higher than loop = 1)
+      &pcnt_task_handle,    // Task handle
+      1                     // Core 1 (same as loop)
+    );
+    ESP_LOGI("CNTR_HW", "RTOS task created for PCNT polling (100Hz, priority 10)");
   }
 }
 
@@ -88,6 +189,10 @@ bool counter_hw_configure(uint8_t id, uint8_t gpio_pin) {
     neg_edge = PCNT_EDGE_FALLING;
   }
 
+  // Direction support: PCNT hardware counts incrementally (can be positive/negative)
+  // We apply direction in delta calculation (lines 82-84 in pcnt_poll_task)
+  // DOWN direction: delta is inverted to decrement counter value
+
   // Configure PCNT unit
   pcnt_unit_configure(pcnt_unit, gpio_pin, pos_edge, neg_edge);
 
@@ -95,6 +200,15 @@ bool counter_hw_configure(uint8_t id, uint8_t gpio_pin) {
   state->pcnt_value = cfg.start_value;
   state->last_count = 0;
   state->is_counting = 1;
+
+  // DEBUG: Verify edge configuration with readable enum string
+  ESP_LOGI("CNTR_HW", "C%d configured: PCNT_U%d GPIO%d edge=%s dir=%d start=%llu",
+           id, pcnt_unit, gpio_pin,
+           (cfg.edge_type == COUNTER_EDGE_RISING) ? "RISING" :
+           (cfg.edge_type == COUNTER_EDGE_FALLING) ? "FALLING" : "BOTH",
+           cfg.direction, cfg.start_value);
+  ESP_LOGI("CNTR_HW", "  hw_gpio=%d (pos_edge=%d neg_edge=%d)",
+           cfg.hw_gpio, pos_edge, neg_edge);
 
   return true;
 }
@@ -104,46 +218,10 @@ bool counter_hw_configure(uint8_t id, uint8_t gpio_pin) {
  * ============================================================================ */
 
 void counter_hw_loop(uint8_t id) {
-  if (id < 1 || id > COUNTER_COUNT) return;
-
-  CounterConfig cfg;
-  if (!counter_config_get(id, &cfg)) return;
-
-  if (!cfg.enabled || cfg.hw_mode != COUNTER_HW_PCNT) {
-    return;
-  }
-
-  CounterHWState* state = &hw_state[id - 1];
-  uint8_t pcnt_unit = counter_to_pcnt[id - 1];
-
-  // Read current PCNT count
-  uint32_t hw_count = pcnt_unit_get_count(pcnt_unit);
-
-  // Simple accumulation: just add the difference to our value
-  // (In a real implementation, would handle PCNT register overflow)
-  if (hw_count != state->last_count) {
-    state->pcnt_value += (hw_count - state->last_count);
-    state->last_count = hw_count;
-  }
-
-  // Check for overflow based on bit width
-  uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
-  switch (cfg.bit_width) {
-    case 8:
-      max_val = 0xFFULL;
-      break;
-    case 16:
-      max_val = 0xFFFFULL;
-      break;
-    case 32:
-      max_val = 0xFFFFFFFFULL;
-      break;
-  }
-
-  if (state->pcnt_value > max_val) {
-    state->pcnt_value = cfg.start_value & max_val;
-    state->overflow_count++;
-  }
+  // BUG FIX P0.6: PCNT polling now handled by dedicated RTOS task
+  // This function kept for compatibility but does nothing
+  // All PCNT reading/delta calculation happens in pcnt_poll_task() at 100Hz
+  (void)id;  // Suppress unused warning
 }
 
 /* ============================================================================
@@ -200,4 +278,30 @@ uint8_t counter_hw_get_overflow(uint8_t id) {
 void counter_hw_clear_overflow(uint8_t id) {
   if (id < 1 || id > COUNTER_COUNT) return;
   hw_state[id - 1].overflow_count = 0;
+}
+
+/* ============================================================================
+ * START/STOP CONTROL (BUG FIX 2.1: Control register bits)
+ * ============================================================================ */
+
+void counter_hw_start(uint8_t id) {
+  if (id < 1 || id > COUNTER_COUNT) return;
+
+  // BUG FIX P0.2: CRITICAL - Resume PCNT hardware when starting
+  hw_state[id - 1].is_counting = 1;
+
+  // Resume PCNT hardware counter
+  uint8_t pcnt_unit = counter_to_pcnt[id - 1];
+  pcnt_counter_resume((pcnt_unit_t)pcnt_unit);
+}
+
+void counter_hw_stop(uint8_t id) {
+  if (id < 1 || id > COUNTER_COUNT) return;
+
+  // BUG FIX P0.2: CRITICAL - Stop PCNT hardware, not just software flag
+  hw_state[id - 1].is_counting = 0;
+
+  // Stop PCNT hardware counter
+  uint8_t pcnt_unit = counter_to_pcnt[id - 1];
+  pcnt_counter_pause((pcnt_unit_t)pcnt_unit);
 }

@@ -75,6 +75,9 @@ uint16_t config_calculate_crc16(const PersistConfig* cfg) {
  * NVS STORAGE (ESP32 EEPROM emulation)
  * ============================================================================ */
 
+#include <nvs_flash.h>
+#include <nvs.h>
+
 // NVS key for storing config
 #define NVS_CONFIG_KEY "modbus_cfg"
 #define NVS_NAMESPACE  "modbus"
@@ -85,40 +88,57 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
     return false;
   }
 
-  // TODO: Full NVS implementation would use ESP32 NVS API:
-  // #include "nvs_flash.h"
-  // #include "nvs.h"
-  //
-  // nvs_handle_t handle;
-  // esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
-  // if (err != ESP_OK) {
-  //   debug_println("ERROR: NVS open failed");
-  //   return false;
-  // }
-  //
-  // // Calculate and set CRC
-  // PersistConfig cfg_with_crc = *cfg;
-  // cfg_with_crc.crc16 = config_calculate_crc16(&cfg_with_crc);
-  //
-  // err = nvs_set_blob(handle, NVS_CONFIG_KEY, &cfg_with_crc, sizeof(PersistConfig));
-  // if (err != ESP_OK) {
-  //   debug_println("ERROR: NVS set_blob failed");
-  //   nvs_close(handle);
-  //   return false;
-  // }
-  //
-  // err = nvs_commit(handle);
-  // nvs_close(handle);
-  // return (err == ESP_OK);
+  // Calculate and set CRC
+  PersistConfig cfg_with_crc = *cfg;
+  cfg_with_crc.crc16 = config_calculate_crc16(&cfg_with_crc);
 
-  // For now, just validate and print summary
-  debug_print("CONFIG SAVE: schema=");
+  // Open NVS
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
+  if (err != ESP_OK) {
+    debug_print("ERROR: NVS open failed: ");
+    debug_print_uint(err);
+    debug_println("");
+    return false;
+  }
+
+  // Write config blob to NVS
+  err = nvs_set_blob(handle, NVS_CONFIG_KEY, &cfg_with_crc, sizeof(PersistConfig));
+  if (err != ESP_OK) {
+    debug_print("ERROR: NVS set_blob failed: ");
+    debug_print_uint(err);
+    debug_println("");
+    nvs_close(handle);
+    return false;
+  }
+
+  // Commit to flash
+  err = nvs_commit(handle);
+  nvs_close(handle);
+
+  if (err != ESP_OK) {
+    debug_print("ERROR: NVS commit failed: ");
+    debug_print_uint(err);
+    debug_println("");
+    return false;
+  }
+
+  // Print summary
+  debug_print("CONFIG SAVED: schema=");
   debug_print_uint(cfg->schema_version);
   debug_print(", slave_id=");
   debug_print_uint(cfg->slave_id);
   debug_print(", baudrate=");
   debug_print_uint(cfg->baudrate);
-  debug_println(" (NVS not yet implemented)");
+  debug_print(", gpio_maps=");
+  debug_print_uint(cfg->gpio_map_count);
+  debug_print(", static_regs=");
+  debug_print_uint(cfg->static_reg_count);
+  debug_print(", static_coils=");
+  debug_print_uint(cfg->static_coil_count);
+  debug_print(", CRC=");
+  debug_print_uint(cfg_with_crc.crc16);
+  debug_println("");
 
   return true;
 }

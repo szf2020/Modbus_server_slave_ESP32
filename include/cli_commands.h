@@ -41,6 +41,13 @@
 void cli_cmd_set_counter(uint8_t argc, char* argv[]);
 
 /**
+ * @brief Handle "set counter <id> control" command
+ * @param argc Argument count
+ * @param argv Argument array
+ */
+void cli_cmd_set_counter_control(uint8_t argc, char* argv[]);
+
+/**
  * @brief Handle "set timer" command
  * @param argc Argument count
  * @param argv Argument array
@@ -99,6 +106,13 @@ void cli_cmd_set_coil(uint16_t idx, uint8_t value);
 void cli_cmd_set_gpio(uint8_t argc, char* argv[]);
 
 /**
+ * @brief Handle "no set gpio" command (remove GPIO mapping)
+ * @param argc Argument count
+ * @param argv Argument array
+ */
+void cli_cmd_no_set_gpio(uint8_t argc, char* argv[]);
+
+/**
  * @brief Handle "save" command (persist config)
  */
 void cli_cmd_save(void);
@@ -117,6 +131,34 @@ void cli_cmd_defaults(void);
  * @brief Handle "reboot" command
  */
 void cli_cmd_reboot(void);
+
+/**
+ * @brief Handle "set echo" command (enable/disable remote echo)
+ * @param argc Argument count
+ * @param argv Argument array (argv[0] = "on" or "off")
+ */
+void cli_cmd_set_echo(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "write reg" command (write single holding register)
+ * @param argc Argument count
+ * @param argv Argument array (argv[0] = addr, argv[1] = "value", argv[2] = value)
+ */
+void cli_cmd_write_reg(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "write coil" command (write single coil)
+ * @param argc Argument count
+ * @param argv Argument array (argv[0] = addr, argv[1] = "value", argv[2] = on|off)
+ */
+void cli_cmd_write_coil(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "set gpio 2 enable/disable" command (GPIO2 heartbeat control)
+ * @param argc Argument count
+ * @param argv Argument array (argv[0] = "2", argv[1] = "enable" or "disable")
+ */
+void cli_cmd_set_gpio2(uint8_t argc, char* argv[]);
 
 #endif // CLI_COMMANDS_H
 

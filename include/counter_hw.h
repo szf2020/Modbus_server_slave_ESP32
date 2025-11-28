@@ -74,5 +74,30 @@ uint64_t counter_hw_get_value(uint8_t id);
  */
 void counter_hw_set_value(uint8_t id, uint64_t value);
 
+/**
+ * @brief Start counter (enable counting runtime)
+ * @param id Counter ID (1-4)
+ */
+void counter_hw_start(uint8_t id);  // BUG FIX 2.1
+
+/**
+ * @brief Stop counter (disable counting runtime)
+ * @param id Counter ID (1-4)
+ */
+void counter_hw_stop(uint8_t id);  // BUG FIX 2.1
+
+/**
+ * @brief Get overflow flag
+ * @param id Counter ID (1-4)
+ * @return 1 if overflow occurred, 0 otherwise
+ */
+uint8_t counter_hw_get_overflow(uint8_t id);
+
+/**
+ * @brief Clear overflow flag
+ * @param id Counter ID (1-4)
+ */
+void counter_hw_clear_overflow(uint8_t id);
+
 #endif // COUNTER_HW_H
 

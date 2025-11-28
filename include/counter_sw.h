@@ -71,5 +71,17 @@ uint8_t counter_sw_get_overflow(uint8_t id);
  */
 void counter_sw_clear_overflow(uint8_t id);
 
+/**
+ * @brief Start counter (enable counting runtime)
+ * @param id Counter ID (1-4)
+ */
+void counter_sw_start(uint8_t id);  // BUG FIX 2.1
+
+/**
+ * @brief Stop counter (disable counting runtime)
+ * @param id Counter ID (1-4)
+ */
+void counter_sw_stop(uint8_t id);  // BUG FIX 2.1
+
 #endif // COUNTER_SW_H
 

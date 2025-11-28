@@ -1,0 +1,134 @@
+======================================================================
+ESP32 MODBUS SERVER - TEST RAPPORT
+======================================================================
+
+Dato: 2025-11-28 19:35:01
+Firmware: v1.0.0 Build #116
+
+STATISTIK:
+  Total tests: 26
+  Passed: 21 (80.8%)
+  Failed: 5 (19.2%)
+
+DETALJEREDE RESULTATER:
+----------------------------------------------------------------------
+[SH-01] show config
+  Status: PASS
+  Note: OK
+  Time: 19:33:57
+
+[SH-02] show counters
+  Status: PASS
+  Note: OK
+  Time: 19:33:58
+
+[SH-03] show timers
+  Status: PASS
+  Note: OK
+  Time: 19:33:59
+
+[SH-04] show registers
+  Status: FAIL
+  Note: Missing: 'Reg'
+  Time: 19:34:00
+
+[SH-05] show registers 10 5
+  Status: FAIL
+  Note: Missing: 'Reg'
+  Time: 19:34:01
+
+[SH-06] show coils
+  Status: PASS
+  Note: OK
+  Time: 19:34:02
+
+[SH-07] show inputs
+  Status: PASS
+  Note: OK
+  Time: 19:34:03
+
+[SH-08] show version
+  Status: PASS
+  Note: OK
+  Time: 19:34:04
+
+[SH-09] show gpio
+  Status: PASS
+  Note: OK
+  Time: 19:34:05
+
+[SH-10] show echo
+  Status: PASS
+  Note: OK
+  Time: 19:34:06
+
+[SH-11] show reg
+  Status: PASS
+  Note: OK
+  Time: 19:34:07
+
+[SH-12] show coil
+  Status: PASS
+  Note: OK
+  Time: 19:34:08
+
+[RW-07] write reg 100 value 12345
+  Status: PASS
+  Time: 19:34:09
+
+[RW-10] write coil 100 value on
+  Status: PASS
+  Time: 19:34:10
+
+[RW-11] write coil 100 value off
+  Status: PASS
+  Time: 19:34:11
+
+[CNT-HW-01] HW counting @ 1000 Hz
+  Status: FAIL
+  Note: Count=11998 (expected ~10000)
+  Time: 19:34:25
+
+[CNT-HW-02] Frequency measurement
+  Status: PASS
+  Note: Freq=1001 Hz (expected 1000 Hz)
+  Time: 19:34:25
+
+[CNT-HW-03] FALLING edge counting
+  Status: PASS
+  Note: Count=10499
+  Time: 19:34:38
+
+[CNT-HW-04] BOTH edges counting
+  Status: FAIL
+  Note: Count=21000 (expected ~20000)
+  Time: 19:34:51
+
+[GPIO-01] Map GPIO 21 to coil 100
+  Status: PASS
+  Time: 19:34:53
+
+[GPIO-03] Remove GPIO 21 mapping
+  Status: PASS
+  Time: 19:34:54
+
+[GPIO-05] Enable heartbeat on GPIO 2
+  Status: PASS
+  Time: 19:34:56
+
+[REG-ST-01] Static register config
+  Status: PASS
+  Time: 19:34:57
+
+[COIL-ST-01] Static coil config ON
+  Status: PASS
+  Time: 19:34:58
+
+[SYS-10] help command
+  Status: PASS
+  Time: 19:35:00
+
+[SYS-VERSION] show version
+  Status: FAIL
+  Time: 19:35:01
+

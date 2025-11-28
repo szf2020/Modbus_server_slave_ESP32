@@ -36,8 +36,10 @@ void counter_sw_init(uint8_t id) {
   CounterSWState* state = &sw_state[id - 1];
   state->counter_value = 0;
   state->last_level = 0;
-  state->debounce_timer = 0;
+  // BUG FIX 1.7: Initialize debounce_timer to current time to prevent initial false window
+  state->debounce_timer = registers_get_millis();
   state->is_counting = 0;
+  state->overflow_flag = 0;  // BUG FIX 1.1: Initialize overflow flag
 
   // Get config to initialize last_level
   CounterConfig cfg;
@@ -68,16 +70,25 @@ void counter_sw_loop(uint8_t id) {
 
   CounterSWState* state = &sw_state[id - 1];
 
+  // BUG FIX 2.1: Check if counting is enabled (start/stop control)
+  if (!state->is_counting) {
+    return;  // Counter stopped, skip counting
+  }
+
   // Read current level from discrete input
   uint8_t current_level = (cfg.input_dis < (DISCRETE_INPUTS_SIZE * 8)) ?
     registers_get_discrete_input(cfg.input_dis) ? 1 : 0 : 0;
 
-  // Debounce: only count if enough time has passed
+  // BUG FIX 1.7: Check debounce_enabled before applying debounce
   uint32_t now_ms = registers_get_millis();
-  uint32_t debounce_ms = cfg.debounce_ms > 0 ? cfg.debounce_ms : 10;  // Default 10ms
 
-  if (now_ms - state->debounce_timer < debounce_ms) {
-    return;  // Still in debounce window
+  if (cfg.debounce_enabled) {
+    // Debounce: only count if enough time has passed
+    uint32_t debounce_ms = cfg.debounce_ms > 0 ? cfg.debounce_ms : 10;  // Default 10ms
+
+    if (now_ms - state->debounce_timer < debounce_ms) {
+      return;  // Still in debounce window
+    }
   }
 
   // Edge detection based on mode
@@ -96,25 +107,56 @@ void counter_sw_loop(uint8_t id) {
 
   // Count the edge
   if (edge_detected) {
-    state->counter_value++;
-    state->debounce_timer = now_ms;  // Reset debounce timer
-
-    // Check for overflow based on bit width
-    uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
-    switch (cfg.bit_width) {
-      case 8:
-        max_val = 0xFFULL;
-        break;
-      case 16:
-        max_val = 0xFFFFULL;
-        break;
-      case 32:
-        max_val = 0xFFFFFFFFULL;
-        break;
+    // BUG FIX 1.5: Implement direction (UP/DOWN)
+    if (cfg.direction == COUNTER_DIR_UP) {
+      state->counter_value++;
+    } else {
+      // DOWN counting: decrement with underflow handling
+      if (state->counter_value > 0) {
+        state->counter_value--;
+      } else {
+        // Underflow: wrap to max_val
+        uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
+        switch (cfg.bit_width) {
+          case 8:
+            max_val = 0xFFULL;
+            break;
+          case 16:
+            max_val = 0xFFFFULL;
+            break;
+          case 32:
+            max_val = 0xFFFFFFFFULL;
+            break;
+        }
+        state->counter_value = max_val;
+        state->overflow_flag = 1;  // Set overflow on underflow too
+      }
     }
 
-    if (state->counter_value > max_val) {
-      state->counter_value = cfg.start_value;  // Wrap to start value
+    // BUG FIX 1.7: Only update debounce timer if debounce is enabled
+    if (cfg.debounce_enabled) {
+      state->debounce_timer = now_ms;  // Reset debounce timer
+    }
+
+    // Check for overflow based on bit width (UP counting only)
+    if (cfg.direction == COUNTER_DIR_UP) {
+      uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
+      switch (cfg.bit_width) {
+        case 8:
+          max_val = 0xFFULL;
+          break;
+        case 16:
+          max_val = 0xFFFFULL;
+          break;
+        case 32:
+          max_val = 0xFFFFFFFFULL;
+          break;
+      }
+
+      if (state->counter_value > max_val) {
+        state->counter_value = cfg.start_value;  // Wrap to start value
+        state->overflow_flag = 1;  // BUG FIX 1.1: Set overflow flag
+      }
     }
   }
 }
@@ -150,11 +192,26 @@ void counter_sw_set_value(uint8_t id, uint64_t value) {
 
 uint8_t counter_sw_get_overflow(uint8_t id) {
   if (id < 1 || id > COUNTER_COUNT) return 0;
-  // SW mode tracks overflow via reset to start_value, not via flag
-  return 0;
+  // BUG FIX 1.1: Return actual overflow flag
+  return sw_state[id - 1].overflow_flag;
 }
 
 void counter_sw_clear_overflow(uint8_t id) {
-  // SW mode doesn't track overflow flag
-  (void)id;
+  if (id < 1 || id > COUNTER_COUNT) return;
+  // BUG FIX 1.1: Clear overflow flag
+  sw_state[id - 1].overflow_flag = 0;
+}
+
+/* ============================================================================
+ * START/STOP CONTROL (BUG FIX 2.1: Control register bits)
+ * ============================================================================ */
+
+void counter_sw_start(uint8_t id) {
+  if (id < 1 || id > COUNTER_COUNT) return;
+  sw_state[id - 1].is_counting = 1;
+}
+
+void counter_sw_stop(uint8_t id) {
+  if (id < 1 || id > COUNTER_COUNT) return;
+  sw_state[id - 1].is_counting = 0;
 }

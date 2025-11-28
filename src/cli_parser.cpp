@@ -72,6 +72,7 @@ static const char* normalize_alias(const char* s) {
   // Verbs
   if (!strcmp(s, "SHOW") || !strcmp(s, "show") || !strcmp(s, "SH") || !strcmp(s, "sh")) return "SHOW";
   if (!strcmp(s, "SET") || !strcmp(s, "set") || !strcmp(s, "CONF")) return "SET";
+  if (!strcmp(s, "NO") || !strcmp(s, "no")) return "NO";
   if (!strcmp(s, "RESET") || !strcmp(s, "reset")) return "RESET";
   if (!strcmp(s, "CLEAR") || !strcmp(s, "clear")) return "CLEAR";
   if (!strcmp(s, "SAVE") || !strcmp(s, "save") || !strcmp(s, "SV")) return "SAVE";
@@ -79,6 +80,8 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "DEFAULTS") || !strcmp(s, "defaults") || !strcmp(s, "DEF")) return "DEFAULTS";
   if (!strcmp(s, "REBOOT") || !strcmp(s, "reboot")) return "REBOOT";
   if (!strcmp(s, "HELP") || !strcmp(s, "help") || !strcmp(s, "?")) return "HELP";
+  if (!strcmp(s, "READ") || !strcmp(s, "read") || !strcmp(s, "RD")) return "READ";
+  if (!strcmp(s, "WRITE") || !strcmp(s, "write") || !strcmp(s, "WR")) return "WRITE";
 
   // Nouns
   if (!strcmp(s, "COUNTER") || !strcmp(s, "counter")) return "COUNTER";
@@ -89,8 +92,10 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "REGISTERS") || !strcmp(s, "registers")) return "REGISTERS";
   if (!strcmp(s, "COILS") || !strcmp(s, "coils")) return "COILS";
   if (!strcmp(s, "INPUTS") || !strcmp(s, "inputs")) return "INPUTS";
+  if (!strcmp(s, "INPUT") || !strcmp(s, "input")) return "INPUT";
   if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
+  if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
 
   // System commands (for SET context)
   if (!strcmp(s, "REG") || !strcmp(s, "reg")) return "REG";
@@ -99,6 +104,8 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "ID") || !strcmp(s, "id")) return "ID";
   if (!strcmp(s, "HOSTNAME") || !strcmp(s, "hostname")) return "HOSTNAME";
   if (!strcmp(s, "BAUD") || !strcmp(s, "baud")) return "BAUD";
+  if (!strcmp(s, "ENABLE") || !strcmp(s, "enable")) return "ENABLE";
+  if (!strcmp(s, "DISABLE") || !strcmp(s, "disable")) return "DISABLE";
 
   return s;  // Return as-is if not an alias
 }
@@ -157,6 +164,9 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "GPIO")) {
       cli_cmd_show_gpio();
       return true;
+    } else if (!strcmp(what, "ECHO")) {
+      cli_cmd_show_echo();
+      return true;
     } else if (!strcmp(what, "REG")) {
       // show reg - Display register configuration
       cli_cmd_show_regs();
@@ -180,7 +190,19 @@ bool cli_parser_execute(char* line) {
     const char* what = normalize_alias(argv[1]);
 
     if (!strcmp(what, "COUNTER")) {
-      cli_cmd_set_counter(argc - 2, argv + 2);
+      // Check if third argument is "control"
+      if (argc >= 4 && (!strcmp(argv[3], "control") || !strcmp(argv[3], "CONTROL"))) {
+        // set counter <id> control ... → skip "counter" and "control", pass <id> + params
+        // argv[0] = "set", argv[1] = "counter", argv[2] = id, argv[3] = "control", argv[4+] = params
+        char* control_argv[32];
+        control_argv[0] = argv[2];  // counter id
+        for (uint8_t i = 4; i < argc && i < 32; i++) {
+          control_argv[i - 3] = argv[i];
+        }
+        cli_cmd_set_counter_control(argc - 3, control_argv);
+      } else {
+        cli_cmd_set_counter(argc - 2, argv + 2);
+      }
       return true;
     } else if (!strcmp(what, "TIMER")) {
       cli_cmd_set_timer(argc - 2, argv + 2);
@@ -252,10 +274,51 @@ bool cli_parser_execute(char* line) {
       }
       return true;
     } else if (!strcmp(what, "GPIO")) {
+      // Check if it's GPIO 2 enable/disable command
+      if (argc >= 4 && atoi(argv[2]) == 2) {
+        const char* action = normalize_alias(argv[3]);
+        if (!strcmp(action, "ENABLE") || !strcmp(action, "DISABLE")) {
+          // set gpio 2 enable/disable
+          cli_cmd_set_gpio2(argc - 2, argv + 2);
+          return true;
+        }
+      }
+      // Otherwise, handle as normal GPIO mapping
       cli_cmd_set_gpio(argc - 2, argv + 2);
+      return true;
+    } else if (!strcmp(what, "ECHO")) {
+      cli_cmd_set_echo(argc - 2, argv + 2);
       return true;
     } else {
       debug_println("SET: unknown argument");
+      return false;
+    }
+
+  } else if (!strcmp(cmd, "NO")) {
+    // no set <what> <params...>
+    if (argc < 2) {
+      debug_println("NO: missing argument (expected 'set')");
+      return false;
+    }
+
+    if (!strcmp(normalize_alias(argv[1]), "SET")) {
+      // no set <what> <params...>
+      if (argc < 3) {
+        debug_println("NO SET: missing argument");
+        return false;
+      }
+
+      const char* what = normalize_alias(argv[2]);
+
+      if (!strcmp(what, "GPIO")) {
+        cli_cmd_no_set_gpio(argc - 3, argv + 3);
+        return true;
+      } else {
+        debug_println("NO SET: unknown argument (only GPIO supported)");
+        return false;
+      }
+    } else {
+      debug_println("NO: unknown argument (expected 'set')");
       return false;
     }
 
@@ -313,6 +376,54 @@ bool cli_parser_execute(char* line) {
     cli_parser_print_help();
     return true;
 
+  } else if (!strcmp(cmd, "READ")) {
+    // read <what> <params...>
+    if (argc < 2) {
+      debug_println("READ: manglende argument");
+      debug_println("  Brug: read reg <id> <antal>");
+      debug_println("        read coil <id> <antal>");
+      debug_println("        read input <id> <antal>");
+      return false;
+    }
+
+    const char* what = normalize_alias(argv[1]);
+
+    if (!strcmp(what, "REG")) {
+      cli_cmd_read_reg(argc - 2, argv + 2);
+      return true;
+    } else if (!strcmp(what, "COIL")) {
+      cli_cmd_read_coil(argc - 2, argv + 2);
+      return true;
+    } else if (!strcmp(what, "INPUT")) {
+      cli_cmd_read_input(argc - 2, argv + 2);
+      return true;
+    } else {
+      debug_println("READ: ukendt argument (brug: reg, coil, input)");
+      return false;
+    }
+
+  } else if (!strcmp(cmd, "WRITE")) {
+    // write <what> <params...>
+    if (argc < 2) {
+      debug_println("WRITE: manglende argument");
+      debug_println("  Brug: write reg <id> value <v\u00e6rdi>");
+      debug_println("        write coil <id> value <on|off>");
+      return false;
+    }
+
+    const char* what = normalize_alias(argv[1]);
+
+    if (!strcmp(what, "REG")) {
+      cli_cmd_write_reg(argc - 2, argv + 2);
+      return true;
+    } else if (!strcmp(what, "COIL")) {
+      cli_cmd_write_coil(argc - 2, argv + 2);
+      return true;
+    } else {
+      debug_println("WRITE: ukendt argument (brug: reg, coil)");
+      return false;
+    }
+
   } else {
     debug_println("Unknown command");
     return false;
@@ -333,8 +444,17 @@ void cli_parser_print_help(void) {
   debug_println("  show coils          - Display coil states");
   debug_println("  show inputs         - Display discrete inputs");
   debug_println("  show version        - Display firmware version");
+  debug_println("  show gpio           - Display GPIO mappings");
+  debug_println("  show echo           - Display remote echo status");
   debug_println("  show reg            - Display register mappings");
   debug_println("  show coil           - Display coil mappings");
+  debug_println("");
+  debug_println("Read/Write Commands:");
+  debug_println("  read reg <id> <antal>              - Read holding registers");
+  debug_println("  read coil <id> <antal>             - Read coils");
+  debug_println("  read input <id> <antal>            - Read discrete inputs");
+  debug_println("  write reg <id> value <0..65535>    - Write holding register");
+  debug_println("  write coil <id> value <on|off>     - Write coil");
   debug_println("");
   debug_println("Configuration:");
   debug_println("  set reg STATIC <address> Value <value>");
@@ -349,21 +469,68 @@ void cli_parser_print_help(void) {
   debug_println("");
   debug_println("Counters & Timers:");
   debug_println("  set counter <id> mode 1 parameter ...");
-  debug_println("    hw-mode:<sw|sw-isr|hw> edge:<rising|falling|both>");
-  debug_println("    prescaler:<1|4|8|16|64|256|1024>");
-  debug_println("    index-reg:<reg> raw-reg:<reg> freq-reg:<reg>");
-  debug_println("    ctrl-reg:<reg> overload-reg:<reg>");
-  debug_println("    start-value:<n> scale:<float>");
-  debug_println("    bit-width:<8|16|32|64>");
   debug_println("");
-  debug_println("  set timer <id> mode <1|2|3|4> parameter ...");
-  debug_println("  reset counter <id>");
-  debug_println("  clear counters");
+  debug_println("    Common parameters:");
+  debug_println("      hw-mode:<sw|sw-isr|hw>    - Hardware mode");
+  debug_println("        sw     = Software polling (needs input-dis:<pin>)");
+  debug_println("        sw-isr = Software interrupt (needs interrupt-pin:<gpio>)");
+  debug_println("        hw     = Hardware PCNT (GPIO 19/25/27/33)");
+  debug_println("      edge:<rising|falling|both> - Edge detection");
+  debug_println("      prescaler:<1|4|8|16|64|256|1024> - Divide counter");
+  debug_println("      start-value:<n>           - Initial counter value");
+  debug_println("      scale:<float>             - Multiply output (e.g. 2.5)");
+  debug_println("      bit-width:<8|16|32|64>    - Counter resolution");
+  debug_println("      dir:<up|down>             - Count direction");
+  debug_println("      debounce:<on|off>         - Enable/disable debounce (default: on)");
+  debug_println("      debounce-ms:<ms>          - Debounce time in ms (default: 10)");
+  debug_println("");
+  debug_println("    Register mapping:");
+  debug_println("      index-reg:<addr>    - Scaled value register");
+  debug_println("      raw-reg:<addr>      - Prescaled value register");
+  debug_println("      freq-reg:<addr>     - Frequency (Hz) register");
+  debug_println("      ctrl-reg:<addr>     - Control register");
+  debug_println("      overload-reg:<addr> - Overflow flag register");
+  debug_println("");
+  debug_println("    Mode-specific:");
+  debug_println("      input-dis:<pin>       - For SW mode: discrete input pin");
+  debug_println("      interrupt-pin:<gpio>  - For SW-ISR mode: GPIO interrupt pin");
+  debug_println("      hw-gpio:<gpio>        - For HW mode: PCNT GPIO pin (BUG FIX 1.9)");
+  debug_println("");
+  debug_println("    Examples:");
+  debug_println("      HW mode:  set counter 1 mode 1 hw-mode:hw edge:rising \\");
+  debug_println("                hw-gpio:19 prescaler:16 index-reg:20 raw-reg:30 \\");
+  debug_println("                freq-reg:35 ctrl-reg:40 debounce:on");
+  debug_println("      ISR mode: set counter 2 mode 1 hw-mode:sw-isr edge:falling \\");
+  debug_println("                interrupt-pin:13 index-reg:40 raw-reg:45 \\");
+  debug_println("                debounce:on debounce-ms:50");
+  debug_println("      SW mode:  set counter 3 mode 1 hw-mode:sw edge:rising \\");
+  debug_println("                input-dis:50 index-reg:60 raw-reg:65 debounce:off");
+  debug_println("");
+  debug_println("  Counter control:");
+  debug_println("    set counter <id> control reset-on-read:<on|off>");
+  debug_println("    set counter <id> control auto-start:<on|off>");
+  debug_println("    set counter <id> control running:<on|off>");
+  debug_println("    Example: set counter 1 control auto-start:on running:on");
+  debug_println("");
+  debug_println("  Counter operations:");
+  debug_println("    reset counter <id>  - Reset single counter to start-value");
+  debug_println("    clear counters      - Reset all counters");
+  debug_println("");
+  debug_println("  Timers:");
+  debug_println("    set timer <id> mode <1|2|3|4> parameter ...");
+  debug_println("");
+  debug_println("GPIO Management:");
+  debug_println("  set gpio <pin> static map input:<idx>   - Map GPIO input to discrete input");
+  debug_println("  set gpio <pin> static map coil:<idx>    - Map GPIO output to coil");
+  debug_println("  no set gpio <pin>                       - Remove GPIO mapping");
   debug_println("");
   debug_println("System:");
   debug_println("  set hostname <name>");
   debug_println("  set baud <rate>");
   debug_println("  set id <slave_id>");
+  debug_println("  set echo <on|off>        - Enable/disable remote echo");
+  debug_println("  set gpio 2 enable        - Release GPIO2 for user (disable heartbeat)");
+  debug_println("  set gpio 2 disable       - Reserve GPIO2 for heartbeat (enable LED)");
   debug_println("");
   debug_println("  save                - Save config to NVS");
   debug_println("  load                - Load config from NVS");

@@ -80,20 +80,24 @@ typedef struct {
   // SW-ISR mode
   uint8_t interrupt_pin;  // GPIO pin for interrupt
 
+  // HW (PCNT) mode
+  uint8_t hw_gpio;        // GPIO pin for PCNT input (BUG FIX 1.9)
+
   // Reserved for alignment
-  uint8_t reserved[4];
+  uint8_t reserved[3];
 } CounterConfig;
 
 typedef struct {
-  uint32_t counter_value;
+  uint64_t counter_value;      // Changed from uint32_t to match usage
   uint32_t last_level;
   uint32_t debounce_timer;
   uint8_t is_counting;
+  uint8_t overflow_flag;       // BUG FIX 1.1: Track overflow
 } CounterSWState;
 
 typedef struct {
-  uint32_t pcnt_value;
-  uint32_t last_count;
+  uint64_t pcnt_value;         // Changed from uint32_t for consistency
+  uint32_t last_count;         // Stores last PCNT read (int16_t range)
   uint32_t overflow_count;
   uint8_t is_counting;
 } CounterHWState;
@@ -188,9 +192,11 @@ typedef struct {
 
 typedef struct {
   uint8_t gpio_pin;
-  uint8_t is_input;
+  uint8_t is_input;             // 1 = INPUT mode (GPIO → discrete input), 0 = OUTPUT mode (coil → GPIO)
   uint8_t associated_counter;   // 0xff if none (set via input-dis=<pin>)
   uint8_t associated_timer;     // 0xff if none
+  uint16_t input_reg;           // Discrete input index (65535 if none) - for INPUT mode
+  uint16_t coil_reg;            // Coil index (65535 if none) - for OUTPUT mode
 } GPIOMapping;
 
 /* ============================================================================
@@ -231,8 +237,11 @@ typedef struct {
   uint8_t gpio_map_count;
   GPIOMapping gpio_maps[8];
 
+  // GPIO2 configuration (heartbeat control)
+  uint8_t gpio2_user_mode;  // 0 = heartbeat mode (default), 1 = user mode (GPIO2 available)
+
   // Reserved for future features
-  uint8_t reserved[32];
+  uint8_t reserved[31];
 
   // CRC checksum (last)
   uint16_t crc16;

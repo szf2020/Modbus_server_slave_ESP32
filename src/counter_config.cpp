@@ -55,6 +55,7 @@ CounterConfig counter_config_defaults(uint8_t id) {
   cfg.debounce_ms = 10;
   cfg.input_dis = 0;
   cfg.interrupt_pin = 0;
+  cfg.hw_gpio = 0;  // BUG FIX 1.9: Default hw_gpio (0 = not configured)
 
   return cfg;
 }
@@ -78,7 +79,23 @@ void counter_config_sanitize(CounterConfig* cfg) {
 
   // Clamp values
   if (cfg->prescaler < 1) cfg->prescaler = 1;
+
+  // BUG FIX 2.3: Bit width validation with upper bound and valid values only
+  // Valid bit widths: 8, 16, 32, 64
   if (cfg->bit_width < 8) cfg->bit_width = 8;
+  if (cfg->bit_width > 64) cfg->bit_width = 64;
+
+  // Round to nearest valid bit width (8, 16, 32, 64)
+  if (cfg->bit_width <= 8) {
+    cfg->bit_width = 8;
+  } else if (cfg->bit_width <= 16) {
+    cfg->bit_width = 16;
+  } else if (cfg->bit_width <= 32) {
+    cfg->bit_width = 32;
+  } else {
+    cfg->bit_width = 64;
+  }
+
   if (cfg->debounce_ms < 0) cfg->debounce_ms = 0;
 
   // Ensure binary levels

@@ -23,6 +23,7 @@
  */
 
 #include "counter_frequency.h"
+#include "counter_config.h"  // BUG FIX 1.8: Need config for bit_width
 #include "registers.h"
 #include "constants.h"
 #include <string.h>
@@ -64,6 +65,10 @@ uint16_t counter_frequency_update(uint8_t id, uint64_t current_value) {
   FrequencyState* state = &freq_state[id - 1];
   uint32_t now_ms = registers_get_millis();
 
+  // BUG FIX 1.8: Get config to determine bit_width for wrap-around calculation
+  CounterConfig cfg;
+  if (!counter_config_get(id, &cfg)) return state->current_hz;
+
   // First-time initialization
   if (state->last_measure_ms == 0) {
     state->last_measure_ms = now_ms;
@@ -88,21 +93,35 @@ uint16_t counter_frequency_update(uint8_t id, uint64_t current_value) {
       // Normal: count increased
       delta_count = current_value - state->last_count;
     } else {
-      // Wrap-around: count wrapped (underflow/overflow)
-      // Estimate max value based on likely bitwidth (32-bit typical)
-      uint64_t estimated_max = 0xFFFFFFFFULL;
-      delta_count = (estimated_max - state->last_count) + current_value + 1;
+      // BUG FIX 1.8: Wrap-around - use actual bit_width from config
+      uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;  // Default 64-bit
+      switch (cfg.bit_width) {
+        case 8:
+          max_val = 0xFFULL;
+          break;
+        case 16:
+          max_val = 0xFFFFULL;
+          break;
+        case 32:
+          max_val = 0xFFFFFFFFULL;
+          break;
+        // 64-bit: use default
+      }
 
-      // Sanity check: if delta is unreasonably large, skip
-      if (delta_count > estimated_max / 2) {
+      delta_count = (max_val - state->last_count) + current_value + 1;
+
+      // Sanity check: if delta is unreasonably large (>50% of max), skip
+      if (delta_count > max_val / 2) {
         valid_delta = 0;
       }
     }
 
     // Validate delta against max 100 kHz threshold (1000 counts/10ms)
     if (valid_delta && delta_count <= 100000UL) {
-      // Calculate frequency: Hz = (delta_count * 1000) / delta_time_ms
-      uint32_t freq_calc = (uint32_t)((delta_count * 1000UL) / delta_time_ms);
+      // BUG FIX 1.8: Calculate frequency with 64-bit math to prevent overflow
+      // Hz = (delta_count * 1000) / delta_time_ms
+      uint64_t freq_calc_64 = (delta_count * 1000ULL) / delta_time_ms;
+      uint32_t freq_calc = (uint32_t)freq_calc_64;
 
       // Clamp to reasonable range (0-20000 Hz)
       if (freq_calc > 20000UL) {
