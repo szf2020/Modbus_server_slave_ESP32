@@ -31,7 +31,17 @@ void gpio_mapping_update(void) {
     if (map->is_input) {
       // INPUT mode: GPIO pin → discrete input
       if (map->input_reg != 65535) {
-        uint8_t level = gpio_read(map->gpio_pin);
+        uint8_t level;
+
+        // Virtual GPIO support: pin >= 100 means read from COIL(pin - 100)
+        if (map->gpio_pin >= 100) {
+          uint16_t virtual_coil = map->gpio_pin - 100;
+          level = registers_get_coil(virtual_coil) ? 1 : 0;
+        } else {
+          // Real GPIO: read from hardware pin
+          level = gpio_read(map->gpio_pin);
+        }
+
         registers_set_discrete_input(map->input_reg, level);
       }
     } else {

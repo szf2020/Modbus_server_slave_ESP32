@@ -554,13 +554,13 @@ void cli_cmd_no_set_gpio(uint8_t argc, char* argv[]) {
     return;
   }
 
-  uint8_t gpio_pin = atoi(argv[0]);
+  uint16_t gpio_pin = atoi(argv[0]);
 
-  // Validate pin
-  if (gpio_pin >= 40) {
+  // Validate pin: ESP32 has pins 0-39, or virtual GPIO 100+ (reads from COIL)
+  if ((gpio_pin >= 40 && gpio_pin < 100) || gpio_pin >= 256) {
     debug_print("NO SET GPIO: invalid pin ");
     debug_print_uint(gpio_pin);
-    debug_println(" (must be 0-39)");
+    debug_println(" (0-39 or 100-255 for virtual GPIO)");
     return;
   }
 
@@ -607,13 +607,13 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
     return;
   }
 
-  uint8_t gpio_pin = atoi(argv[0]);
+  uint16_t gpio_pin = atoi(argv[0]);
 
-  // Validate pin (ESP32 has pins 0-39, but some are reserved)
-  if (gpio_pin >= 40) {
+  // Validate pin: ESP32 has pins 0-39, or virtual GPIO 100+ (reads from COIL)
+  if ((gpio_pin >= 40 && gpio_pin < 100) || gpio_pin >= 256) {
     debug_print("SET GPIO: invalid pin ");
     debug_print_uint(gpio_pin);
-    debug_println(" (must be 0-39)");
+    debug_println(" (0-39 or 100-255 for virtual GPIO)");
     return;
   }
 

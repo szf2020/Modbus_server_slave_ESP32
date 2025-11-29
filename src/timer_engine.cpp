@@ -142,12 +142,63 @@ static void mode_astable(uint8_t id, TimerConfig* cfg, uint32_t now_ms) {
 }
 
 /* ============================================================================
- * MODE 4: TRIGGER-DRIVEN (edge-triggered, runs subMode)
+ * MODE 4: TRIGGER-DRIVEN (edge-triggered, simple output toggle)
  * ============================================================================ */
 
 static void mode_trigger(uint8_t id, TimerConfig* cfg, uint32_t now_ms) {
-  // Stub: trigger not fully implemented yet
-  // Would check discrete input for edge and fire appropriate submode
+  TimerRuntimeState* state = &timer_state[id - 1];
+
+  // Get current discrete input level
+  uint8_t input_level = get_discrete_input_level(cfg->input_dis);
+
+  // Track previous level for edge detection
+  static uint8_t prev_input[TIMER_COUNT] = {0};
+  uint8_t prev_level = prev_input[id - 1];
+  prev_input[id - 1] = input_level;
+
+  // Detect edge
+  uint8_t rising_edge = (prev_level == 0 && input_level == 1);
+  uint8_t falling_edge = (prev_level == 1 && input_level == 0);
+
+  // Check if configured trigger matches detected edge
+  uint8_t trigger_detected = 0;
+  if (cfg->trigger_edge == 1 && rising_edge) {
+    trigger_detected = 1;  // Rising edge trigger
+  } else if (cfg->trigger_edge == 0 && falling_edge) {
+    trigger_detected = 1;  // Falling edge trigger
+  }
+
+  if (trigger_detected) {
+    // Trigger detected - set output immediately (or after delay)
+    if (cfg->delay_ms == 0) {
+      // Immediate: toggle output coil
+      set_coil_level(cfg->output_coil, cfg->phase1_output_state);
+      state->is_active = 1;
+      state->current_phase = 1;
+      state->phase_start_ms = now_ms;
+    } else {
+      // Delayed: wait delay_ms then set output
+      if (!state->is_active) {
+        state->is_active = 1;
+        state->current_phase = 0;
+        state->phase_start_ms = now_ms;
+      }
+    }
+  }
+
+  // Handle delayed output
+  if (state->is_active && cfg->delay_ms > 0 && state->current_phase == 0) {
+    if (now_ms - state->phase_start_ms >= cfg->delay_ms) {
+      // Delay expired - set output
+      set_coil_level(cfg->output_coil, cfg->phase1_output_state);
+      state->current_phase = 1;
+    }
+  }
+
+  // If not waiting for delay, keep output active
+  if (state->is_active && state->current_phase == 1) {
+    set_coil_level(cfg->output_coil, cfg->phase1_output_state);
+  }
 }
 
 /* ============================================================================
