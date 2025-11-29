@@ -142,8 +142,11 @@ typedef struct {
   // Output
   uint16_t output_coil;
 
+  // Control register (Modbus holding register for start/stop/reset)
+  uint16_t ctrl_reg;
+
   // Reserved for alignment
-  uint8_t reserved[8];
+  uint8_t reserved[6];
 } TimerConfig;
 
 typedef struct {

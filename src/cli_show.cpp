@@ -244,6 +244,8 @@ void cli_cmd_show_config(void) {
 
       debug_print(" output-coil=");
       debug_print_uint(cfg.output_coil);
+      debug_print(" ctrl-reg=");
+      debug_print_uint(cfg.ctrl_reg);
       debug_println("");
     }
   }
@@ -575,6 +577,9 @@ void cli_cmd_show_timers(void) {
 
     debug_print("  Output COIL: ");
     debug_print_uint(cfg.output_coil);
+    debug_println("");
+    debug_print("  Control Register: ");
+    debug_print_uint(cfg.ctrl_reg);
     debug_println("");
     debug_println("");
   }

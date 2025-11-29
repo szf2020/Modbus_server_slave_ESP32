@@ -446,6 +446,8 @@ void cli_cmd_set_timer(uint8_t argc, char* argv[]) {
     // Common parameters
     else if (!strcmp(key, "output-coil")) {
       cfg.output_coil = atoi(value);
+    } else if (!strcmp(key, "ctrl-reg")) {
+      cfg.ctrl_reg = atoi(value);
     } else if (!strcmp(key, "enabled")) {
       cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
     }

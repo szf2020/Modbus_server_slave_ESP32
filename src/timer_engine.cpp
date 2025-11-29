@@ -225,6 +225,57 @@ void timer_engine_init(void) {
 }
 
 /* ============================================================================
+ * CONTROL REGISTER HANDLING (start/stop/reset via Modbus register)
+ * ============================================================================ */
+
+void timer_engine_handle_control(uint8_t id) {
+  if (id < 1 || id > TIMER_COUNT) return;
+
+  TimerConfig cfg;
+  if (!timer_config_get(id, &cfg) || cfg.ctrl_reg >= HOLDING_REGS_SIZE) {
+    return;
+  }
+
+  uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+
+  // Bit 0: Start command (triggers timer)
+  if (ctrl_val & 0x0001) {
+    timer_state[id - 1].is_active = 1;
+    timer_state[id - 1].current_phase = 0;
+    timer_state[id - 1].phase_start_ms = registers_get_millis();
+
+    // Clear the start bit after executing
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0001);
+  }
+
+  // Bit 1: Stop command
+  if (ctrl_val & 0x0002) {
+    timer_state[id - 1].is_active = 0;
+    timer_state[id - 1].current_phase = 0;
+    set_coil_level(cfg.output_coil, 0);  // Turn off output when stopped
+
+    // Clear the stop bit after executing
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0002);
+  }
+
+  // Bit 2: Reset command (clears timer state)
+  if (ctrl_val & 0x0004) {
+    timer_state[id - 1].is_active = 0;
+    timer_state[id - 1].current_phase = 0;
+    timer_state[id - 1].phase_start_ms = 0;
+    set_coil_level(cfg.output_coil, 0);  // Turn off output when reset
+
+    // For Mode 4, also reset edge detection
+    if (cfg.mode == TIMER_MODE_4_INPUT_TRIGGERED) {
+      mode4_initialized[id - 1] = 0;
+    }
+
+    // Clear the reset bit after executing
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0004);
+  }
+}
+
+/* ============================================================================
  * MAIN LOOP
  * ============================================================================ */
 
@@ -236,6 +287,9 @@ void timer_engine_loop(void) {
     if (!timer_config_get(i + 1, &cfg) || !cfg.enabled) {
       continue;
     }
+
+    // Handle control register commands (start/stop/reset)
+    timer_engine_handle_control(i + 1);
 
     // Run mode-specific state machine
     switch (cfg.mode) {
