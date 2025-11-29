@@ -183,7 +183,74 @@ void cli_cmd_show_config(void) {
     }
   }
 
-  debug_println("\n(Full timer configuration not yet displayed)\n");
+  // Timer configuration block
+  bool any_timer = false;
+  debug_println("\ntimers");
+  for (uint8_t id = 1; id <= 4; id++) {
+    TimerConfig cfg;
+    if (timer_engine_get_config(id, &cfg) && cfg.enabled) {
+      any_timer = true;
+      debug_print("  timer ");
+      debug_print_uint(id);
+      debug_print(" mode=");
+      debug_print_uint(cfg.mode);
+
+      switch (cfg.mode) {
+        case TIMER_MODE_1_ONESHOT:
+          debug_print(" p1-dur=");
+          debug_print_uint(cfg.phase1_duration_ms);
+          debug_print(" p1-out=");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-dur=");
+          debug_print_uint(cfg.phase2_duration_ms);
+          debug_print(" p2-out=");
+          debug_print_uint(cfg.phase2_output_state);
+          debug_print(" p3-dur=");
+          debug_print_uint(cfg.phase3_duration_ms);
+          debug_print(" p3-out=");
+          debug_print_uint(cfg.phase3_output_state);
+          break;
+        case TIMER_MODE_2_MONOSTABLE:
+          debug_print(" pulse-ms=");
+          debug_print_uint(cfg.pulse_duration_ms);
+          debug_print(" p1-out=");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-out=");
+          debug_print_uint(cfg.phase2_output_state);
+          break;
+        case TIMER_MODE_3_ASTABLE:
+          debug_print(" on-ms=");
+          debug_print_uint(cfg.on_duration_ms);
+          debug_print(" off-ms=");
+          debug_print_uint(cfg.off_duration_ms);
+          debug_print(" p1-out=");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-out=");
+          debug_print_uint(cfg.phase2_output_state);
+          break;
+        case TIMER_MODE_4_INPUT_TRIGGERED:
+          debug_print(" input-dis=");
+          debug_print_uint(cfg.input_dis);
+          debug_print(" trigger-edge=");
+          debug_print_uint(cfg.trigger_edge);
+          debug_print(" delay-ms=");
+          debug_print_uint(cfg.delay_ms);
+          debug_print(" out=");
+          debug_print_uint(cfg.phase1_output_state);
+          break;
+        default:
+          debug_print(" UNKNOWN");
+      }
+
+      debug_print(" output-coil=");
+      debug_print_uint(cfg.output_coil);
+      debug_println("");
+    }
+  }
+  if (!any_timer) {
+    debug_println("timers (none enabled)");
+  }
+  debug_println("");
 
   // GPIO Mappings section
   debug_println("=== GPIO MAPPINGS ===\n");
@@ -488,7 +555,7 @@ void cli_cmd_show_timers(void) {
 
       case TIMER_MODE_4_INPUT_TRIGGERED:
         debug_println("INPUT-TRIGGERED (Mode 4)");
-        debug_print("  Input COIL: ");
+        debug_print("  Discrete Input: ");
         debug_print_uint(cfg.input_dis);
         debug_println("");
         debug_print("  Trigger edge: ");
