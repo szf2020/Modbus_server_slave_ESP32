@@ -2,8 +2,8 @@
 ESP32 MODBUS SERVER - UDVIDET TEST RAPPORT
 ======================================================================
 
-Dato: 2025-11-29 10:15:53
-Firmware: v1.0.0 Build #126
+Dato: 2025-11-29 10:34:37
+Firmware: v1.0.0 Build #130
 
 STATISTIK:
   Total: 11, Passed: 9, Failed: 2, Warned: 0
@@ -12,56 +12,56 @@ DETALJEREDE RESULTATER:
 ----------------------------------------------------------------------
 [CNT-HW-05] Prescaler 4 test
   Status: PASS
-  Note: Scaled=5492, Raw=1373, Ratio=4.00
-  Time: 10:15:06
+  Note: Scaled=5497, Raw=1374, Ratio=4.00
+  Time: 10:33:50
 
 [CNT-HW-06] Scale 2.5 test
   Status: PASS
-  Note: Scaled=13738, Raw=5495, Scale=2.50
-  Time: 10:15:14
+  Note: Scaled=13723, Raw=5489, Scale=2.50
+  Time: 10:33:58
 
 [CNT-HW-07] Direction DOWN test
   Status: PASS
-  Note: Initial=8028, Final=4527, Decreased=True
-  Time: 10:15:20
+  Note: Initial=8025, Final=4524, Decreased=True
+  Time: 10:34:04
 
 [CNT-HW-08] Start value 5000
   Status: FAIL
-  Note: Value=5990 (expected ~5000)
-  Time: 10:15:24
+  Note: Value=5994 (expected ~5000)
+  Time: 10:34:07
 
 [CTL-01] Counter reset via ctrl-reg
   Status: PASS
-  Note: Before=3983, After=994
-  Time: 10:15:30
+  Note: Before=3977, After=988
+  Time: 10:34:13
 
 [CTL-06] Counter stop via ctrl-reg
   Status: PASS
-  Note: At stop=1494, After 2s=1494
-  Time: 10:15:34
+  Note: At stop=1498, After 2s=1498
+  Time: 10:34:17
 
 [TIM-03-01] Timer Mode 3 astable toggle
   Status: FAIL
   Note: States=[0, 0, 0, 0, 0]
-  Time: 10:15:43
+  Time: 10:34:27
 
 [REG-ST-01] STATIC register set value
   Status: PASS
   Note: Value=12345 (expected 12345)
-  Time: 10:15:45
+  Time: 10:34:28
 
 [SYS-06] Save config to NVS
   Status: PASS
   Note: Config saved
-  Time: 10:15:47
+  Time: 10:34:31
 
 [SYS-07] Load config from NVS
   Status: PASS
   Note: Value after load=54321 (expected 54321)
-  Time: 10:15:50
+  Time: 10:34:34
 
 [SYS-03] Set slave ID to 42
   Status: PASS
   Note: ID changed
-  Time: 10:15:53
+  Time: 10:34:36
 

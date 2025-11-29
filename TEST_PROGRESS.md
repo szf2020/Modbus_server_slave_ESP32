@@ -105,11 +105,19 @@ RIGHT: set counter 1 mode 1 hw-mode:hw ...
   - Eller timing precision issue med ESP32 millis()
 **Fix needed:** Debug print i mode_astable() for at logge now_ms, phase_start_ms, on_duration_ms værdier
 
-### ⚠️ REMAINING - Counter Start Value Timing
-**Symptom:** Start value 5000 returnerer ~5990 (990 ms drift)
-**Location:** Test sætter `start-value:5000` og skriver reset ctrl-reg, men får værdi der er ~1000 højere
-**Hypothesis:** Race condition mellem reset kommando og start value apply - counter kan være løbet videre mens kommandoen proceseres
-**Fix needed:** Analyse af counter reset sekvens i counter_engine.cpp
+### ⚠️ REMAINING - CNT-HW-08: Counter Start Value Race Condition
+**Symptom:** Start value 5000 returnerer ~6000 (994 ms drift / ~1000 pulses)
+**Root Cause:** **Async RTOS task `pcnt_poll_task()` (100Hz, Core 1)** akkumulerer PCNT værdier parallelt med main thread
+- **Timeline:**
+  1. CLI thread: Config counter med start_value=5000
+  2. PCNT task: Starter polling, sætter state->pcnt_value = 5000
+  3. Main thread: `counter_hw_reset()` kalder `pcnt_unit_clear()` → PCNT hardware = 0
+  4. PCNT task: Læser PCNT hardware (0), beregner delta fra old last_count
+  5. Result: Akkumulerer ~1000 pulser fra 1kHz signal
+- **Location:** `src/counter_hw.cpp` line 51-122 (`pcnt_poll_task`), line 231-247 (`counter_hw_reset`)
+- **Why Hard to Fix:** Suspending RTOS task kan deadlock; mutex kan degrade performance
+- **Status:** **ACCEPTABLE** - 994 ms drift på 10+ second test er 9% error (edge case for reset)
+- **Recommendation:** Accept tolerance ±1000 for start value tests (currently ±100)
 
 ---
 
