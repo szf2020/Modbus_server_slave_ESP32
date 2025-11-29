@@ -154,19 +154,87 @@ C:\Projekter\Modbus_server_slave_ESP32\
 
 ---
 
+## Quick Start Examples
+
+After successful upload, test features via CLI:
+
+### Test 1: Timer Mode 3 (Blink)
+```bash
+# Setup: 1 Hz blink (1000ms ON, 1000ms OFF)
+set timer 1 mode 3 on-ms:1000 off-ms:1000 output-coil:200 enabled:1
+
+# Check output
+read coil 200 1  # Should be 1 (HIGH)
+# Wait 1.1 seconds
+read coil 200 1  # Should be 0 (LOW)
+# Wait 1.1 seconds
+read coil 200 1  # Should be 1 (HIGH) again
+```
+
+### Test 2: Timer Mode 4 (Input-Triggered) ✨ NEW
+```bash
+# Setup: Respond to rising edge (0→1)
+set timer 2 mode 4 input-dis:30 trigger-edge:1 delay-ms:0 output-coil:250
+
+# Simulate input
+write coil 30 value 1    # Rising edge → Output goes HIGH
+read coil 250 1          # Should be 1
+
+write coil 30 value 0    # Falling edge (no trigger)
+read coil 250 1          # Still 1
+
+write coil 30 value 1    # Rising edge again → Trigger!
+read coil 250 1          # Still 1 (stays set)
+```
+
+### Test 3: Save Configuration
+```bash
+# Save current timer/counter settings to NVS
+save
+
+# Verify save
+show config
+
+# After reboot - config will auto-load
+reboot
+```
+
+### Test 4: Hardware Counter (requires GPIO signal)
+```bash
+# Setup: Count pulses on GPIO19 via PCNT
+set counter 1 mode 3 hw-gpio:19 prescaler:1 bit-width:32 scale:1.0
+
+# Start counter
+set counter 1 control auto-start:on
+
+# After 10 seconds with 1kHz signal:
+read reg 10 5  # Register 10 = counter value
+
+# Check frequency measurement
+read reg 12 1  # Register 12 = Hz
+```
+
+---
+
 ## Next Steps
 
 Once build & upload works:
 
-1. **Implement Layer 0 (Hardware Drivers)**
-   - Start with: `src/uart_driver.cpp`
-   - Test serial communication
+1. **Read FEATURE_GUIDE.md**
+   - Complete reference for all Timer Modes (1-4)
+   - Counter modes and features
+   - CLI commands (70+)
+   - GPIO mapping and persistence
 
-2. **Implement Layer 1 (Protocol Core)**
-   - Port from Mega2560: `modbus_frame.cpp`, `modbus_parser.cpp`
+2. **Read CLAUDE.md**
+   - Project architecture (8 layers)
+   - Code modification guidelines
+   - Development best practices
 
 3. **Test on Hardware**
-   - Verify Modbus RTU communication over RS-485
+   - Try Quick Start Examples above
+   - Verify Timer Mode 3 and Mode 4
+   - Test persistence with `save`/`load`
 
 ---
 
