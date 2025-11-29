@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Modbus RTU Server - Dokumentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .nav-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            padding: 20px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .nav-buttons a {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+
+        .nav-buttons a:hover {
+            background: #764ba2;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: #f9f9f9;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .status-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-new {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-working {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tr:hover {
+            background: #f5f5f5;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        h2 {
+            color: #667eea;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #764ba2;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .section {
+            margin: 30px 0;
+        }
+
+        .command-ref {
+            background: #f0f0f0;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .example {
+            background: #fffbf0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .example strong {
+            color: #ff9800;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            background: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .toc {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .toc h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .toc li {
+            padding: 5px 0;
+        }
+
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .toc a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .nav-buttons {
+                flex-direction: column;
+            }
+
+            .nav-buttons a {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔧 ESP32 Modbus RTU Server</h1>
+            <p>Komplet Funktionsguide & Dokumentation</p>
+            <p><small>Version 1.0.0 | Platform: ESP32-WROOM-32</small></p>
+        </header>
+
+        <div class="nav-buttons">
+            <a href="#timere">Timere</a>
+            <a href="#tællere">Tællere</a>
+            <a href="#cli-kommandoer">CLI Kommandoer</a>
+            <a href="#gpio-features">GPIO Features</a>
+            <a href="#registers-coils">Registers & Coils</a>
+            <a href="FEATURE_GUIDE.md" download>📥 Download Markdown</a>
+        </div>
+
+        <div class="content">
+            <!-- TABLE OF CONTENTS -->
+            <div class="toc">
+                <h2>📑 Indholdsfortegnelse</h2>
+                <ul>
+                    <li><a href="#timere">1. Timere (4 modes)</a></li>
+                    <li><a href="#tællere">2. Tællere (3 modes)</a></li>
+                    <li><a href="#cli-kommandoer">3. CLI Kommandoer (70+)</a></li>
+                    <li><a href="#gpio-features">4. GPIO Features</a></li>
+                    <li><a href="#registers-coils">5. Registers & Coils</a></li>
+                    <li><a href="#persistence">6. Persistence</a></li>
+                    <li><a href="#eksempler">7. Praktiske Eksempler</a></li>
+                </ul>
+            </div>
+
+            <!-- TIMERS SECTION -->
+            <section class="section" id="timere">
+                <h2>⏱️ Timere</h2>
+                <p>ESP32 serveren har <strong>4 uafhængige timere</strong> (Timer 1-4), hver med sit eget operationsmodus.</p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔄 Mode 1: One-shot</h3>
+                        <p>3-fase sekvens</p>
+                        <p><small>Afspil forudbestemt sekvens</small></p>
+                        <span class="status-badge status-working">✅ Virker</span>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>📍 Mode 2: Monostable</h3>
+                        <p>Retriggerable puls</p>
+                        <p><small>Enkelt puls som kan genstartes</small></p>
+                        <span class="status-badge status-working">✅ Virker</span>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>💫 Mode 3: Astable</h3>
+                        <p>Oscillator/Blinker</p>
+                        <p><small>Kontinuerlig toggle</small></p>
+                        <span class="status-badge status-pass">[PASS] Verificeret</span>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>⚡ Mode 4: Input-triggered</h3>
+                        <p>Kantdetekterings-timer</p>
+                        <p><small>Svar på input-kantudsving</small></p>
+                        <span class="status-badge status-new">✨ Ny [PASS]</span>
+                    </div>
+                </div>
+
+                <h3>Timer Mode 3: Astable Eksempel</h3>
+                <p>1 Hz blink (1000ms ON, 1000ms OFF):</p>
+                <pre><code>set timer 1 mode 3 on-ms:1000 off-ms:1000 \
+  p1-output:1 p2-output:0 output-coil:200 enabled:1
+
+# Verificering af oscillation:
+read coil 200 1  # = 1 (HIGH)
+# Vent 1 sekund
+read coil 200 1  # = 0 (LOW)
+# Vent 1 sekund
+read coil 200 1  # = 1 (HIGH)</code></pre>
+
+                <h3>🆕 Timer Mode 4: Input-triggered Eksempel</h3>
+                <p>Responder på rising edge (0→1):</p>
+                <pre><code>set timer 2 mode 4 input-dis:30 trigger-edge:1 \
+  delay-ms:0 output-coil:250
+
+# Test med COIL som input simulator:
+write coil 30 value 0       # Sæt input LOW
+write coil 30 value 1       # 0→1 transition (TRIGGER!)
+read coil 250 1             # Output = 1 (HIGH)
+
+write coil 30 value 0       # 1→0 (ikke matching)
+read coil 250 1             # Output stadig = 1
+
+write coil 30 value 1       # 0→1 igen (TRIGGER!)
+read coil 250 1             # Output = 1</code></pre>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Navn</th>
+                            <th>Primær brug</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td>One-shot</td>
+                            <td>3-fase sekvens</td>
+                            <td>✅ Virker</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>Monostable</td>
+                            <td>Retriggerable puls</td>
+                            <td>✅ Virker</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>Astable</td>
+                            <td>Oscillator/Blink</td>
+                            <td>✅ [PASS]</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td>Input-triggered</td>
+                            <td>Kantdetekterings</td>
+                            <td>✨ Ny [PASS]</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- COUNTERS SECTION -->
+            <section class="section" id="tællere">
+                <h2>🔢 Tællere</h2>
+                <p>ESP32 serveren har <strong>4 uafhængige tællere</strong> (Counter 1-4), hver med valgfrit operationsmodus.</p>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📊 Mode 1: SW</h3>
+                        <p>Software Polling</p>
+                        <p><small>~10 kHz maksfrekvens</small></p>
+                        <span class="status-badge status-working">✅ Virker</span>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>⚡ Mode 2: SW-ISR</h3>
+                        <p>GPIO Interrupt</p>
+                        <p><small>~100 kHz maksfrekvens</small></p>
+                        <span class="status-badge status-working">✅ Virker</span>
+                    </div>
+
+                    <div class="feature-card">
+                        <h3>🚀 Mode 3: HW (PCNT)</h3>
+                        <p>Hardware Pulse Counter</p>
+                        <p><small>>1 MHz maksfrekvens</small></p>
+                        <span class="status-badge status-working">✅ Virker</span>
+                    </div>
+                </div>
+
+                <h3>Counter Features</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Supporteret</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Prescaler</strong></td>
+                            <td>1, 4, 8, 16, 64, 256, 1024</td>
+                            <td>✅ Alle modes</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Scale Factor</strong></td>
+                            <td>Float multiplikator</td>
+                            <td>✅ Alle modes</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Bit-Width</strong></td>
+                            <td>8, 16, 32, 64 bit</td>
+                            <td>✅ Clamping</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Frequency</strong></td>
+                            <td>0-20000 Hz</td>
+                            <td>✅ 1-sec window</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Direction</strong></td>
+                            <td>Up / Down</td>
+                            <td>✅ Alle modes</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Control Register</strong></td>
+                            <td>Start/Stop/Reset</td>
+                            <td>✅ Remote control</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Hardware Counter (Mode 3) Eksempel</h3>
+                <pre><code># Konfigurér Counter 1 til PCNT på GPIO19
+set counter 1 mode 3 hw-gpio:19 prescaler:1 \
+  bit-width:32 scale:1.0
+
+# Start tæller
+set counter 1 control auto-start:on
+
+# Efter 10 sekunder med 1kHz signal (burde være ~10000):
+read reg 10 5
+
+# Register 10 = index (skaleret værdi)
+# Register 11 = raw (fra prescaler)
+# Register 12 = freq (Hz)
+# Register 13 = ctrl (status)
+# Register 14 = overflow</code></pre>
+            </section>
+
+            <!-- CLI COMMANDS SECTION -->
+            <section class="section" id="cli-kommandoer">
+                <h2>⌨️ CLI Kommandoer (70+)</h2>
+                <p>Serverens komplette kommandolinje-interface med 70+ kommandoer.</p>
+
+                <h3>SHOW Kommandoer</h3>
+                <div class="command-ref">
+                    <code>show config</code> - Hele konfigurationen<br>
+                    <code>show counters</code> - Counter-tabel<br>
+                    <code>show timers</code> - Timer-status<br>
+                    <code>show registers [s] [c]</code> - Holding-registers<br>
+                    <code>show coils</code> - Coil-tilstande<br>
+                    <code>show inputs</code> - Diskrete inputs<br>
+                    <code>show version</code> - Firmware-info<br>
+                    <code>show gpio</code> - GPIO-mappings<br>
+                </div>
+
+                <h3>TIMER Kommandoer</h3>
+                <div class="command-ref">
+                    <code>set timer 1 mode 1 [parameters]</code> - One-shot<br>
+                    <code>set timer 1 mode 2 [parameters]</code> - Monostable<br>
+                    <code>set timer 1 mode 3 [parameters]</code> - Astable<br>
+                    <code>set timer 1 mode 4 [parameters]</code> - Input-triggered<br>
+                </div>
+
+                <h3>COUNTER Kommandoer</h3>
+                <div class="command-ref">
+                    <code>set counter 1 mode 1 [parameters]</code> - SW<br>
+                    <code>set counter 1 mode 2 [parameters]</code> - SW-ISR<br>
+                    <code>set counter 1 mode 3 [parameters]</code> - HW (PCNT)<br>
+                    <code>set counter 1 control [bits]</code> - Control bits<br>
+                </div>
+
+                <h3>GPIO Kommandoer</h3>
+                <div class="command-ref">
+                    <code>set gpio 16 static map input:45</code> - GPIO → Diskret input<br>
+                    <code>set gpio 23 static map coil:112</code> - Coil → GPIO<br>
+                    <code>no set gpio 16</code> - Fjern kortlægning<br>
+                    <code>set gpio 2 enable</code> - Frigiv GPIO2 (disable heartbeat)<br>
+                </div>
+
+                <h3>PERSISTENCE Kommandoer</h3>
+                <div class="command-ref">
+                    <code>save</code> - Gem konfiguration til NVS<br>
+                    <code>load</code> - Indlæs fra NVS<br>
+                    <code>defaults</code> - Factory defaults<br>
+                    <code>reboot</code> - Genstarte ESP32<br>
+                </div>
+            </section>
+
+            <!-- GPIO SECTION -->
+            <section class="section" id="gpio-features">
+                <h2>🔌 GPIO Features</h2>
+
+                <h3>GPIO Zones</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Range</th>
+                            <th>Brug</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Fysiske GPIO</strong></td>
+                            <td>0-39</td>
+                            <td>Direkte ESP32-pins</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Virtuelle GPIO</strong></td>
+                            <td>100-255</td>
+                            <td>Læser/skriver COIL</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Reserverede</strong></td>
+                            <td>0,2,4,5,15,19-21,33</td>
+                            <td>System/Modbus</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>🆕 Virtuelle GPIO Support</h3>
+                <div class="example">
+                    <strong>✨ Ny feature:</strong> Virtual GPIO (100-255) læser/skriver direkte til COIL-værdier<br>
+                    <br>
+                    <strong>Eksempel:</strong><br>
+                    <code>Virtual GPIO 120</code> → Læser <code>COIL 20</code><br>
+                    <code>Virtual GPIO 150</code> → Læser <code>COIL 50</code><br>
+                    <br>
+                    Perfekt til test uden fysiske GPIO-signaler!
+                </div>
+
+                <h3>GPIO2 Heartbeat</h3>
+                <p>Built-in "system alive" indikator - blinker hver 500ms.</p>
+                <pre><code># Enable heartbeat (standard):
+set gpio 2 disable  # Reserve GPIO2 til heartbeat
+
+# Disable heartbeat (frigiv GPIO2):
+set gpio 2 enable   # GPIO2 til brugerkode</code></pre>
+            </section>
+
+            <!-- REGISTERS & COILS -->
+            <section class="section" id="registers-coils">
+                <h2>💾 Registers & Coils</h2>
+
+                <h3>Holding Registers (0-159)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Max</th>
+                            <th>Brug</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>STATIC</strong></td>
+                            <td>16</td>
+                            <td>Faste værdier (persistent)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>DYNAMIC</strong></td>
+                            <td>16</td>
+                            <td>Auto-updated fra counter/timer</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Counter-bindet</strong></td>
+                            <td>-</td>
+                            <td>Index/Raw/Freq/Ctrl</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Coils (0-255)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Max</th>
+                            <th>Brug</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>STATIC</strong></td>
+                            <td>16</td>
+                            <td>Faste ON/OFF (persistent)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>DYNAMIC</strong></td>
+                            <td>16</td>
+                            <td>Auto-updated fra counter/timer</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Timer-output</strong></td>
+                            <td>-</td>
+                            <td>Direct timer output</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- PERSISTENCE -->
+            <section class="section" id="persistence">
+                <h2>💿 Persistence (NVS)</h2>
+                <p>Hele konfigurationen gemmes i <strong>Non-Volatile Storage</strong> med:</p>
+                <ul style="margin-left: 20px; margin-top: 10px;">
+                    <li>✅ Schema versioning (v2 med migration)</li>
+                    <li>✅ CRC16 validation</li>
+                    <li>✅ Auto-save efter config</li>
+                    <li>✅ Reboot persistent</li>
+                </ul>
+
+                <h3>Persistence Eksempel</h3>
+                <pre><code># Konfigurér timer
+set timer 1 mode 3 on-ms:1000 off-ms:1000 output-coil:200 enabled:1
+
+# Gem til NVS
+save
+
+# Verificer
+show config
+
+# Efter reboot - config auto-loader!
+reboot</code></pre>
+            </section>
+
+            <!-- EXAMPLES -->
+            <section class="section" id="eksempler">
+                <h2>📚 Praktiske Eksempler</h2>
+
+                <h3>Eksempel 1: 1 Hz Blink</h3>
+                <div class="example">
+                    <strong>Formål:</strong> Timer Mode 3 oscillator test
+                </div>
+                <pre><code>set timer 1 mode 3 on-ms:1000 off-ms:1000 \
+  p1-output:1 p2-output:0 output-coil:200 enabled:1
+
+read coil 200 1  # HIGH
+# Vent 1.2 sekunder
+read coil 200 1  # LOW
+# Vent 1.2 sekunder
+read coil 200 1  # HIGH igen</code></pre>
+
+                <h3>🆕 Eksempel 2: Input-Triggered Alarm</h3>
+                <div class="example">
+                    <strong>Formål:</strong> Timer Mode 4 rising edge detection
+                </div>
+                <pre><code>set timer 2 mode 4 input-dis:30 trigger-edge:1 \
+  delay-ms:0 output-coil:250
+
+# Simulér input rising edge
+write coil 30 value 1    # 0→1 TRIGGER!
+read coil 250 1          # Output = 1
+
+write coil 30 value 0    # 1→0 (ikke matching)
+read coil 250 1          # Stadig 1
+
+write coil 30 value 1    # 0→1 igen TRIGGER!
+read coil 250 1          # Output = 1</code></pre>
+
+                <h3>Eksempel 3: Hardware Counter</h3>
+                <div class="example">
+                    <strong>Formål:</strong> PCNT counter på GPIO19 (kræver 1kHz signal)
+                </div>
+                <pre><code>set counter 1 mode 3 hw-gpio:19 prescaler:1 \
+  bit-width:32 scale:1.0
+
+set counter 1 control auto-start:on
+
+# Efter 10 sekunder:
+read reg 10 5  # Register 10 = ~10000 (hvis 1kHz)</code></pre>
+
+                <h3>Eksempel 4: GPIO Kortlægning</h3>
+                <div class="example">
+                    <strong>Formål:</strong> Kortlæg GPIO til Modbus I/O
+                </div>
+                <pre><code># GPIO16 → Diskret input 45
+set gpio 16 static map input:45
+
+# Coil 112 → GPIO23 output
+set gpio 23 static map coil:112
+
+# Gem persistent
+save
+
+# GPIO16 HIGH → Input 45 = 1
+# Coil 112 = 1 → GPIO23 HIGH</code></pre>
+            </section>
+
+            <!-- CONSTRAINTS -->
+            <section class="section">
+                <h2>📊 Constraints & Limits</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>Default</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Timers</td>
+                            <td>1</td>
+                            <td>4</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Counters</td>
+                            <td>1</td>
+                            <td>4</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Registers</td>
+                            <td>0</td>
+                            <td>159</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Coils</td>
+                            <td>0</td>
+                            <td>255</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>Prescaler</td>
+                            <td>1</td>
+                            <td>1024</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Slave ID</td>
+                            <td>0</td>
+                            <td>247</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Baudrate</td>
+                            <td>300</td>
+                            <td>115200</td>
+                            <td>115200</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- TEST STATUS -->
+            <section class="section">
+                <h2>✅ Test Status</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test</th>
+                            <th>Status</th>
+                            <th>Resultat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Mode 4 Comprehensive</td>
+                            <td>✅</td>
+                            <td>Both rise/fall edge [PASS]</td>
+                        </tr>
+                        <tr>
+                            <td>Mode 4 Simple</td>
+                            <td>✅</td>
+                            <td>Rising edge [PASS]</td>
+                        </tr>
+                        <tr>
+                            <td>Mode 3 Timing</td>
+                            <td>✅</td>
+                            <td>1000ms ON/OFF [PASS]</td>
+                        </tr>
+                        <tr>
+                            <td>Suite Extended</td>
+                            <td>✅</td>
+                            <td>10/11 PASS</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </div>
+
+        <footer>
+            <p><strong>ESP32 Modbus RTU Server v1.0.0</strong> | 2025-11-29</p>
+            <p>📖 <a href="FEATURE_GUIDE.md" style="color: #667eea;">Læs Markdown version</a> |
+               📘 <a href="SETUP_GUIDE.md" style="color: #667eea;">Setup Guide</a> |
+               📝 <a href="../CHANGELOG.md" style="color: #667eea;">Changelog</a></p>
+            <p>GitHub: <a href="https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32" style="color: #667eea;">Modbus_server_slave_ESP32</a></p>
+        </footer>
+    </div>
+</body>
+</html>

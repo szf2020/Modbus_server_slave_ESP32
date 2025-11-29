@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Modbus - Setup Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        h2 {
+            color: #667eea;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #764ba2;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .step {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .step h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+
+        .example {
+            background: #fffbf0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .example strong {
+            color: #ff9800;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            color: #155724;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .nav-buttons a {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .nav-buttons a:hover {
+            background: #764ba2;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+        }
+
+        table th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tr:hover {
+            background: #f5f5f5;
+        }
+
+        footer {
+            background: #f5f5f5;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .checklist {
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .checklist li:before {
+            content: "☐ ";
+            margin-right: 10px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .quick-test {
+            background: #d1ecf1;
+            border-left: 4px solid #0c5460;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            color: #0c5460;
+        }
+
+        .quick-test strong {
+            color: #0c5460;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ ESP32 Modbus RTU Server</h1>
+            <p>Setup & Quick Start Guide</p>
+        </header>
+
+        <div class="nav-buttons" style="padding: 20px; background: #f5f5f5; justify-content: center;">
+            <a href="index.html">← Tilbage til Features</a>
+            <a href="FEATURE_GUIDE.md" download>📥 Download Markdown</a>
+        </div>
+
+        <div class="content">
+            <h2>📋 Prerequisites</h2>
+            <ul>
+                <li><strong>ESP32-WROOM-32</strong> microcontroller</li>
+                <li><strong>USB kabel</strong> (USB-A til Micro-USB)</li>
+                <li><strong>PlatformIO</strong> installeret (CLI eller VS Code)</li>
+                <li><strong>Python 3.7+</strong> (for PlatformIO)</li>
+            </ul>
+
+            <h2>🚀 Quick Start (5 minutter)</h2>
+
+            <div class="step">
+                <h3><span class="step-number">1</span> Clone Repository</h3>
+                <pre><code>git clone https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32.git
+cd Modbus_server_slave_ESP32</code></pre>
+            </div>
+
+            <div class="step">
+                <h3><span class="step-number">2</span> Find COM Port</h3>
+                <p><strong>Windows:</strong> Åbn Device Manager → "Ports (COM & LPT)" → Find "USB" eller "CH340"</p>
+                <p><strong>Linux:</strong> <code>ls /dev/ttyUSB*</code> eller <code>ls /dev/ttyACM*</code></p>
+                <p><strong>macOS:</strong> <code>ls /dev/cu.usb*</code></p>
+                <p style="margin-top: 10px; font-weight: bold;">Notat dit COM port nummer: COM__</p>
+            </div>
+
+            <div class="step">
+                <h3><span class="step-number">3</span> Rediger platformio.ini</h3>
+                <p>Åbn <code>platformio.ini</code> og opdater COM port:</p>
+                <pre><code>[env:esp32]
+...
+monitor_port = COM11        # ← Skift til DIN port
+upload_port = COM11         # ← Skift til DIN port
+...</code></pre>
+            </div>
+
+            <div class="step">
+                <h3><span class="step-number">4</span> Build & Upload</h3>
+                <pre><code>pio run -t upload</code></pre>
+                <p style="margin-top: 10px;">Venter på "Hard resetting via RTS pin..."</p>
+            </div>
+
+            <div class="step">
+                <h3><span class="step-number">5</span> Monitor Serial Output</h3>
+                <pre><code>pio device monitor</code></pre>
+                <p style="margin-top: 10px;">Du burde se login prompt. Exit med <code>Ctrl+]</code></p>
+            </div>
+
+            <h2>✅ Quick Start Tests</h2>
+            <p>After successful upload, test these features via CLI:</p>
+
+            <div class="quick-test">
+                <strong>🧪 Test 1: Timer Mode 3 (Blink)</strong><br>
+                <pre><code>set timer 1 mode 3 on-ms:1000 off-ms:1000 output-coil:200 enabled:1
+read coil 200 1  # = 1 (HIGH)
+# Vent 1.1 sekunder
+read coil 200 1  # = 0 (LOW)
+# Vent 1.1 sekunder
+read coil 200 1  # = 1 (HIGH)</code></pre>
+                <p style="margin-top: 10px;"><strong>Expected:</strong> Output toggles hver sekund ✅</p>
+            </div>
+
+            <div class="quick-test">
+                <strong>🆕 Test 2: Timer Mode 4 (Input-triggered)</strong><br>
+                <pre><code>set timer 2 mode 4 input-dis:30 trigger-edge:1 delay-ms:0 output-coil:250
+write coil 30 value 1    # Rising edge → Trigger!
+read coil 250 1          # = 1 (HIGH)
+write coil 30 value 0    # Falling edge (ignoreret)
+read coil 250 1          # Stadig 1 (latch)
+write coil 30 value 1    # Rising edge igen → Trigger!
+read coil 250 1          # = 1 (HIGH)</code></pre>
+                <p style="margin-top: 10px;"><strong>Expected:</strong> Output goes HIGH på rising edge [PASS] ✅</p>
+            </div>
+
+            <div class="quick-test">
+                <strong>💾 Test 3: Save Configuration</strong><br>
+                <pre><code>save                    # Gem config til NVS
+show config            # Verificer
+reboot                 # Restart
+# Config auto-loader efter reboot!</code></pre>
+                <p style="margin-top: 10px;"><strong>Expected:</strong> Samme config efter reboot ✅</p>
+            </div>
+
+            <h2>🔧 Troubleshooting</h2>
+
+            <h3>❌ "Failed to open serial device"</h3>
+            <pre><code>pio device list              # Se available ports
+# Opdater platformio.ini med korrekt port</code></pre>
+
+            <h3>❌ "Upload timeout"</h3>
+            <ol>
+                <li>Hold BOOT knap på ESP32 under upload</li>
+                <li>Prøv andet USB kabel</li>
+                <li>Prøv andet USB port på computer</li>
+            </ol>
+
+            <h3>❌ "No module named 'platformio'"</h3>
+            <pre><code>python -m pip install platformio --upgrade
+pio --version   # Verificer</code></pre>
+
+            <h3>⏳ Build tager meget lang tid</h3>
+            <p><strong>Normal for første build:</strong> Downloader ~500MB toolchains (5-15 minutter). Senere builds er hurtige (10 sekunder).</p>
+
+            <h2>📚 Next Steps</h2>
+            <ol>
+                <li><a href="index.html" style="color: #667eea;"><strong>Read FEATURE_GUIDE.md</strong></a> - Komplet reference
+                    <ul>
+                        <li>Alle 4 Timer Modes (1-4)</li>
+                        <li>Alle 3 Counter modes</li>
+                        <li>70+ CLI commands</li>
+                        <li>GPIO mapping & persistence</li>
+                    </ul>
+                </li>
+                <li><strong>Test Timer Modes:</strong> Kør Quick Start Tests ovenfor</li>
+                <li><strong>Gem config:</strong> <code>save</code> og <code>reboot</code> for test persistence</li>
+                <li><strong>Læs CLAUDE.md:</strong> Project architecture & development guide</li>
+            </ol>
+
+            <h2>🎯 Useful Commands</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kommando</th>
+                        <th>Brug</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>pio run</code></td>
+                        <td>Build project</td>
+                    </tr>
+                    <tr>
+                        <td><code>pio run -t upload</code></td>
+                        <td>Upload til ESP32</td>
+                    </tr>
+                    <tr>
+                        <td><code>pio device monitor</code></td>
+                        <td>Åbn serial monitor</td>
+                    </tr>
+                    <tr>
+                        <td><code>pio run --target clean</code></td>
+                        <td>Rens build artifacts</td>
+                    </tr>
+                    <tr>
+                        <td><code>pio device list</code></td>
+                        <td>Liste COM ports</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>📖 Documentation</h2>
+            <ul>
+                <li><a href="index.html" style="color: #667eea;"><strong>Feature Guide (HTML)</strong></a> - Komplet funktionsreference</li>
+                <li><strong>FEATURE_GUIDE.md</strong> - Markdown version (Download)</li>
+                <li><strong>CLAUDE.md</strong> - Architecture & development guide</li>
+                <li><strong>../CHANGELOG.md</strong> - Version history & release notes</li>
+            </ul>
+
+            <h2>📊 Build Information</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Resource</th>
+                        <th>Usage</th>
+                        <th>Available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>RAM</strong></td>
+                        <td>~21 KB</td>
+                        <td>327 KB (6.5%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Flash</strong></td>
+                        <td>~262 KB</td>
+                        <td>1.3 MB (20%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Headroom</strong></td>
+                        <td>-</td>
+                        <td>1+ MB available</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>🔗 Resources</h2>
+            <ul>
+                <li><strong>GitHub:</strong> <a href="https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32" style="color: #667eea;">Modbus_server_slave_ESP32</a></li>
+                <li><strong>ESP32 Docs:</strong> <a href="https://docs.espressif.com/" style="color: #667eea;">docs.espressif.com</a></li>
+                <li><strong>PlatformIO:</strong> <a href="https://docs.platformio.org/" style="color: #667eea;">docs.platformio.org</a></li>
+            </ul>
+
+            <div class="success" style="margin-top: 40px;">
+                <strong>✅ Setup Complete!</strong><br>
+                Du er nu klar til at teste alle timer modes, counter modes, og 70+ CLI commands.<br>
+                Start med Quick Start Tests ovenfor!
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>ESP32 Modbus RTU Server v1.0.0</strong> | 2025-11-29</p>
+            <p>GitHub: <a href="https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32" style="color: #667eea;">Modbus_server_slave_ESP32</a></p>
+        </footer>
+    </div>
+</body>
+</html>
