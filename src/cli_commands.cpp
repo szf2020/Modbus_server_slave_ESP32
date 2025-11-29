@@ -388,6 +388,10 @@ void cli_cmd_set_timer(uint8_t argc, char* argv[]) {
     // Astable mode: toggle between HIGH (1) and LOW (0)
     cfg.phase1_output_state = 1;  // Phase 1 = HIGH
     cfg.phase2_output_state = 0;  // Phase 2 = LOW
+  } else if (mode == TIMER_MODE_4_INPUT_TRIGGERED) {
+    // Input-triggered mode: output HIGH when triggered
+    cfg.phase1_output_state = 1;  // Output = HIGH when triggered
+    cfg.phase2_output_state = 0;  // Unused, set to LOW
   }
 
   // Parse key:value parameters

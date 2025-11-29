@@ -145,20 +145,34 @@ static void mode_astable(uint8_t id, TimerConfig* cfg, uint32_t now_ms) {
  * MODE 4: TRIGGER-DRIVEN (edge-triggered, simple output toggle)
  * ============================================================================ */
 
+// Static tracking of previous input levels for Mode 4 edge detection
+static uint8_t mode4_prev_input[TIMER_COUNT] = {0};
+static uint8_t mode4_initialized[TIMER_COUNT] = {0};
+
 static void mode_trigger(uint8_t id, TimerConfig* cfg, uint32_t now_ms) {
   TimerRuntimeState* state = &timer_state[id - 1];
 
-  // Get current discrete input level
-  uint8_t input_level = get_discrete_input_level(cfg->input_dis);
+  // For Mode 4: Read directly from a COIL as input trigger
+  // This allows testing without GPIO mapping complexity
+  // cfg->input_dis specifies which COIL to read as input
+  // Example: input-dis:30 means read from COIL 30
+  uint8_t input_level = registers_get_coil(cfg->input_dis) ? 1 : 0;
+
+  // Initialize prev_input on first call after configuration
+  if (!mode4_initialized[id - 1]) {
+    mode4_prev_input[id - 1] = input_level;
+    mode4_initialized[id - 1] = 1;
+    return;  // Skip edge detection on initialization
+  }
 
   // Track previous level for edge detection
-  static uint8_t prev_input[TIMER_COUNT] = {0};
-  uint8_t prev_level = prev_input[id - 1];
-  prev_input[id - 1] = input_level;
+  uint8_t prev_level = mode4_prev_input[id - 1];
+  mode4_prev_input[id - 1] = input_level;
 
   // Detect edge
   uint8_t rising_edge = (prev_level == 0 && input_level == 1);
   uint8_t falling_edge = (prev_level == 1 && input_level == 0);
+  uint8_t any_edge = rising_edge || falling_edge;
 
   // Check if configured trigger matches detected edge
   uint8_t trigger_detected = 0;
@@ -169,9 +183,9 @@ static void mode_trigger(uint8_t id, TimerConfig* cfg, uint32_t now_ms) {
   }
 
   if (trigger_detected) {
-    // Trigger detected - set output immediately (or after delay)
+    // Matching edge detected - set output immediately (or after delay)
     if (cfg->delay_ms == 0) {
-      // Immediate: toggle output coil
+      // Immediate: set output coil
       set_coil_level(cfg->output_coil, cfg->phase1_output_state);
       state->is_active = 1;
       state->current_phase = 1;
@@ -266,6 +280,11 @@ bool timer_engine_configure(uint8_t id, const TimerConfig* cfg) {
     timer_state[id - 1].is_active = 0;
     timer_state[id - 1].current_phase = 0;
     timer_state[id - 1].phase_start_ms = 0;
+
+    // Reset Mode 4 edge detection on reconfiguration
+    if (cfg->mode == TIMER_MODE_4_INPUT_TRIGGERED) {
+      mode4_initialized[id - 1] = 0;  // Will re-initialize on next read
+    }
 
     // Auto-start astable mode when enabled (continuous oscillation)
     if (cfg->mode == TIMER_MODE_3_ASTABLE && cfg->enabled) {
