@@ -237,13 +237,26 @@ void counter_hw_reset(uint8_t id) {
   CounterHWState* state = &hw_state[id - 1];
   uint8_t pcnt_unit = counter_to_pcnt[id - 1];
 
-  // Reset PCNT unit
-  pcnt_unit_clear(pcnt_unit);
+  // FIX P1.1: Disable is_counting flag to prevent polling task from accumulating delta
+  // During reset window, polling task will skip this counter (line 63 checks is_counting)
+  state->is_counting = 0;
 
-  // Reset software state
+  // Step 1: Pause PCNT counting (hardware gate)
+  pcnt_counter_pause((pcnt_unit_t)pcnt_unit);
+
+  // Step 2: Clear PCNT hardware counter
+  pcnt_counter_clear((pcnt_unit_t)pcnt_unit);
+
+  // Step 3: Reset software state
   state->pcnt_value = cfg.start_value;
   state->overflow_count = 0;
-  state->last_count = 0;
+  state->last_count = 0;  // Sync with hardware (both now 0)
+
+  // Step 4: Resume PCNT hardware counting
+  pcnt_counter_resume((pcnt_unit_t)pcnt_unit);
+
+  // Step 5: Re-enable counting for polling task
+  state->is_counting = 1;
 }
 
 

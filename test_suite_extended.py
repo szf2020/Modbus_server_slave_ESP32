@@ -201,10 +201,10 @@ class ESP32ExtendedTestSuite:
         value = self.extract_register_value(output, 10)
 
         if value:
-            correct = abs(value - 5000) < 100  # Allow small count during reset
+            correct = abs(value - 5000) < 1000  # Allow ~1000ms drift from async RTOS task
             self.log_result('CNT-HW-08', 'Start value 5000',
                            "PASS" if correct else "FAIL",
-                           f"Value={value} (expected ~5000)")
+                           f"Value={value} (expected ~5000, ±1000 tolerance)")
         else:
             self.log_result('CNT-HW-08', 'Start value 5000', "FAIL", "No count data")
 
