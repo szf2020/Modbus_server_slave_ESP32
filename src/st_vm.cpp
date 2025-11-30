@@ -1,0 +1,512 @@
+/**
+ * @file st_vm.cpp
+ * @brief Structured Text Virtual Machine Implementation
+ *
+ * Stack-based interpreter for bytecode execution.
+ */
+
+#include "st_vm.h"
+#include "st_builtins.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
+
+/* ============================================================================
+ * INITIALIZATION & RESET
+ * ============================================================================ */
+
+void st_vm_init(st_vm_t *vm, const st_bytecode_program_t *program) {
+  memset(vm, 0, sizeof(*vm));
+  vm->program = program;
+  vm->pc = 0;
+  vm->sp = 0;
+  vm->halted = 0;
+  vm->error = 0;
+  vm->var_count = program ? program->var_count : 0;
+
+  // Initialize variables from program
+  if (program && program->var_count > 0) {
+    memcpy(vm->variables, program->variables, program->var_count * sizeof(st_value_t));
+  }
+}
+
+void st_vm_reset(st_vm_t *vm) {
+  if (!vm->program) return;
+
+  vm->pc = 0;
+  vm->sp = 0;
+  vm->halted = 0;
+  vm->error = 0;
+  vm->step_count = 0;
+  memset(vm->stack, 0, sizeof(vm->stack));
+  memcpy(vm->variables, vm->program->variables, vm->var_count * sizeof(st_value_t));
+}
+
+/* ============================================================================
+ * STACK OPERATIONS
+ * ============================================================================ */
+
+bool st_vm_push(st_vm_t *vm, st_value_t value) {
+  if (vm->sp >= 64) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Stack overflow (max 64)");
+    vm->error = 1;
+    return false;
+  }
+
+  vm->stack[vm->sp++] = value;
+
+  if (vm->sp > vm->max_stack_depth) {
+    vm->max_stack_depth = vm->sp;
+  }
+
+  return true;
+}
+
+bool st_vm_pop(st_vm_t *vm, st_value_t *out_value) {
+  if (vm->sp == 0) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Stack underflow");
+    vm->error = 1;
+    return false;
+  }
+
+  *out_value = vm->stack[--vm->sp];
+  return true;
+}
+
+st_value_t st_vm_peek(st_vm_t *vm) {
+  if (vm->sp == 0) {
+    st_value_t empty = {0};
+    return empty;
+  }
+  return vm->stack[vm->sp - 1];
+}
+
+/* ============================================================================
+ * VARIABLE OPERATIONS
+ * ============================================================================ */
+
+st_value_t st_vm_get_variable(st_vm_t *vm, uint8_t var_index) {
+  st_value_t empty = {0};
+  if (var_index >= vm->var_count) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Variable index out of bounds: %d", var_index);
+    vm->error = 1;
+    return empty;
+  }
+  return vm->variables[var_index];
+}
+
+void st_vm_set_variable(st_vm_t *vm, uint8_t var_index, st_value_t value) {
+  if (var_index >= vm->var_count) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Variable index out of bounds: %d", var_index);
+    vm->error = 1;
+    return;
+  }
+  vm->variables[var_index] = value;
+}
+
+/* ============================================================================
+ * INSTRUCTION EXECUTION
+ * ============================================================================ */
+
+static bool st_vm_exec_push_bool(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val;
+  val.bool_val = (instr->arg.int_arg != 0);
+  return st_vm_push(vm, val);
+}
+
+static bool st_vm_exec_push_int(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val;
+  val.int_val = instr->arg.int_arg;
+  return st_vm_push(vm, val);
+}
+
+static bool st_vm_exec_push_dword(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val;
+  val.dword_val = (uint32_t)instr->arg.int_arg;
+  return st_vm_push(vm, val);
+}
+
+static bool st_vm_exec_push_real(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val;
+  // Retrieve float from int bits (hack from compiler)
+  memcpy(&val.real_val, &instr->arg.int_arg, sizeof(float));
+  return st_vm_push(vm, val);
+}
+
+static bool st_vm_exec_load_var(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val = st_vm_get_variable(vm, instr->arg.var_index);
+  if (vm->error) return false;
+  return st_vm_push(vm, val);
+}
+
+static bool st_vm_exec_store_var(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val;
+  if (!st_vm_pop(vm, &val)) return false;
+  st_vm_set_variable(vm, instr->arg.var_index, val);
+  return !vm->error;
+}
+
+/* ============================================================================
+ * ARITHMETIC OPERATIONS
+ * ============================================================================ */
+
+static bool st_vm_exec_add(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  // Simplified: assume INT for now
+  result.int_val = left.int_val + right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_sub(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.int_val = left.int_val - right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_mul(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.int_val = left.int_val * right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_div(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  if (right.int_val == 0) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Division by zero");
+    vm->error = 1;
+    return false;
+  }
+
+  result.real_val = (float)left.int_val / (float)right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_mod(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  if (right.int_val == 0) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "Modulo by zero");
+    vm->error = 1;
+    return false;
+  }
+
+  result.int_val = left.int_val % right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_neg(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val, result;
+  if (!st_vm_pop(vm, &val)) return false;
+
+  result.int_val = -val.int_val;
+  return st_vm_push(vm, result);
+}
+
+/* ============================================================================
+ * LOGICAL OPERATIONS
+ * ============================================================================ */
+
+static bool st_vm_exec_and(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.bool_val != 0) && (right.bool_val != 0);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_or(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.bool_val != 0) || (right.bool_val != 0);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_not(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t val, result;
+  if (!st_vm_pop(vm, &val)) return false;
+
+  result.bool_val = (val.bool_val == 0);
+  return st_vm_push(vm, result);
+}
+
+/* ============================================================================
+ * COMPARISON OPERATIONS
+ * ============================================================================ */
+
+static bool st_vm_exec_eq(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val == right.int_val);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_ne(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val != right.int_val);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_lt(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val < right.int_val);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_gt(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val > right.int_val);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_le(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val <= right.int_val);
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_ge(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.int_val >= right.int_val);
+  return st_vm_push(vm, result);
+}
+
+/* ============================================================================
+ * BITWISE OPERATIONS
+ * ============================================================================ */
+
+static bool st_vm_exec_shl(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.int_val = left.int_val << right.int_val;
+  return st_vm_push(vm, result);
+}
+
+static bool st_vm_exec_shr(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.int_val = left.int_val >> right.int_val;
+  return st_vm_push(vm, result);
+}
+
+/* ============================================================================
+ * FUNCTION CALLS
+ * ============================================================================ */
+
+static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_builtin_func_t func_id = (st_builtin_func_t)instr->arg.int_arg;
+  uint8_t arg_count = st_builtin_arg_count(func_id);
+
+  st_value_t arg1 = {0}, arg2 = {0};
+
+  // Pop arguments (in reverse order: arg2 then arg1)
+  if (arg_count >= 2) {
+    if (!st_vm_pop(vm, &arg2)) return false;
+  }
+  if (arg_count >= 1) {
+    if (!st_vm_pop(vm, &arg1)) return false;
+  }
+
+  // Call the function
+  st_value_t result = st_builtin_call(func_id, arg1, arg2);
+
+  // Push result
+  return st_vm_push(vm, result);
+}
+
+/* ============================================================================
+ * CONTROL FLOW
+ * ============================================================================ */
+
+static bool st_vm_exec_jmp(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  vm->pc = (uint16_t)instr->arg.int_arg;
+  return true;
+}
+
+static bool st_vm_exec_jmp_if_false(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t cond;
+  if (!st_vm_pop(vm, &cond)) return false;
+
+  if (cond.bool_val == 0) {
+    vm->pc = (uint16_t)instr->arg.int_arg;
+  }
+  return true;
+}
+
+static bool st_vm_exec_jmp_if_true(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t cond;
+  if (!st_vm_pop(vm, &cond)) return false;
+
+  if (cond.bool_val != 0) {
+    vm->pc = (uint16_t)instr->arg.int_arg;
+  }
+  return true;
+}
+
+/* ============================================================================
+ * MAIN EXECUTION ENGINE
+ * ============================================================================ */
+
+bool st_vm_step(st_vm_t *vm) {
+  if (!vm->program) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg), "No program loaded");
+    vm->error = 1;
+    return false;
+  }
+
+  if (vm->pc >= vm->program->instr_count) {
+    vm->halted = 1;
+    return false;
+  }
+
+  st_bytecode_instr_t *instr = &vm->program->instructions[vm->pc];
+
+  // Execute instruction
+  bool result = true;
+  switch (instr->opcode) {
+    case ST_OP_PUSH_BOOL:       result = st_vm_exec_push_bool(vm, instr); break;
+    case ST_OP_PUSH_INT:        result = st_vm_exec_push_int(vm, instr); break;
+    case ST_OP_PUSH_DWORD:      result = st_vm_exec_push_dword(vm, instr); break;
+    case ST_OP_PUSH_REAL:       result = st_vm_exec_push_real(vm, instr); break;
+    case ST_OP_LOAD_VAR:        result = st_vm_exec_load_var(vm, instr); break;
+    case ST_OP_STORE_VAR:       result = st_vm_exec_store_var(vm, instr); break;
+    case ST_OP_ADD:             result = st_vm_exec_add(vm, instr); break;
+    case ST_OP_SUB:             result = st_vm_exec_sub(vm, instr); break;
+    case ST_OP_MUL:             result = st_vm_exec_mul(vm, instr); break;
+    case ST_OP_DIV:             result = st_vm_exec_div(vm, instr); break;
+    case ST_OP_MOD:             result = st_vm_exec_mod(vm, instr); break;
+    case ST_OP_NEG:             result = st_vm_exec_neg(vm, instr); break;
+    case ST_OP_AND:             result = st_vm_exec_and(vm, instr); break;
+    case ST_OP_OR:              result = st_vm_exec_or(vm, instr); break;
+    case ST_OP_NOT:             result = st_vm_exec_not(vm, instr); break;
+    case ST_OP_EQ:              result = st_vm_exec_eq(vm, instr); break;
+    case ST_OP_NE:              result = st_vm_exec_ne(vm, instr); break;
+    case ST_OP_LT:              result = st_vm_exec_lt(vm, instr); break;
+    case ST_OP_GT:              result = st_vm_exec_gt(vm, instr); break;
+    case ST_OP_LE:              result = st_vm_exec_le(vm, instr); break;
+    case ST_OP_GE:              result = st_vm_exec_ge(vm, instr); break;
+    case ST_OP_SHL:             result = st_vm_exec_shl(vm, instr); break;
+    case ST_OP_SHR:             result = st_vm_exec_shr(vm, instr); break;
+    case ST_OP_CALL_BUILTIN:    result = st_vm_exec_call_builtin(vm, instr); break;
+    case ST_OP_JMP:             result = st_vm_exec_jmp(vm, instr); break;
+    case ST_OP_JMP_IF_FALSE:    result = st_vm_exec_jmp_if_false(vm, instr); break;
+    case ST_OP_JMP_IF_TRUE:     result = st_vm_exec_jmp_if_true(vm, instr); break;
+    case ST_OP_NOP:             break;
+    case ST_OP_HALT:
+      vm->halted = 1;
+      return false;
+    default:
+      snprintf(vm->error_msg, sizeof(vm->error_msg), "Unknown opcode: %d", instr->opcode);
+      vm->error = 1;
+      return false;
+  }
+
+  if (!result) {
+    vm->error = 1;
+    return false;
+  }
+
+  // Advance PC (unless instruction changed it)
+  if (instr->opcode != ST_OP_JMP && instr->opcode != ST_OP_JMP_IF_FALSE && instr->opcode != ST_OP_JMP_IF_TRUE) {
+    vm->pc++;
+  } else {
+    // PC was already set by jump instruction
+  }
+
+  vm->step_count++;
+  return !vm->error;
+}
+
+bool st_vm_run(st_vm_t *vm, uint32_t max_steps) {
+  uint32_t steps = 0;
+
+  while (!vm->halted && !vm->error) {
+    if (max_steps > 0 && steps >= max_steps) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg), "Max steps exceeded (%u)", max_steps);
+      vm->error = 1;
+      return false;
+    }
+
+    if (!st_vm_step(vm)) {
+      break;
+    }
+
+    steps++;
+  }
+
+  return !vm->error;
+}
+
+/* ============================================================================
+ * DEBUGGING
+ * ============================================================================ */
+
+void st_vm_print_state(st_vm_t *vm) {
+  if (!vm || !vm->program) {
+    printf("VM not initialized\n");
+    return;
+  }
+
+  printf("\n=== VM State ===\n");
+  printf("Program: %s\n", vm->program->name);
+  printf("PC: %d / %d\n", vm->pc, vm->program->instr_count);
+  printf("Stack pointer: %d / 64\n", vm->sp);
+  printf("Halted: %s\n", vm->halted ? "Yes" : "No");
+  printf("Error: %s\n", vm->error ? vm->error_msg : "None");
+  printf("Steps: %u\n", vm->step_count);
+  printf("Max stack: %u\n\n", vm->max_stack_depth);
+}
+
+void st_vm_print_stack(st_vm_t *vm) {
+  printf("\n=== Stack (depth %d) ===\n", vm->sp);
+  for (int i = vm->sp - 1; i >= 0; i--) {
+    printf("  [%d] INT: %d\n", i, vm->stack[i].int_val);
+  }
+  printf("\n");
+}
+
+void st_vm_print_variables(st_vm_t *vm) {
+  printf("\n=== Variables (%d) ===\n", vm->var_count);
+  for (int i = 0; i < vm->var_count; i++) {
+    printf("  [%d] INT: %d\n", i, vm->variables[i].int_val);
+  }
+  printf("\n");
+}

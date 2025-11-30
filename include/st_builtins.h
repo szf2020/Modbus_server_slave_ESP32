@@ -1,0 +1,198 @@
+/**
+ * @file st_builtins.h
+ * @brief Structured Text Built-in Functions (IEC 61131-3 Standard Library)
+ *
+ * Standard mathematical, conversion, and bitwise functions.
+ * All functions follow IEC 61131-3 semantics.
+ *
+ * Usage from ST code:
+ *   result := ABS(-5);           (* → 5 *)
+ *   min_val := MIN(a, b);        (* → minimum of a, b *)
+ *   max_val := MAX(a, b);        (* → maximum of a, b *)
+ *   sqrt_val := SQRT(16.0);      (* → 4.0 *)
+ *   real_val := INT_TO_REAL(10); (* → 10.0 *)
+ */
+
+#ifndef ST_BUILTINS_H
+#define ST_BUILTINS_H
+
+#include "st_types.h"
+
+/* ============================================================================
+ * BUILTIN FUNCTION ENUMERATION
+ * ============================================================================ */
+
+typedef enum {
+  // Mathematical
+  ST_BUILTIN_ABS,          // ABS(x) → |x|
+  ST_BUILTIN_MIN,          // MIN(a, b) → minimum
+  ST_BUILTIN_MAX,          // MAX(a, b) → maximum
+  ST_BUILTIN_SUM,          // SUM(a, b) → a + b (alias for addition)
+  ST_BUILTIN_SQRT,         // SQRT(x) → √x (REAL only)
+  ST_BUILTIN_ROUND,        // ROUND(x) → rounded INT
+  ST_BUILTIN_TRUNC,        // TRUNC(x) → truncated INT
+  ST_BUILTIN_FLOOR,        // FLOOR(x) → floor INT
+  ST_BUILTIN_CEIL,         // CEIL(x) → ceiling INT
+
+  // Trigonometric (future extension)
+  // ST_BUILTIN_SIN,          // SIN(x)
+  // ST_BUILTIN_COS,          // COS(x)
+  // ST_BUILTIN_TAN,          // TAN(x)
+
+  // Type Conversion
+  ST_BUILTIN_INT_TO_REAL,  // INT_TO_REAL(i) → REAL
+  ST_BUILTIN_REAL_TO_INT,  // REAL_TO_INT(r) → INT
+  ST_BUILTIN_BOOL_TO_INT,  // BOOL_TO_INT(b) → INT
+  ST_BUILTIN_INT_TO_BOOL,  // INT_TO_BOOL(i) → BOOL
+  ST_BUILTIN_DWORD_TO_INT, // DWORD_TO_INT(d) → INT
+  ST_BUILTIN_INT_TO_DWORD, // INT_TO_DWORD(i) → DWORD
+
+  // String (future: currently placeholder)
+  // ST_BUILTIN_LEN,          // LEN(s) → length
+  // ST_BUILTIN_CONCAT,       // CONCAT(s1, s2) → concatenation
+
+  ST_BUILTIN_COUNT          // Total number of built-ins
+} st_builtin_func_t;
+
+/* ============================================================================
+ * FUNCTION CALL INSTRUCTION
+ * ============================================================================ */
+
+/**
+ * @brief Call built-in function
+ *
+ * Functions pop operands from stack and push result.
+ * Operand count depends on function:
+ *   - ABS, SQRT, ROUND, etc.: 1 operand
+ *   - MIN, MAX, SUM: 2 operands
+ *
+ * @param func_id Function ID (st_builtin_func_t)
+ * @param arg1 First operand (or result for single-arg functions)
+ * @param arg2 Second operand (for functions taking 2 args)
+ * @return Result value
+ */
+st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_t arg2);
+
+/**
+ * @brief Get function name (for debugging)
+ * @param func_id Function ID
+ * @return Function name string
+ */
+const char *st_builtin_name(st_builtin_func_t func_id);
+
+/**
+ * @brief Get number of arguments for function
+ * @param func_id Function ID
+ * @return 1 or 2
+ */
+uint8_t st_builtin_arg_count(st_builtin_func_t func_id);
+
+/* ============================================================================
+ * MATHEMATICAL FUNCTIONS
+ * ============================================================================ */
+
+/**
+ * @brief Absolute value
+ * @param x Input value
+ * @return |x|
+ */
+st_value_t st_builtin_abs(st_value_t x);
+
+/**
+ * @brief Minimum of two values
+ * @param a First value
+ * @param b Second value
+ * @return min(a, b)
+ */
+st_value_t st_builtin_min(st_value_t a, st_value_t b);
+
+/**
+ * @brief Maximum of two values
+ * @param a First value
+ * @param b Second value
+ * @return max(a, b)
+ */
+st_value_t st_builtin_max(st_value_t a, st_value_t b);
+
+/**
+ * @brief Square root
+ * @param x Input value (REAL)
+ * @return √x
+ */
+st_value_t st_builtin_sqrt(st_value_t x);
+
+/**
+ * @brief Round to nearest integer
+ * @param x Input value (REAL)
+ * @return Rounded INT
+ */
+st_value_t st_builtin_round(st_value_t x);
+
+/**
+ * @brief Truncate to integer (remove decimal)
+ * @param x Input value (REAL)
+ * @return Truncated INT
+ */
+st_value_t st_builtin_trunc(st_value_t x);
+
+/**
+ * @brief Floor function
+ * @param x Input value (REAL)
+ * @return Floor INT
+ */
+st_value_t st_builtin_floor(st_value_t x);
+
+/**
+ * @brief Ceiling function
+ * @param x Input value (REAL)
+ * @return Ceiling INT
+ */
+st_value_t st_builtin_ceil(st_value_t x);
+
+/* ============================================================================
+ * TYPE CONVERSION FUNCTIONS
+ * ============================================================================ */
+
+/**
+ * @brief Convert INT to REAL
+ * @param i Integer value
+ * @return Floating-point representation
+ */
+st_value_t st_builtin_int_to_real(st_value_t i);
+
+/**
+ * @brief Convert REAL to INT
+ * @param r Floating-point value
+ * @return Truncated integer
+ */
+st_value_t st_builtin_real_to_int(st_value_t r);
+
+/**
+ * @brief Convert BOOL to INT
+ * @param b Boolean value
+ * @return 1 if true, 0 if false
+ */
+st_value_t st_builtin_bool_to_int(st_value_t b);
+
+/**
+ * @brief Convert INT to BOOL
+ * @param i Integer value
+ * @return TRUE if non-zero, FALSE if zero
+ */
+st_value_t st_builtin_int_to_bool(st_value_t i);
+
+/**
+ * @brief Convert DWORD to INT
+ * @param d DWORD value
+ * @return INT (truncated if overflow)
+ */
+st_value_t st_builtin_dword_to_int(st_value_t d);
+
+/**
+ * @brief Convert INT to DWORD
+ * @param i Integer value
+ * @return DWORD (unsigned)
+ */
+st_value_t st_builtin_int_to_dword(st_value_t i);
+
+#endif // ST_BUILTINS_H

@@ -331,6 +331,9 @@ typedef enum {
   ST_OP_LOOP_TEST,          // Test loop condition
   ST_OP_LOOP_NEXT,          // Increment loop counter
 
+  // Function calls
+  ST_OP_CALL_BUILTIN,       // Call built-in function (int_arg = function ID)
+
   // Misc
   ST_OP_NOP,                // No operation
   ST_OP_HALT,               // Stop execution
