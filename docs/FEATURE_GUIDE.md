@@ -1,15 +1,90 @@
 # ESP32 Modbus RTU Server - Komplet Funktionsguide
 
-**Version:** 1.0.0 | **Dato:** 2025-11-29 | **Platform:** ESP32-WROOM-32
+**Version:** 2.0.0 | **Dato:** 2025-11-30 | **Platform:** ESP32-WROOM-32
 
 **Indholdsfortegnelse:**
-1. [Timere (4 modes)](#timere)
-2. [Tællere (3 modes)](#tællere)
-3. [CLI Kommandoer](#cli-kommandoer)
-4. [GPIO Features](#gpio-features)
-5. [Registers & Coils](#registers--coils)
-6. [Persistence](#persistence)
-7. [Eksempler](#eksempler)
+1. [Structured Text Logic Mode](#structured-text-logic-mode) **[NYT I V2.0.0]**
+2. [Timere (4 modes)](#timere)
+3. [Tællere (3 modes)](#tællere)
+4. [CLI Kommandoer](#cli-kommandoer)
+5. [GPIO Features](#gpio-features)
+6. [Registers & Coils](#registers--coils)
+7. [Persistence](#persistence)
+8. [Eksempler](#eksempler)
+
+---
+
+## STRUCTURED TEXT LOGIC MODE
+
+**[NYT I V2.0.0]** - Fuldstændig IEC 61131-3 Standard Text (ST) language support for avanceret automationslogik.
+
+ESP32 serveren understøtter nu **4 uafhængige Structured Text programmer** med fuld IEC 61131-3 compliance. Dette tillader kompleks automationslogik uden at skulle tegne diagrammer.
+
+### Kernefunktioner:
+
+- **Structured Text sprog**: IEC 61131-3 "ST-Light" profil
+- **4 uafhængige programmer**: Kører parallelt uden at påvirke hinanden
+- **Variable-binding**: Automatisk mapping mellem ST-variabler og Modbus-registre
+- **16 built-in funktioner**: ABS, MIN, MAX, SQRT, type-konverteringer, etc.
+- **Kontrol flow**: IF/ELSIF/ELSE, CASE, FOR, WHILE, REPEAT
+- **Non-blocking**: Integreret i Modbus server-loop, blokerer ikke RTU-service
+
+### Eksempel - Temperatur-kontrol:
+
+```
+set logic 1 upload "VAR \
+  temp_in: INT; \
+  heating: BOOL; \
+  cooling: BOOL; \
+END_VAR \
+IF temp_in < 18 THEN \
+  heating := TRUE; \
+  cooling := FALSE; \
+ELSIF temp_in > 25 THEN \
+  heating := FALSE; \
+  cooling := TRUE; \
+ELSE \
+  heating := FALSE; \
+  cooling := FALSE; \
+END_IF;"
+
+set logic 1 bind 0 100 input      # Læs temperatur fra HR#100
+set logic 1 bind 1 101 output     # Skriv heating til HR#101
+set logic 1 bind 2 102 output     # Skriv cooling til HR#102
+set logic 1 enabled:true
+```
+
+### CLI Kommandoer:
+
+```bash
+# Upload ST program
+set logic <id> upload "<st_code>"
+
+# Bind variabler til Modbus registers
+set logic <id> bind <var_idx> <register> [input|output|both]
+
+# Aktivering
+set logic <id> enabled:true|false
+
+# Sletning
+set logic <id> delete
+
+# Visning
+show logic <id>         # Detaljer om et program
+show logic all          # Alle programmer
+show logic stats        # Statistik
+```
+
+### Dokumentation:
+
+Se **ST_USAGE_GUIDE.md** for detaljeret bruger-guide med:
+- Quick-start guide (4 trin)
+- Syntaks-eksempler
+- Variable-binding forklaring
+- Built-in function-reference
+- Fejlfinding
+
+Se **ST_IEC61131_COMPLIANCE.md** for teknisk specifikation og IEC-compliance.
 
 ---
 
