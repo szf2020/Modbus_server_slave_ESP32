@@ -4,6 +4,102 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [2.0.0] - 2025-11-30 🚀 (MAJOR RELEASE)
+
+### NEW FEATURES
+
+#### Structured Text (IEC 61131-3) Language Support ✨
+**Introduction of Logic Mode - Programmatic control in ST language**
+
+- **Language:** Structured Text per IEC 61131-3:2013 standard
+- **Compliance:** ST-Light profile (embedded PLC variant)
+- **Implementation Status:** Phase 1-2 (Lexer, Parser, AST complete)
+
+#### ST Lexer (Tokenization)
+- Full keyword recognition: IF, THEN, ELSE, ELSIF, FOR, WHILE, REPEAT, CASE, OF, DO, END_*
+- Data type keywords: BOOL, INT, DWORD, REAL
+- Variable declarators: VAR, VAR_INPUT, VAR_OUTPUT, CONST
+- Operators: +, -, *, /, MOD, AND, OR, NOT, XOR, SHL, SHR, <, >, <=, >=, =, <>
+- Literals: Boolean (TRUE, FALSE), Integer (decimal, hex, binary), Real (IEEE 754), String
+- Comments: Block comments with nesting `(* comment *)`
+- **Code:** `src/st_lexer.cpp` (580 lines)
+
+#### ST Parser (AST Construction)
+- Recursive descent parser with operator precedence
+- Statements: IF/ELSIF/ELSE, CASE/OF, FOR/TO/BY/DO, WHILE/DO, REPEAT/UNTIL, EXIT
+- Expressions: Binary ops, unary ops, literals, variables, parenthesized
+- Variable declarations: VAR, VAR_INPUT, VAR_OUTPUT with type inference
+- Full AST construction for all statement types
+- Memory-safe tree with proper freeing
+- **Code:** `src/st_parser.cpp` (680 lines)
+
+#### Data Types (IEC 61131-3 Elementary)
+- **BOOL:** Boolean (0 = FALSE, 1 = TRUE)
+- **INT:** Signed 32-bit (-2^31 to 2^31-1)
+- **DWORD:** Unsigned 32-bit (0 to 2^32-1)
+- **REAL:** IEEE 754 32-bit floating point
+
+#### Control Flow Statements (IEC 6.3.2)
+- **IF/THEN/ELSE/ELSIF/END_IF:** Conditional execution
+- **CASE/OF/END_CASE:** Multi-way branching
+- **FOR/TO/BY/DO/END_FOR:** Deterministic counting loops
+- **WHILE/DO/END_WHILE:** Condition-based loops
+- **REPEAT/UNTIL/END_REPEAT:** Post-test loops
+- **EXIT:** Break from innermost loop
+
+#### Operators (Full Set)
+- Arithmetic: +, -, *, /, MOD (% semantics)
+- Logical: AND, OR, NOT (full boolean algebra)
+- Relational: <, >, <=, >=, =, <> (full comparison set)
+- Bitwise: SHL (shift left), SHR (shift right) on INT/DWORD
+- Assignment: := (Pascal-style)
+- Operator precedence: Standard (multiplication > addition > relational > logical)
+
+#### Type System & Semantics
+- Type checking at parse time
+- Implicit type conversions (INT + REAL → REAL)
+- Operator overloading (AND works on BOOL and INT)
+- Assignment with type coercion
+
+#### Documentation
+- **File:** `docs/ST_IEC61131_COMPLIANCE.md` (comprehensive)
+  - 13 sections covering full compliance claim
+  - Detailed feature matrix (supported vs. excluded)
+  - Execution model and memory constraints
+  - Modbus register binding strategy
+  - Known limitations and future extensions
+
+#### Testing Infrastructure
+- **File:** `test/test_st_lexer_parser.cpp` (360 lines)
+- 8 test cases: lexer/parser for IF, FOR, WHILE, REPEAT, CASE, expressions
+- Real-world examples (nested IF, complex expressions)
+- AST visualization and debugging
+
+#### Type Definitions & Structures
+- **File:** `include/st_types.h` (438 lines)
+- Token types (st_token_type_t): 60+ token types
+- Data types (st_datatype_t): BOOL, INT, DWORD, REAL, NONE
+- AST node types: assignment, if/case/for/while/repeat, binary/unary ops, literal, variable
+- Bytecode instructions: 30+ opcodes (stack-based VM design)
+- Variable declaration: st_variable_decl_t with scope flags
+- Program structure: st_program_t containing VAR block + statement list
+
+#### Design for Phase 2 (Bytecode Compiler & VM)
+- Bytecode instruction set defined: PUSH_*, STORE_*, LOAD_*, arithmetic ops, jumps
+- Stack-based VM architecture designed (64-value stack)
+- VM state machine structure (pc, stack_ptr, halted flag)
+- Bytecode program container (512 instruction max)
+- Ready for compiler and execution engine implementation
+
+#### Modbus Integration (Phase 3)
+- Logic programs isolated from main Modbus server
+- VAR_INPUT binds to Modbus registers (read-only in program)
+- VAR_OUTPUT binds to Modbus registers (write-only in program)
+- 4 independent logic program slots
+- Register mapping configuration separate from ST code
+
+---
+
 ## [1.0.0] - 2025-11-29 🎉
 
 ### FEATURES
@@ -242,4 +338,4 @@ v0.8.5      (2025-10-xx) Ported from Mega2560 v3.6.5
 
 ---
 
-**Last Updated:** 2025-11-29 | **Status:** Production Ready ✅
+**Last Updated:** 2025-11-30 | **Status:** v2.0.0 Released 🚀
