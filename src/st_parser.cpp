@@ -394,14 +394,14 @@ static st_ast_node_t *parser_parse_if_statement(st_parser_t *parser) {
 
   st_ast_node_t *then_body = NULL;
   if (!parser_match(parser, ST_TOK_ELSE) && !parser_match(parser, ST_TOK_END_IF)) {
-    then_body = parser_parse_statements(parser);
+    then_body = st_parser_parse_statements(parser);
   }
 
   st_ast_node_t *else_body = NULL;
   if (parser_match(parser, ST_TOK_ELSE)) {
     parser_advance(parser);
     if (!parser_match(parser, ST_TOK_END_IF)) {
-      else_body = parser_parse_statements(parser);
+      else_body = st_parser_parse_statements(parser);
     }
   }
 
@@ -509,7 +509,7 @@ static st_ast_node_t *parser_parse_for_statement(st_parser_t *parser) {
     return NULL;
   }
 
-  st_ast_node_t *body = parser_parse_statements(parser);
+  st_ast_node_t *body = st_parser_parse_statements(parser);
 
   if (!parser_expect(parser, ST_TOK_END_FOR)) {
     parser_error(parser, "Expected END_FOR");
@@ -550,7 +550,7 @@ static st_ast_node_t *parser_parse_while_statement(st_parser_t *parser) {
     return NULL;
   }
 
-  st_ast_node_t *body = parser_parse_statements(parser);
+  st_ast_node_t *body = st_parser_parse_statements(parser);
 
   if (!parser_expect(parser, ST_TOK_END_WHILE)) {
     parser_error(parser, "Expected END_WHILE");
@@ -577,7 +577,7 @@ static st_ast_node_t *parser_parse_repeat_statement(st_parser_t *parser) {
 
   parser_expect(parser, ST_TOK_REPEAT);
 
-  st_ast_node_t *body = parser_parse_statements(parser);
+  st_ast_node_t *body = st_parser_parse_statements(parser);
 
   if (!parser_expect(parser, ST_TOK_UNTIL)) {
     parser_error(parser, "Expected UNTIL in REPEAT loop");
@@ -637,7 +637,7 @@ st_ast_node_t *st_parser_parse_statement(st_parser_t *parser) {
 }
 
 /* Parse statement list */
-st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
+st_ast_node_t *st_st_parser_parse_statements(st_parser_t *parser) {
   st_ast_node_t *head = NULL;
   st_ast_node_t *tail = NULL;
 
@@ -778,7 +778,7 @@ st_program_t *st_parser_parse_program(st_parser_t *parser) {
   }
 
   // Parse statements
-  program->body = st_parser_parse_statements(parser);
+  program->body = st_st_parser_parse_statements(parser);
 
   if (parser->error_count > 0) {
     st_program_free(program);

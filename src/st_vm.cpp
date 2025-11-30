@@ -397,7 +397,8 @@ bool st_vm_step(st_vm_t *vm) {
     return false;
   }
 
-  st_bytecode_instr_t *instr = &vm->program->instructions[vm->pc];
+  const st_bytecode_instr_t *const_instr = &vm->program->instructions[vm->pc];
+  st_bytecode_instr_t *instr = const_cast<st_bytecode_instr_t *>(const_instr);
 
   // Execute instruction
   bool result = true;

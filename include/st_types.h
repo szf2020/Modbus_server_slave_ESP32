@@ -35,10 +35,10 @@ typedef enum {
   ST_TOK_CONST,             // CONST keyword
 
   // Keywords - Data types
-  ST_TOK_BOOL,              // BOOL
-  ST_TOK_INT,               // INT
+  ST_TOK_BOOL,              // BOOL (keyword)
+  ST_TOK_INT_KW,            // INT (keyword - different from literal ST_TOK_INT)
   ST_TOK_DWORD,             // DWORD (or UINT32, ULINT)
-  ST_TOK_REAL,              // REAL (32-bit float)
+  ST_TOK_REAL_KW,           // REAL (keyword - different from literal ST_TOK_REAL)
 
   // Keywords - Variable declarators (IEC 6.2.3)
   ST_TOK_VAR,               // VAR

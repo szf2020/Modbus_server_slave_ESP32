@@ -4,6 +4,8 @@
  */
 
 #include "st_logic_config.h"
+#include "st_parser.h"
+#include "st_compiler.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

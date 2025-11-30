@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ST Logic Engine includes */
+#include "st_logic_config.h"
+#include "st_logic_engine.h"
+
 /* Forward declarations - from existing CLI infrastructure */
 extern void debug_println(const char *msg);
 extern void debug_printf(const char *fmt, ...);

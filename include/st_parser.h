@@ -15,6 +15,7 @@
 #define ST_PARSER_H
 
 #include "st_types.h"
+#include "st_lexer.h"
 
 /* Parser state machine */
 typedef struct {

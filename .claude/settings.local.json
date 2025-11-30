@@ -10,7 +10,11 @@
       "Bash(g++:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(pio run:*)",
+      "Bash(pio clean:*)",
+      "Bash(timeout 60 pio run:*)"
     ],
     "deny": [],
     "ask": []

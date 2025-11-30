@@ -169,7 +169,7 @@ typedef enum {
  * ============================================================================ */
 
 #define PROJECT_NAME        "Modbus RTU Server (ESP32)"
-#define PROJECT_VERSION     "1.0.0"
+#define PROJECT_VERSION     "2.0.0"
 // BUILD_DATE and BUILD_NUMBER now in build_version.h (auto-generated)
 
 #endif // CONSTANTS_H
