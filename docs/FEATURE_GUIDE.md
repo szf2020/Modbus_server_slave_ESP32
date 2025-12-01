@@ -737,15 +737,35 @@ help                        # Kommando-hjælp
 | Virtuelle GPIO | 100-255 | Læser/skriver coils | Til diskret input |
 | Reserverede | 0,2,4,5,15,19-21,33 | System | N/A |
 
-### STATIC GPIO Mapping
+### UNIFIED VARIABLE MAPPING (GPIO + ST Logic)
 
-Kortlægning mellem GPIO og Modbus (persistent).
+**[NYT I V2.1.0]** - Generaliseret mapping-system til både GPIO-pins og ST Logic variabler!
+
+Det nye unified VariableMapping system betyder at GPIO-mapping og ST variable-binding bruger samme underliggende engine. Dette giver:
+
+✅ **Konsistent interface** - Samme mapping-mekanisme for alle variable-typer
+✅ **Ingen kodeduplikering** - Single I/O engine i `gpio_mapping_update()`
+✅ **Letere vedligeholdelse** - Alle bindings på ét sted
+✅ **Fremtidssikring** - Nemt at tilføje nye variable-kilder (USB, netværk, etc.)
+
+**Arkitektur: 3-fase execution per loop:**
+```
+Phase 1: gpio_mapping_update()      → Læs INPUTs (GPIO + ST)
+Phase 2: st_logic_engine_loop()     → Eksekvér ST programmer
+Phase 3: gpio_mapping_update()      → Skriv OUTPUTs (GPIO + ST)
+```
+
+---
+
+### STATIC GPIO MAPPING (GPIO PINS)
+
+Kortlægning mellem GPIO pins og Modbus (persistent).
 
 **Input-mode (GPIO → Diskret input):**
 ```
 set gpio 16 static map input:45
 
-Hver loop:
+Hver loop (Phase 1 & 3):
   1. Læs GPIO16
   2. Skriv til diskret input 45
 ```
@@ -754,12 +774,55 @@ Hver loop:
 ```
 set gpio 23 static map coil:112
 
-Hver gang coil 112 ændres:
+Hver loop (Phase 1 & 3):
   1. Læs coil 112
   2. Sæt/clear GPIO23
 ```
 
-### GPIO2 Heartbeat
+---
+
+### ST LOGIC VARIABLE BINDING (UNIFIED MAPPING)
+
+Kortlægning mellem ST Logic variabler og Modbus holding-registers.
+
+**Input-mode (Register → ST variable):**
+```
+set logic 1 bind 0 100 input
+
+Hver loop (Phase 1):
+  1. Læs HR#100
+  2. Skriv til ST variabel[0]
+```
+
+**Output-mode (ST variable → Register):**
+```
+set logic 1 bind 2 101 output
+
+Hver loop (Phase 3):
+  1. Læs ST variabel[2]
+  2. Skriv til HR#101
+```
+
+**Praktisk eksempel:**
+```
+# Opload ST temperatur-kontrol program
+set logic 1 upload "VAR temp_in: INT; heating: BOOL; END_VAR ..."
+
+# Bind indgang (læs temperatur fra Modbus)
+set logic 1 bind 0 100 input      # temp_in ← HR#100
+
+# Bind udgang (skriv kontrol til Modbus)
+set logic 1 bind 1 101 output     # heating → HR#101
+
+# Aktivér
+set logic 1 enabled:true
+
+# Nu: Hver 10ms opdateres HR#100→temp_in, program kører, heating→HR#101
+```
+
+---
+
+### GPIO2 HEARTBEAT
 
 Built-in "system alive" indikator.
 
@@ -824,7 +887,9 @@ Hele konfigurationen gemmes i **NVS** (Non-Volatile Storage).
 **Hvad gemmes:**
 - Alle counter-konfigurationer
 - Alle timer-konfigurationer
-- Alle GPIO-mappings
+- Alle variable-mappings (GPIO + ST Logic)
+  - GPIO mappings (STATIC GPIO ↔ Modbus)
+  - ST variable bindings (ST Logic ↔ Holding Registers)
 - STATIC register-værdier
 - STATIC coil-værdier
 - Modbus slave-ID
