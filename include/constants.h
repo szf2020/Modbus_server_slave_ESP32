@@ -111,6 +111,15 @@ typedef enum {
 } TimerFunction;
 
 /* ============================================================================
+ * VARIABLE MAPPING CONFIGURATION (UNIFIED GPIO + ST VARIABLES)
+ * ============================================================================ */
+
+typedef enum {
+  MAPPING_SOURCE_GPIO = 0,       // Map GPIO pin
+  MAPPING_SOURCE_ST_VAR = 1      // Map ST Logic variable
+} VariableMappingSourceType;
+
+/* ============================================================================
  * EEPROM / NVS CONFIGURATION
  * ============================================================================ */
 

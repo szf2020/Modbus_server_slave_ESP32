@@ -8,6 +8,7 @@
 #include "debug.h"
 #include <Arduino.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 void debug_println(const char* str) {
   if (str) {
@@ -38,4 +39,13 @@ void debug_print_float(double value) {
 
 void debug_newline(void) {
   Serial.println();
+}
+
+void debug_printf(const char* fmt, ...) {
+  char buffer[256];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+  Serial.print(buffer);
 }

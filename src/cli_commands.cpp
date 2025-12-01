@@ -572,8 +572,8 @@ void cli_cmd_no_set_gpio(uint8_t argc, char* argv[]) {
 
   // Find GPIO mapping
   uint8_t found_idx = 0xff;
-  for (uint8_t i = 0; i < g_persist_config.gpio_map_count; i++) {
-    if (g_persist_config.gpio_maps[i].gpio_pin == gpio_pin) {
+  for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+    if (g_persist_config.var_maps[i].gpio_pin == gpio_pin) {
       found_idx = i;
       break;
     }
@@ -587,10 +587,10 @@ void cli_cmd_no_set_gpio(uint8_t argc, char* argv[]) {
   }
 
   // Remove mapping by shifting all following entries one position down
-  for (uint8_t i = found_idx; i < g_persist_config.gpio_map_count - 1; i++) {
-    g_persist_config.gpio_maps[i] = g_persist_config.gpio_maps[i + 1];
+  for (uint8_t i = found_idx; i < g_persist_config.var_map_count - 1; i++) {
+    g_persist_config.var_maps[i] = g_persist_config.var_maps[i + 1];
   }
-  g_persist_config.gpio_map_count--;
+  g_persist_config.var_map_count--;
 
   debug_print("GPIO ");
   debug_print_uint(gpio_pin);
@@ -680,8 +680,8 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
 
   // Find existing GPIO mapping or create new
   uint8_t found_idx = 0xff;
-  for (uint8_t i = 0; i < g_persist_config.gpio_map_count; i++) {
-    if (g_persist_config.gpio_maps[i].gpio_pin == gpio_pin) {
+  for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+    if (g_persist_config.var_maps[i].gpio_pin == gpio_pin) {
       found_idx = i;
       break;
     }
@@ -689,21 +689,21 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
 
   if (found_idx == 0xff) {
     // Create new mapping
-    if (g_persist_config.gpio_map_count >= 8) {
+    if (g_persist_config.var_map_count >= 8) {
       debug_println("SET GPIO: max GPIO mappings reached (8)");
       return;
     }
-    found_idx = g_persist_config.gpio_map_count;
-    g_persist_config.gpio_map_count++;
+    found_idx = g_persist_config.var_map_count;
+    g_persist_config.var_map_count++;
   }
 
   // Store STATIC mapping
-  g_persist_config.gpio_maps[found_idx].gpio_pin = gpio_pin;
-  g_persist_config.gpio_maps[found_idx].is_input = is_input;
-  g_persist_config.gpio_maps[found_idx].associated_counter = 0xff;  // No counter in STATIC mode
-  g_persist_config.gpio_maps[found_idx].associated_timer = 0xff;    // No timer in STATIC mode
-  g_persist_config.gpio_maps[found_idx].input_reg = input_index;
-  g_persist_config.gpio_maps[found_idx].coil_reg = coil_index;
+  g_persist_config.var_maps[found_idx].gpio_pin = gpio_pin;
+  g_persist_config.var_maps[found_idx].is_input = is_input;
+  g_persist_config.var_maps[found_idx].associated_counter = 0xff;  // No counter in STATIC mode
+  g_persist_config.var_maps[found_idx].associated_timer = 0xff;    // No timer in STATIC mode
+  g_persist_config.var_maps[found_idx].input_reg = input_index;
+  g_persist_config.var_maps[found_idx].coil_reg = coil_index;
 
   // Initialize GPIO pin direction
   if (is_input) {
@@ -766,7 +766,7 @@ void cli_cmd_save(void) {
     debug_print_uint(g_persist_config.dynamic_coil_count);
     debug_println(" dynamic coils");
     debug_print("  - ");
-    debug_print_uint(g_persist_config.gpio_map_count);
+    debug_print_uint(g_persist_config.var_map_count);
     debug_println(" GPIO mappings");
   } else {
     debug_println("SAVE: Failed to save configuration");
@@ -793,7 +793,7 @@ void cli_cmd_load(void) {
     debug_print_uint(g_persist_config.dynamic_coil_count);
     debug_println(" dynamic coils");
     debug_print("  - ");
-    debug_print_uint(g_persist_config.gpio_map_count);
+    debug_print_uint(g_persist_config.var_map_count);
     debug_println(" GPIO mappings");
 
     // Apply configuration to running system
@@ -815,10 +815,10 @@ void cli_cmd_defaults(void) {
 
   // Initialize all GPIO mappings as unused
   for (uint8_t i = 0; i < 8; i++) {
-    g_persist_config.gpio_maps[i].input_reg = 65535;
-    g_persist_config.gpio_maps[i].coil_reg = 65535;
-    g_persist_config.gpio_maps[i].associated_counter = 0xff;
-    g_persist_config.gpio_maps[i].associated_timer = 0xff;
+    g_persist_config.var_maps[i].input_reg = 65535;
+    g_persist_config.var_maps[i].coil_reg = 65535;
+    g_persist_config.var_maps[i].associated_counter = 0xff;
+    g_persist_config.var_maps[i].associated_timer = 0xff;
   }
 
   debug_println("DEFAULTS: Configuration reset to factory defaults");

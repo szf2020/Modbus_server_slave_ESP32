@@ -278,12 +278,12 @@ void cli_cmd_show_config(void) {
   debug_println("");
 
   // Check if any GPIO mappings exist
-  if (g_persist_config.gpio_map_count > 0) {
+  if (g_persist_config.var_map_count > 0) {
     debug_print("User configured (");
-    debug_print_uint(g_persist_config.gpio_map_count);
+    debug_print_uint(g_persist_config.var_map_count);
     debug_println(" mappings):");
-    for (uint8_t i = 0; i < g_persist_config.gpio_map_count; i++) {
-      const GPIOMapping* gpio = &g_persist_config.gpio_maps[i];
+    for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+      const VariableMapping* gpio = &g_persist_config.var_maps[i];
       debug_print("  GPIO ");
       debug_print_uint(gpio->gpio_pin);
       debug_print(" - ");
@@ -706,12 +706,12 @@ void cli_cmd_show_gpio(void) {
   debug_println("");
 
   // Show user-configured GPIO mappings
-  if (g_persist_config.gpio_map_count > 0) {
+  if (g_persist_config.var_map_count > 0) {
     debug_print("User configured (");
-    debug_print_uint(g_persist_config.gpio_map_count);
+    debug_print_uint(g_persist_config.var_map_count);
     debug_println(" mappings):");
-    for (uint8_t i = 0; i < g_persist_config.gpio_map_count; i++) {
-      const GPIOMapping* gpio = &g_persist_config.gpio_maps[i];
+    for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+      const VariableMapping* gpio = &g_persist_config.var_maps[i];
       debug_print("  GPIO ");
       debug_print_uint(gpio->gpio_pin);
       debug_print(" - ");

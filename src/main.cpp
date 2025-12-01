@@ -23,6 +23,8 @@
 #include "config_apply.h"
 #include "config_struct.h"
 #include "registers.h"
+#include "st_logic_config.h"
+#include "st_logic_engine.h"
 
 // ============================================================================
 // SETUP
@@ -60,6 +62,7 @@ void setup() {
   // Initialize subsystems (with default configs)
   counter_engine_init();    // Counter feature (SW/SW-ISR/HW modes)
   timer_engine_init();      // Timer feature (4 modes)
+  st_logic_init(st_logic_get_state());  // ST Logic Mode (4 independent programs)
   modbus_server_init(g_persist_config.slave_id);    // Modbus RTU server (UART1, from config)
   heartbeat_init();         // LED blink on GPIO2
 
@@ -94,7 +97,15 @@ void loop() {
   registers_update_dynamic_registers();
   registers_update_dynamic_coils();
 
-  // GPIO STATIC mapping sync (GPIO ↔ registers/coils)
+  // UNIFIED VARIABLE MAPPING: Read INPUT bindings (GPIO + ST variables)
+  // This must happen BEFORE st_logic_engine_loop() to provide fresh inputs
+  gpio_mapping_update();
+
+  // ST Logic Mode execution (non-blocking, runs compiled programs)
+  st_logic_engine_loop(st_logic_get_state(), registers_get_holding_regs(), registers_get_input_regs());
+
+  // UNIFIED VARIABLE MAPPING: Write OUTPUT bindings (GPIO + ST variables)
+  // This must happen AFTER st_logic_engine_loop() to push results to registers
   gpio_mapping_update();
 
   // Heartbeat/watchdog

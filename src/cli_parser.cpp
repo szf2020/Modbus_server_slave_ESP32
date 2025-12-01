@@ -20,6 +20,8 @@
 #include "cli_show.h"
 #include "cli_config_regs.h"
 #include "cli_config_coils.h"
+#include "cli_commands_logic.h"
+#include "st_logic_config.h"
 #include "debug.h"
 #include <string.h>
 #include <stdlib.h>
@@ -88,6 +90,7 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "COUNTERS") || !strcmp(s, "counters")) return "COUNTERS";
   if (!strcmp(s, "TIMER") || !strcmp(s, "timer")) return "TIMER";
   if (!strcmp(s, "TIMERS") || !strcmp(s, "timers")) return "TIMERS";
+  if (!strcmp(s, "LOGIC") || !strcmp(s, "logic")) return "LOGIC";
   if (!strcmp(s, "CONFIG") || !strcmp(s, "config")) return "CONFIG";
   if (!strcmp(s, "REGISTERS") || !strcmp(s, "registers")) return "REGISTERS";
   if (!strcmp(s, "COILS") || !strcmp(s, "coils")) return "COILS";
@@ -106,6 +109,12 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "BAUD") || !strcmp(s, "baud")) return "BAUD";
   if (!strcmp(s, "ENABLE") || !strcmp(s, "enable")) return "ENABLE";
   if (!strcmp(s, "DISABLE") || !strcmp(s, "disable")) return "DISABLE";
+
+  // Logic Mode subcommands
+  if (!strcmp(s, "UPLOAD") || !strcmp(s, "upload")) return "UPLOAD";
+  if (!strcmp(s, "BIND") || !strcmp(s, "bind")) return "BIND";
+  if (!strcmp(s, "DELETE") || !strcmp(s, "delete")) return "DELETE";
+  if (!strcmp(s, "ENABLED") || !strcmp(s, "enabled")) return "ENABLED";
 
   return s;  // Return as-is if not an alias
 }
@@ -175,6 +184,27 @@ bool cli_parser_execute(char* line) {
       // show coil - Display coil configuration
       cli_cmd_show_coils();
       return true;
+    } else if (!strcmp(what, "LOGIC")) {
+      // show logic <id|all|stats>
+      if (argc < 3) {
+        debug_println("SHOW LOGIC: missing argument (expected <id|all|stats>)");
+        return false;
+      }
+
+      const char* subcommand = argv[2];
+
+      if (!strcmp(subcommand, "all")) {
+        cli_cmd_show_logic_all(st_logic_get_state());
+        return true;
+      } else if (!strcmp(subcommand, "stats")) {
+        cli_cmd_show_logic_stats(st_logic_get_state());
+        return true;
+      } else {
+        // show logic <id>
+        uint8_t program_id = atoi(subcommand);
+        cli_cmd_show_logic_program(st_logic_get_state(), program_id);
+        return true;
+      }
     } else {
       debug_println("SHOW: unknown argument");
       return false;
@@ -289,6 +319,60 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "ECHO")) {
       cli_cmd_set_echo(argc - 2, argv + 2);
       return true;
+    } else if (!strcmp(what, "LOGIC")) {
+      // set logic <id> <subcommand> [params...]
+      if (argc < 4) {
+        debug_println("SET LOGIC: missing arguments");
+        debug_println("  Usage: set logic <id> upload \"<code>\"");
+        debug_println("         set logic <id> enabled:true|false");
+        debug_println("         set logic <id> delete");
+        debug_println("         set logic <id> bind <var_idx> <register> [input|output|both]");
+        return false;
+      }
+
+      uint8_t program_id = atoi(argv[2]);
+      const char* subcommand = argv[3];  // Don't normalize yet - may be key:value
+
+      // Check for enabled:true|false format first (special case)
+      if (strstr(subcommand, "enabled:")) {
+        bool enabled = (strstr(subcommand, "true")) ? true : false;
+        cli_cmd_set_logic_enabled(st_logic_get_state(), program_id, enabled);
+        return true;
+      }
+
+      // Now normalize for other commands
+      const char* cmd_normalized = normalize_alias(subcommand);
+
+      if (!strcmp(cmd_normalized, "UPLOAD")) {
+        // set logic <id> upload "<code>"
+        if (argc < 5) {
+          debug_println("SET LOGIC UPLOAD: missing source code");
+          return false;
+        }
+        cli_cmd_set_logic_upload(st_logic_get_state(), program_id, argv[4]);
+        return true;
+      } else if (!strcmp(cmd_normalized, "DELETE")) {
+        // set logic <id> delete
+        cli_cmd_set_logic_delete(st_logic_get_state(), program_id);
+        return true;
+      } else if (!strcmp(cmd_normalized, "BIND")) {
+        // set logic <id> bind <var_idx> <register> [input|output|both]
+        if (argc < 6) {
+          debug_println("SET LOGIC BIND: missing parameters");
+          debug_println("  Usage: set logic <id> bind <var_idx> <register> [input|output|both]");
+          return false;
+        }
+
+        uint8_t var_idx = atoi(argv[4]);
+        uint16_t register_addr = atoi(argv[5]);
+        const char* direction = (argc > 6) ? argv[6] : "both";
+
+        cli_cmd_set_logic_bind(st_logic_get_state(), program_id, var_idx, register_addr, direction);
+        return true;
+      } else {
+        debug_println("SET LOGIC: unknown subcommand");
+        return false;
+      }
     } else {
       debug_println("SET: unknown argument");
       return false;

@@ -14,10 +14,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* ST Logic Engine includes */
 #include "st_logic_config.h"
 #include "st_logic_engine.h"
+
+/* Config & Mapping includes */
+#include "config_struct.h"
+#include "constants.h"
 
 /* Forward declarations - from existing CLI infrastructure */
 extern void debug_println(const char *msg);
@@ -60,7 +65,7 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
     return -1;
   }
 
-  debug_printf("✓ Logic%d compiled successfully (%d bytes, %d instructions)\n",
+  debug_printf("[OK] Logic%d compiled successfully (%d bytes, %d instructions)\n",
                program_id + 1, strlen(source_code), logic_state->programs[program_id].bytecode.instr_count);
 
   return 0;
@@ -75,7 +80,7 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
  *   set logic 1 enabled:true
  */
 int cli_cmd_set_logic_enabled(st_logic_engine_state_t *logic_state, uint8_t program_id,
-                              uint8_t enabled) {
+                              bool enabled) {
   if (program_id >= 4) {
     debug_println("ERROR: Invalid program ID (0-3)");
     return -1;
@@ -92,7 +97,7 @@ int cli_cmd_set_logic_enabled(st_logic_engine_state_t *logic_state, uint8_t prog
     return -1;
   }
 
-  debug_printf("✓ Logic%d %s\n", program_id + 1, enabled ? "ENABLED" : "DISABLED");
+  debug_printf("[OK] Logic%d %s\n", program_id + 1, enabled ? "ENABLED" : "DISABLED");
   return 0;
 }
 
@@ -115,14 +120,14 @@ int cli_cmd_set_logic_delete(st_logic_engine_state_t *logic_state, uint8_t progr
     return -1;
   }
 
-  debug_printf("✓ Logic%d deleted\n", program_id + 1);
+  debug_printf("[OK] Logic%d deleted\n", program_id + 1);
   return 0;
 }
 
 /**
  * @brief set logic <id> bind <var_idx> <register> [input|output|both]
  *
- * Bind ST variable to Modbus register
+ * Bind ST variable to Modbus register (unified VariableMapping system)
  *
  * Example:
  *   set logic 1 bind 0 100 input   # ST var[0] reads from HR#100
@@ -135,13 +140,19 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
     return -1;
   }
 
-  if (var_index >= 32) {
-    debug_println("ERROR: Invalid variable index (0-31)");
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  if (!prog || !prog->compiled) {
+    debug_println("ERROR: Program not compiled. Upload source code first.");
     return -1;
   }
 
-  if (modbus_reg >= 160) {
-    debug_println("ERROR: Invalid Modbus register (0-159)");
+  if (var_index >= prog->bytecode.var_count) {
+    debug_printf("ERROR: Invalid variable index (0-%d)\n", prog->bytecode.var_count - 1);
+    return -1;
+  }
+
+  if (modbus_reg >= HOLDING_REGS_SIZE) {
+    debug_printf("ERROR: Invalid Modbus register (0-%d)\n", HOLDING_REGS_SIZE - 1);
     return -1;
   }
 
@@ -159,14 +170,54 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
     return -1;
   }
 
-  if (!st_logic_bind_variable(logic_state, program_id, var_index, modbus_reg, is_input, is_output)) {
-    debug_println("ERROR: Failed to bind variable");
+  // Use unified VariableMapping system
+  if (g_persist_config.var_map_count >= 16) {
+    debug_println("ERROR: Maximum variable mappings (16) reached");
     return -1;
   }
 
-  debug_printf("✓ Logic%d: var[%d] %s Modbus HR#%d\n",
+  // Check for existing binding for this variable
+  for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+    VariableMapping *map = &g_persist_config.var_maps[i];
+    if (map->source_type == MAPPING_SOURCE_ST_VAR &&
+        map->st_program_id == program_id &&
+        map->st_var_index == var_index) {
+      // Update existing binding
+      if (is_input) {
+        map->is_input = 1;
+        map->input_reg = modbus_reg;
+      }
+      if (is_output) {
+        map->is_input = 0;
+        map->coil_reg = modbus_reg;
+      }
+      debug_printf("[OK] Logic%d: var[%d] %s Modbus HR#%d (updated)\n",
+                   program_id + 1, var_index,
+                   (is_input && is_output) ? "<->" : (is_input) ? "<-" : "->",
+                   modbus_reg);
+      return 0;
+    }
+  }
+
+  // Add new binding
+  VariableMapping *map = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+  memset(map, 0xff, sizeof(*map));  // Initialize to 0xff (unused)
+  map->source_type = MAPPING_SOURCE_ST_VAR;
+  map->st_program_id = program_id;
+  map->st_var_index = var_index;
+
+  if (is_input) {
+    map->is_input = 1;
+    map->input_reg = modbus_reg;
+  }
+  if (is_output) {
+    map->is_input = 0;  // OUTPUT mode
+    map->coil_reg = modbus_reg;
+  }
+
+  debug_printf("[OK] Logic%d: var[%d] %s Modbus HR#%d\n",
                program_id + 1, var_index,
-               (is_input && is_output) ? "↔" : (is_input) ? "←" : "→",
+               (is_input && is_output) ? "<->" : (is_input) ? "<-" : "->",
                modbus_reg);
 
   return 0;

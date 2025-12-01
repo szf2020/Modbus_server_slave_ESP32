@@ -29,10 +29,10 @@ static void config_init_defaults(PersistConfig* cfg) {
 
   // Initialize all GPIO mappings as unused
   for (uint8_t i = 0; i < 8; i++) {
-    cfg->gpio_maps[i].input_reg = 65535;
-    cfg->gpio_maps[i].coil_reg = 65535;
-    cfg->gpio_maps[i].associated_counter = 0xff;
-    cfg->gpio_maps[i].associated_timer = 0xff;
+    cfg->var_maps[i].input_reg = 65535;
+    cfg->var_maps[i].coil_reg = 65535;
+    cfg->var_maps[i].associated_counter = 0xff;
+    cfg->var_maps[i].associated_timer = 0xff;
   }
 }
 
@@ -95,8 +95,8 @@ bool config_load_from_nvs(PersistConfig* out) {
   debug_print_uint(out->slave_id);
   debug_print(", baudrate=");
   debug_print_uint(out->baudrate);
-  debug_print(", gpio_maps=");
-  debug_print_uint(out->gpio_map_count);
+  debug_print(", var_maps=");
+  debug_print_uint(out->var_map_count);
   debug_print(", static_regs=");
   debug_print_uint(out->static_reg_count);
   debug_print(", static_coils=");

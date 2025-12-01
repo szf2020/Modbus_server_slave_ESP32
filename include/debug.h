@@ -45,4 +45,11 @@ void debug_print_float(double value);
  */
 void debug_newline(void);
 
+/**
+ * @brief Print formatted string (like printf)
+ * @param fmt Format string
+ * @param ... Variable arguments
+ */
+void debug_printf(const char* fmt, ...);
+
 #endif // debug_H

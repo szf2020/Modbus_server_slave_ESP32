@@ -43,33 +43,47 @@ bool config_apply(const PersistConfig* cfg) {
     debug_println("    Heartbeat enabled (GPIO2 LED blink)");
   }
 
-  // Apply GPIO mappings (initialize GPIO pins)
-  debug_print("  GPIO mappings: ");
-  debug_print_uint(cfg->gpio_map_count);
+  // Apply variable mappings (initialize GPIO pins)
+  debug_print("  Variable mappings (GPIO + ST): ");
+  debug_print_uint(cfg->var_map_count);
   debug_println("");
 
-  for (uint8_t i = 0; i < cfg->gpio_map_count; i++) {
-    const GPIOMapping* map = &cfg->gpio_maps[i];
+  for (uint8_t i = 0; i < cfg->var_map_count; i++) {
+    const VariableMapping* map = &cfg->var_maps[i];
 
-    // Skip mappings associated with counters/timers (they will be initialized by their engines)
-    if (map->associated_counter != 0xff || map->associated_timer != 0xff) {
-      continue;
+    // Handle GPIO mappings
+    if (map->source_type == MAPPING_SOURCE_GPIO) {
+      // Skip mappings associated with counters/timers (they will be initialized by their engines)
+      if (map->associated_counter != 0xff || map->associated_timer != 0xff) {
+        continue;
+      }
+
+      // Initialize GPIO pin direction for STATIC mappings
+      if (map->is_input) {
+        gpio_set_direction(map->gpio_pin, GPIO_INPUT);
+        debug_print("    GPIO");
+        debug_print_uint(map->gpio_pin);
+        debug_print(" - INPUT:");
+        debug_print_uint(map->input_reg);
+        debug_println("");
+      } else {
+        gpio_set_direction(map->gpio_pin, GPIO_OUTPUT);
+        debug_print("    GPIO");
+        debug_print_uint(map->gpio_pin);
+        debug_print(" - COIL:");
+        debug_print_uint(map->coil_reg);
+        debug_println("");
+      }
     }
-
-    // Initialize GPIO pin direction for STATIC mappings
-    if (map->is_input) {
-      gpio_set_direction(map->gpio_pin, GPIO_INPUT);
-      debug_print("    GPIO");
-      debug_print_uint(map->gpio_pin);
-      debug_print(" - INPUT:");
-      debug_print_uint(map->input_reg);
-      debug_println("");
-    } else {
-      gpio_set_direction(map->gpio_pin, GPIO_OUTPUT);
-      debug_print("    GPIO");
-      debug_print_uint(map->gpio_pin);
-      debug_print(" - COIL:");
-      debug_print_uint(map->coil_reg);
+    // Handle ST variable mappings (no initialization needed, just logging)
+    else if (map->source_type == MAPPING_SOURCE_ST_VAR) {
+      debug_print("    Logic");
+      debug_print_uint(map->st_program_id + 1);
+      debug_print(": var[");
+      debug_print_uint(map->st_var_index);
+      debug_print("] ");
+      debug_print(map->is_input ? "<- HR#" : "-> HR#");
+      debug_print_uint(map->is_input ? map->input_reg : map->coil_reg);
       debug_println("");
     }
   }

@@ -11,6 +11,25 @@
 #include <stdlib.h>
 
 /* ============================================================================
+ * GLOBAL STATE
+ * ============================================================================ */
+
+// Global logic engine state - single instance for all 4 programs
+static st_logic_engine_state_t g_logic_state;
+
+// Global parser and compiler to avoid stack overflow
+// (These are large structures, don't allocate on stack)
+static st_parser_t g_parser;
+static st_compiler_t g_compiler;
+
+/**
+ * @brief Get pointer to global logic engine state
+ */
+st_logic_engine_state_t *st_logic_get_state(void) {
+  return &g_logic_state;
+}
+
+/* ============================================================================
  * INITIALIZATION
  * ============================================================================ */
 
@@ -56,23 +75,21 @@ bool st_logic_compile(st_logic_engine_state_t *state, uint8_t program_id) {
     return false;
   }
 
-  // Parse the source code
-  st_parser_t parser;
-  st_parser_init(&parser, prog->source_code);
-  st_program_t *program = st_parser_parse_program(&parser);
+  // Parse the source code (use global parser to avoid stack overflow)
+  st_parser_init(&g_parser, prog->source_code);
+  st_program_t *program = st_parser_parse_program(&g_parser);
 
   if (!program) {
-    snprintf(prog->last_error, sizeof(prog->last_error), "Parse error: %s", parser.error_msg);
+    snprintf(prog->last_error, sizeof(prog->last_error), "Parse error: %s", g_parser.error_msg);
     return false;
   }
 
-  // Compile to bytecode
-  st_compiler_t compiler;
-  st_compiler_init(&compiler);
-  st_bytecode_program_t *bytecode = st_compiler_compile(&compiler, program);
+  // Compile to bytecode (use global compiler to avoid stack overflow)
+  st_compiler_init(&g_compiler);
+  st_bytecode_program_t *bytecode = st_compiler_compile(&g_compiler, program);
 
   if (!bytecode) {
-    snprintf(prog->last_error, sizeof(prog->last_error), "Compile error: %s", compiler.error_msg);
+    snprintf(prog->last_error, sizeof(prog->last_error), "Compile error: %s", g_compiler.error_msg);
     st_program_free(program);
     return false;
   }
@@ -90,40 +107,25 @@ bool st_logic_compile(st_logic_engine_state_t *state, uint8_t program_id) {
 }
 
 /* ============================================================================
- * VARIABLE BINDING
+ * VARIABLE BINDING (DEPRECATED)
+ *
+ * NOTE: Variable binding is now handled by the unified VariableMapping system.
+ * Instead of using st_logic_bind_variable(), create a VariableMapping entry:
+ *
+ * Example:
+ *   VariableMapping map = {
+ *     .source_type = MAPPING_SOURCE_ST_VAR,
+ *     .st_program_id = 0,
+ *     .st_var_index = 2,
+ *     .is_input = 0,  // OUTPUT mode
+ *     .coil_reg = 100  // Write to HR#100
+ *   };
+ *   g_persist_config.var_maps[g_persist_config.var_map_count++] = map;
+ *   config_save();
+ *
+ * This eliminates code duplication and provides a single place to manage
+ * all variable bindings (GPIO + ST).
  * ============================================================================ */
-
-bool st_logic_bind_variable(st_logic_engine_state_t *state, uint8_t program_id,
-                             uint8_t st_var_index, uint16_t modbus_reg,
-                             uint8_t is_input, uint8_t is_output) {
-  if (program_id >= 4) return false;
-
-  st_logic_program_config_t *prog = &state->programs[program_id];
-
-  if (prog->binding_count >= 32) {
-    return false;  // Max bindings reached
-  }
-
-  // Check for duplicate variable
-  for (int i = 0; i < prog->binding_count; i++) {
-    if (prog->var_bindings[i].st_var_index == st_var_index) {
-      // Update existing binding
-      prog->var_bindings[i].modbus_register = modbus_reg;
-      prog->var_bindings[i].is_input = is_input;
-      prog->var_bindings[i].is_output = is_output;
-      return true;
-    }
-  }
-
-  // Add new binding
-  st_var_binding_t *binding = &prog->var_bindings[prog->binding_count++];
-  binding->st_var_index = st_var_index;
-  binding->modbus_register = modbus_reg;
-  binding->is_input = is_input;
-  binding->is_output = is_output;
-
-  return true;
-}
 
 /* ============================================================================
  * PROGRAM MANAGEMENT

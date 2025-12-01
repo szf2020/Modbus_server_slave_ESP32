@@ -637,7 +637,7 @@ st_ast_node_t *st_parser_parse_statement(st_parser_t *parser) {
 }
 
 /* Parse statement list */
-st_ast_node_t *st_st_parser_parse_statements(st_parser_t *parser) {
+st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
   st_ast_node_t *head = NULL;
   st_ast_node_t *tail = NULL;
 
@@ -778,7 +778,7 @@ st_program_t *st_parser_parse_program(st_parser_t *parser) {
   }
 
   // Parse statements
-  program->body = st_st_parser_parse_statements(parser);
+  program->body = st_parser_parse_statements(parser);
 
   if (parser->error_count > 0) {
     st_program_free(program);

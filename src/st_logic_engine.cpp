@@ -13,50 +13,17 @@
 #include <stdio.h>
 
 /* ============================================================================
- * INPUT/OUTPUT OPERATIONS (Modbus ↔ ST Variables)
+ * INPUT/OUTPUT OPERATIONS (MOVED TO gpio_mapping.cpp)
+ *
+ * NOTE: Variable I/O is now handled by the unified VariableMapping system
+ * in gpio_mapping.cpp. This eliminates code duplication and provides
+ * a single place to manage all variable bindings (GPIO + ST).
+ *
+ * The mapping engine:
+ * - Reads variables from registers (INPUT mode) BEFORE program execution
+ * - Writes variables to registers (OUTPUT mode) AFTER program execution
+ * - Handles both GPIO pins and ST variables using the same mechanism
  * ============================================================================ */
-
-bool st_logic_read_inputs(st_logic_engine_state_t *state, uint8_t program_id,
-                           uint16_t *holding_regs) {
-  st_logic_program_config_t *prog = st_logic_get_program(state, program_id);
-  if (!prog || !prog->compiled) return false;
-
-  // For each variable binding marked as INPUT
-  for (int i = 0; i < prog->binding_count; i++) {
-    st_var_binding_t *binding = &prog->var_bindings[i];
-
-    if (!binding->is_input) continue;  // Skip non-input bindings
-
-    if (binding->modbus_register >= 160) continue;  // Bounds check
-
-    // Read from Modbus register, store to ST variable
-    // Note: Simplified - just copy int value. Real implementation would handle type conversion
-    prog->bytecode.variables[binding->st_var_index].int_val = holding_regs[binding->modbus_register];
-  }
-
-  return true;
-}
-
-bool st_logic_write_outputs(st_logic_engine_state_t *state, uint8_t program_id,
-                             uint16_t *holding_regs) {
-  st_logic_program_config_t *prog = st_logic_get_program(state, program_id);
-  if (!prog || !prog->compiled) return false;
-
-  // For each variable binding marked as OUTPUT
-  for (int i = 0; i < prog->binding_count; i++) {
-    st_var_binding_t *binding = &prog->var_bindings[i];
-
-    if (!binding->is_output) continue;  // Skip non-output bindings
-
-    if (binding->modbus_register >= 160) continue;  // Bounds check
-
-    // Write from ST variable to Modbus register
-    // Note: Simplified - just copy int value. Real implementation would handle type conversion
-    holding_regs[binding->modbus_register] = prog->bytecode.variables[binding->st_var_index].int_val;
-  }
-
-  return true;
-}
 
 /* ============================================================================
  * PROGRAM EXECUTION
@@ -90,6 +57,16 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
 
 /* ============================================================================
  * MAIN LOGIC ENGINE LOOP
+ *
+ * EXECUTION ORDER:
+ * 1. gpio_mapping_update() - Reads INPUT bindings (register→ST var)
+ * 2. st_logic_engine_loop() - Executes all enabled programs
+ * 3. gpio_mapping_update() - Writes OUTPUT bindings (ST var→register)
+ *
+ * This 3-phase approach ensures:
+ * - Variables are synced BEFORE execution (fresh inputs)
+ * - Variables are synced AFTER execution (outputs pushed to registers)
+ * - All I/O goes through unified VariableMapping system
  * ============================================================================ */
 
 bool st_logic_engine_loop(st_logic_engine_state_t *state,
@@ -99,23 +76,18 @@ bool st_logic_engine_loop(st_logic_engine_state_t *state,
   bool all_success = true;
 
   // Execute each program in sequence
+  // NOTE: I/O is handled by gpio_mapping_update() in main loop, not here
   for (int prog_id = 0; prog_id < 4; prog_id++) {
     st_logic_program_config_t *prog = &state->programs[prog_id];
 
     if (!prog->enabled || !prog->compiled) continue;
 
-    // Phase 1: Read inputs from Modbus
-    st_logic_read_inputs(state, prog_id, holding_regs);
-
-    // Phase 2: Execute program bytecode
+    // Execute program bytecode
     bool success = st_logic_execute_program(state, prog_id);
     if (!success) {
       all_success = false;
       // Continue executing other programs despite error
     }
-
-    // Phase 3: Write outputs to Modbus
-    st_logic_write_outputs(state, prog_id, holding_regs);
   }
 
   return all_success;
@@ -168,15 +140,9 @@ void st_logic_print_program(st_logic_engine_state_t *state, uint8_t program_id) 
     }
   }
 
-  printf("\nVariable Bindings: %d\n", prog->binding_count);
-  for (int i = 0; i < prog->binding_count; i++) {
-    st_var_binding_t *binding = &prog->var_bindings[i];
-    printf("  [%d] ST var[%d] %s Modbus HR#%d\n",
-           i, binding->st_var_index,
-           (binding->is_input && binding->is_output) ? "↔" :
-           (binding->is_input) ? "←" : "→",
-           binding->modbus_register);
-  }
+  printf("\nVariable Bindings:\n");
+  printf("  (Managed by unified VariableMapping system in gpio_mapping.cpp)\n");
+  printf("  Use 'set logic %d bind <var> <reg> [input|output|both]' to configure\n", prog->name[5] - '0');
 
   printf("\nStatistics:\n");
   printf("  Executions: %u\n", prog->execution_count);

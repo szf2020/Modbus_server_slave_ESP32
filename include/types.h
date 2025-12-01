@@ -190,17 +190,27 @@ typedef struct {
 } DynamicCoilMapping;
 
 /* ============================================================================
- * GPIO MAPPING (for input-dis)
+ * UNIFIED VARIABLE MAPPING (GPIO pins + ST variables ↔ Modbus registers)
  * ============================================================================ */
 
 typedef struct {
+  // Source type: what is being mapped
+  uint8_t source_type;          // MAPPING_SOURCE_GPIO, MAPPING_SOURCE_ST_VAR
+
+  // GPIO mapping (if source_type == MAPPING_SOURCE_GPIO)
   uint8_t gpio_pin;
-  uint8_t is_input;             // 1 = INPUT mode (GPIO → discrete input), 0 = OUTPUT mode (coil → GPIO)
   uint8_t associated_counter;   // 0xff if none (set via input-dis=<pin>)
   uint8_t associated_timer;     // 0xff if none
-  uint16_t input_reg;           // Discrete input index (65535 if none) - for INPUT mode
-  uint16_t coil_reg;            // Coil index (65535 if none) - for OUTPUT mode
-} GPIOMapping;
+
+  // ST Variable mapping (if source_type == MAPPING_SOURCE_ST_VAR)
+  uint8_t st_program_id;        // Logic program ID (0-3), 0xff if none
+  uint8_t st_var_index;         // ST variable index (0-31)
+
+  // I/O Configuration
+  uint8_t is_input;             // 1 = INPUT mode (source → register), 0 = OUTPUT mode (register → source)
+  uint16_t input_reg;           // Input register index (65535 if none) - for INPUT mode
+  uint16_t coil_reg;            // Coil/output register index (65535 if none) - for OUTPUT mode
+} VariableMapping;
 
 /* ============================================================================
  * PERSISTENT CONFIGURATION (EEPROM/NVS)
@@ -236,9 +246,9 @@ typedef struct {
   uint8_t dynamic_coil_count;
   DynamicCoilMapping dynamic_coils[MAX_DYNAMIC_COILS];
 
-  // GPIO mappings (for input-dis pins)
-  uint8_t gpio_map_count;
-  GPIOMapping gpio_maps[8];
+  // Variable mappings (GPIO pins + ST variables)
+  uint8_t var_map_count;
+  VariableMapping var_maps[16];  // 8 GPIO + 8 ST variable bindings
 
   // GPIO2 configuration (heartbeat control)
   uint8_t gpio2_user_mode;  // 0 = heartbeat mode (default), 1 = user mode (GPIO2 available)

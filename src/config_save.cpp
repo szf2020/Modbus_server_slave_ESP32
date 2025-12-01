@@ -130,8 +130,8 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
   debug_print_uint(cfg->slave_id);
   debug_print(", baudrate=");
   debug_print_uint(cfg->baudrate);
-  debug_print(", gpio_maps=");
-  debug_print_uint(cfg->gpio_map_count);
+  debug_print(", var_maps=");
+  debug_print_uint(cfg->var_map_count);
   debug_print(", static_regs=");
   debug_print_uint(cfg->static_reg_count);
   debug_print(", static_coils=");

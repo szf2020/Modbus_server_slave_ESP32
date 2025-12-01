@@ -12,18 +12,10 @@
 #include "st_types.h"
 
 /* ============================================================================
- * VARIABLE BINDING (ST variable ↔ Modbus register)
- * ============================================================================ */
-
-typedef struct {
-  uint8_t st_var_index;       // Which ST variable (0-31)
-  uint16_t modbus_register;   // Modbus holding register address (0-159)
-  uint8_t is_input;           // VAR_INPUT? (read from register)
-  uint8_t is_output;          // VAR_OUTPUT? (write to register)
-} st_var_binding_t;
-
-/* ============================================================================
  * LOGIC PROGRAM CONFIGURATION
+ *
+ * NOTE: Variable bindings are now handled by unified VariableMapping system
+ * in gpio_mapping.cpp. No longer duplicated here.
  * ============================================================================ */
 
 typedef struct {
@@ -38,10 +30,6 @@ typedef struct {
   // Compiled bytecode
   st_bytecode_program_t bytecode; // Compiled and ready to execute
   uint8_t compiled;           // Is bytecode valid?
-
-  // Register bindings (which Modbus registers map to which variables)
-  st_var_binding_t var_bindings[32]; // Max 32 variable bindings
-  uint8_t binding_count;
 
   // Execution statistics
   uint32_t execution_count;   // Number of times executed
@@ -97,17 +85,18 @@ bool st_logic_compile(st_logic_engine_state_t *state, uint8_t program_id);
 
 /**
  * @brief Set variable binding (ST variable ↔ Modbus register)
- * @param state Logic engine state
- * @param program_id Program ID (0-3)
- * @param st_var_index ST variable index (0-31)
- * @param modbus_reg Modbus holding register address
- * @param is_input Is this an input (read from register)?
- * @param is_output Is this an output (write to register)?
- * @return true if successful
+ *
+ * DEPRECATED: Use the unified VariableMapping system in gpio_mapping.cpp instead.
+ * To bind a variable:
+ *   1. Create a VariableMapping entry in g_persist_config.var_maps
+ *   2. Set source_type = MAPPING_SOURCE_ST_VAR
+ *   3. Set st_program_id and st_var_index
+ *   4. Set is_input/coil_reg or is_output fields
+ *   5. Call config_save() to persist
+ *
+ * The mapping engine will handle all I/O automatically.
  */
-bool st_logic_bind_variable(st_logic_engine_state_t *state, uint8_t program_id,
-                             uint8_t st_var_index, uint16_t modbus_reg,
-                             uint8_t is_input, uint8_t is_output);
+// FUNCTION REMOVED - use VariableMapping system instead
 
 /**
  * @brief Enable/disable a logic program
@@ -133,5 +122,11 @@ bool st_logic_delete(st_logic_engine_state_t *state, uint8_t program_id);
  * @return Program configuration (NULL if invalid ID)
  */
 st_logic_program_config_t *st_logic_get_program(st_logic_engine_state_t *state, uint8_t program_id);
+
+/**
+ * @brief Get pointer to global logic engine state
+ * @return Pointer to the global ST logic engine state
+ */
+st_logic_engine_state_t *st_logic_get_state(void);
 
 #endif // ST_LOGIC_CONFIG_H
