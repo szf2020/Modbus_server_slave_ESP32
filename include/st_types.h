@@ -45,6 +45,7 @@ typedef enum {
   ST_TOK_VAR_INPUT,         // VAR_INPUT
   ST_TOK_VAR_OUTPUT,        // VAR_OUTPUT
   ST_TOK_VAR_IN_OUT,        // VAR_IN_OUT (future)
+  ST_TOK_END_VAR,           // END_VAR
 
   // Keywords - Control structures (IEC 6.3.2)
   ST_TOK_IF,                // IF
@@ -211,9 +212,15 @@ typedef struct {
 } st_if_stmt_t;
 
 typedef struct {
-  st_ast_node_t *expr;      // Expression being tested
-  // CASE branches (simplified - store as list of conditions+actions)
-  // TODO: Implement case branch array
+  int32_t value;              // Case label value
+  st_ast_node_t *body;        // Statements for this case
+} st_case_branch_t;
+
+typedef struct {
+  st_ast_node_t *expr;        // Expression being tested
+  st_case_branch_t branches[16];  // Up to 16 case branches
+  uint8_t branch_count;       // Number of branches
+  st_ast_node_t *else_body;   // ELSE block (NULL if none)
 } st_case_stmt_t;
 
 typedef struct {
@@ -290,6 +297,8 @@ typedef enum {
   ST_OP_PUSH_DWORD,         // Push dword literal
   ST_OP_PUSH_REAL,          // Push real literal
   ST_OP_PUSH_VAR,           // Push variable value onto stack
+  ST_OP_DUP,                // Duplicate top stack value
+  ST_OP_POP,                // Pop and discard top stack value
 
   // Arithmetic
   ST_OP_ADD,                // Pop 2, push sum

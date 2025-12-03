@@ -97,6 +97,12 @@ void st_ast_node_free(st_ast_node_t *node) {
 
     case ST_AST_CASE:
       st_ast_node_free(node->data.case_stmt.expr);
+      // Free all case branches
+      for (uint8_t i = 0; i < node->data.case_stmt.branch_count; i++) {
+        st_ast_node_free(node->data.case_stmt.branches[i].body);
+      }
+      // Free ELSE body
+      st_ast_node_free(node->data.case_stmt.else_body);
       break;
 
     case ST_AST_FOR:
@@ -441,21 +447,60 @@ static st_ast_node_t *parser_parse_case_statement(st_parser_t *parser) {
     return NULL;
   }
 
-  // TODO: Parse case branches (simplified for now)
+  // Create CASE node
+  st_ast_node_t *node = ast_node_alloc(ST_AST_CASE, line);
+  node->data.case_stmt.expr = expr;
+  node->data.case_stmt.branch_count = 0;
+  node->data.case_stmt.else_body = NULL;
+
+  // Parse case branches until END_CASE or ELSE
+  while (!parser_match(parser, ST_TOK_END_CASE) &&
+         !parser_match(parser, ST_TOK_ELSE) &&
+         !parser_match(parser, ST_TOK_EOF) &&
+         node->data.case_stmt.branch_count < 16) {
+
+    // Parse case label (number constant)
+    if (!parser_match(parser, ST_TOK_INT)) {
+      parser_error(parser, "Expected case value (integer constant)");
+      break;
+    }
+
+    int32_t case_value = (int32_t)strtol(parser->current_token.value, NULL, 0);
+    parser_advance(parser);
+
+    if (!parser_expect(parser, ST_TOK_COLON)) {
+      parser_error(parser, "Expected : after case value");
+      break;
+    }
+
+    // Parse statements for this case (until next label, ELSE, or END_CASE)
+    st_ast_node_t *case_body = st_parser_parse_statements(parser);
+
+    // Store case branch
+    node->data.case_stmt.branches[node->data.case_stmt.branch_count].value = case_value;
+    node->data.case_stmt.branches[node->data.case_stmt.branch_count].body = case_body;
+    node->data.case_stmt.branch_count++;
+  }
+
+  // Parse optional ELSE clause
+  if (parser_match(parser, ST_TOK_ELSE)) {
+    parser_advance(parser);
+
+    if (!parser_expect(parser, ST_TOK_COLON)) {
+      parser_error(parser, "Expected : after ELSE");
+    } else {
+      node->data.case_stmt.else_body = st_parser_parse_statements(parser);
+    }
+  }
 
   if (!parser_expect(parser, ST_TOK_END_CASE)) {
     parser_error(parser, "Expected END_CASE");
-    st_ast_node_free(expr);
-    return NULL;
   }
 
   // Consume optional semicolon
   if (parser_match(parser, ST_TOK_SEMICOLON)) {
     parser_advance(parser);
   }
-
-  st_ast_node_t *node = ast_node_alloc(ST_AST_CASE, line);
-  node->data.case_stmt.expr = expr;
 
   return node;
 }
@@ -687,7 +732,8 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
     parser_advance(parser);
 
     // Parse variable declarations until END_VAR
-    while (!parser_match(parser, ST_TOK_VAR) &&
+    while (!parser_match(parser, ST_TOK_END_VAR) &&
+           !parser_match(parser, ST_TOK_VAR) &&
            !parser_match(parser, ST_TOK_VAR_INPUT) &&
            !parser_match(parser, ST_TOK_VAR_OUTPUT) &&
            !parser_match(parser, ST_TOK_END_PROGRAM) &&
@@ -754,6 +800,16 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
         parser_error(parser, "Too many variables (max 32)");
         return false;
       }
+    }
+
+    // Expect END_VAR to close the VAR block
+    if (parser_match(parser, ST_TOK_END_VAR)) {
+      parser_advance(parser);
+    } else if (!parser_match(parser, ST_TOK_EOF) &&
+               !parser_match(parser, ST_TOK_END_PROGRAM)) {
+      // Only error if not at EOF or END_PROGRAM (multiple VAR blocks allowed)
+      parser_error(parser, "Expected END_VAR to close variable declaration block");
+      return false;
     }
   }
 

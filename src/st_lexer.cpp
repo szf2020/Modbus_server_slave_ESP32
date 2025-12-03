@@ -87,6 +87,7 @@ static const keyword_entry_t keywords[] = {
   {"VAR_INPUT", ST_TOK_VAR_INPUT},
   {"VAR_OUTPUT", ST_TOK_VAR_OUTPUT},
   {"VAR_IN_OUT", ST_TOK_VAR_IN_OUT},
+  {"END_VAR", ST_TOK_END_VAR},
   {"CONST", ST_TOK_CONST},
 
   // Control structures
