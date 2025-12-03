@@ -66,6 +66,9 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
   }
 
   // Try to compile immediately
+  st_logic_program_config_t *prog_before = st_logic_get_program(logic_state, program_id);
+  uint8_t compiled_before = prog_before ? prog_before->compiled : 0;
+
   if (!st_logic_compile(logic_state, program_id)) {
     st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
 
@@ -83,6 +86,7 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
   }
 
   st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  uint8_t compiled_after = prog ? prog->compiled : 0;
 
   // Success output
   debug_println("");
@@ -91,6 +95,7 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
   debug_printf("  Source: %d bytes\n", strlen(source_code));
   debug_printf("  Bytecode: %d instructions\n", prog->bytecode.instr_count);
   debug_printf("  Variables: %d\n", prog->bytecode.var_count);
+  debug_printf("  [DEBUG] compiled: %d → %d\n", compiled_before, compiled_after);
   debug_println("");
 
   return 0;
@@ -112,6 +117,9 @@ int cli_cmd_set_logic_enabled(st_logic_engine_state_t *logic_state, uint8_t prog
   }
 
   st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  debug_printf("[ENABLED_DEBUG] program_id=%d, prog=%p, compiled=%d\n",
+               program_id, prog, prog ? prog->compiled : -1);
+
   if (!prog->compiled) {
     debug_println("ERROR: Program not compiled. Upload source code first.");
     return -1;
@@ -167,6 +175,9 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
   }
 
   st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  debug_printf("[BIND_DEBUG] program_id=%d, var=%s, prog=%p, compiled=%d\n",
+               program_id, var_name, prog, prog ? prog->compiled : -1);
+
   if (!prog || !prog->compiled) {
     debug_println("ERROR: Program not compiled. Upload source code first.");
     return -1;
@@ -483,5 +494,78 @@ int cli_cmd_show_logic_errors(st_logic_engine_state_t *logic_state) {
     printf("  Total programs with errors: %d/4\n\n", error_count);
   }
 
+  return 0;
+}
+
+/**
+ * @brief show logic <id> code
+ *
+ * Show source code for a specific logic program with line breaks
+ */
+int cli_cmd_show_logic_code(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  if (!prog) {
+    printf("[ERROR] Invalid program ID: %d\n", program_id);
+    return 1;
+  }
+
+  printf("\n=== Logic Program: %s - Source Code ===\n\n", prog->name);
+  printf("Status: %s | Compiled: %s | Size: %d bytes\n\n",
+         prog->enabled ? "ENABLED" : "DISABLED",
+         prog->compiled ? "YES" : "NO",
+         prog->source_size);
+
+  if (prog->source_size == 0) {
+    printf("(empty - no program uploaded)\n\n");
+    return 0;
+  }
+
+  // Print source code with proper line breaks
+  printf("--- SOURCE CODE ---\n");
+  const char *source = prog->source_code;
+
+  for (int i = 0; i < prog->source_size; i++) {
+    // Print each character
+    putchar(source[i]);
+  }
+
+  printf("\n--- END SOURCE CODE ---\n\n");
+  return 0;
+}
+
+/**
+ * @brief show logic all code
+ *
+ * Show source code for all logic programs
+ */
+int cli_cmd_show_logic_code_all(st_logic_engine_state_t *logic_state) {
+  printf("\n========================================\n");
+  printf("  All Logic Programs - Source Code\n");
+  printf("========================================\n\n");
+
+  for (int i = 0; i < 4; i++) {
+    st_logic_program_config_t *prog = &logic_state->programs[i];
+
+    printf("--- [%d] %s ---\n", i + 1, prog->name);
+    printf("Status: %s | Compiled: %s | Size: %d bytes\n",
+           prog->enabled ? "ENABLED" : "DISABLED",
+           prog->compiled ? "YES" : "NO",
+           prog->source_size);
+
+    if (prog->source_size == 0) {
+      printf("(empty - no program uploaded)\n");
+    } else {
+      printf("\nSource:\n");
+      const char *source = prog->source_code;
+      for (int j = 0; j < prog->source_size; j++) {
+        putchar(source[j]);
+      }
+      printf("\n");
+    }
+
+    printf("\n");
+  }
+
+  printf("========================================\n\n");
   return 0;
 }
