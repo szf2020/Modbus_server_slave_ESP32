@@ -336,11 +336,15 @@ void cli_shell_loop(void) {
       // ST LOGIC UPLOAD MODE
       // ====================================================================
       if (cli_mode == CLI_MODE_ST_UPLOAD) {
-        // Trim whitespace from input in upload mode
-        cli_trim_string(cli_input_buffer, &cli_input_pos);
-
         // Check for END_UPLOAD command (case-insensitive)
-        if (strcasecmp(cli_input_buffer, "END_UPLOAD") == 0) {
+        // Create a trimmed copy just for comparison (don't modify original source code!)
+        char trimmed_check[256];
+        uint16_t check_len = cli_input_pos;
+        strncpy(trimmed_check, cli_input_buffer, cli_input_pos);
+        trimmed_check[cli_input_pos] = '\0';
+        cli_trim_string(trimmed_check, &check_len);
+
+        if (strcasecmp(trimmed_check, "END_UPLOAD") == 0) {
           // End of upload - compile and return to normal mode
           debug_println("Compiling ST Logic program...");
 
