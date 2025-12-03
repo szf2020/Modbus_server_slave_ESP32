@@ -16,6 +16,7 @@
  */
 
 #include "cli_parser.h"
+#include "cli_shell.h"
 #include "cli_commands.h"
 #include "cli_show.h"
 #include "cli_config_regs.h"
@@ -51,13 +52,33 @@ static uint8_t tokenize(char* line, char* argv[], uint8_t max_argv) {
     // Mark token start
     argv[argc++] = p;
 
-    // Skip until whitespace
-    while (*p && !is_whitespace(*p)) p++;
-
-    // Null-terminate token
-    if (*p) {
-      *p = '\0';
+    // Handle quoted strings
+    if (*p == '"') {
+      // Skip opening quote
       p++;
+
+      // Find closing quote
+      while (*p && *p != '"') {
+        p++;
+      }
+
+      // Remove closing quote by null-terminating
+      if (*p == '"') {
+        *p = '\0';
+        p++;
+      }
+
+      // Shift token start to skip opening quote
+      argv[argc - 1]++;
+    } else {
+      // Skip until whitespace (unquoted token)
+      while (*p && !is_whitespace(*p)) p++;
+
+      // Null-terminate token
+      if (*p) {
+        *p = '\0';
+        p++;
+      }
     }
   }
 
@@ -99,6 +120,14 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
+
+  // Logic subcommands
+  if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
+  if (!strcmp(s, "PROGRAMS") || !strcmp(s, "programs")) return "PROGRAM";
+  if (!strcmp(s, "STATS") || !strcmp(s, "stats")) return "STATS";
+  if (!strcmp(s, "ERRORS") || !strcmp(s, "errors")) return "ERRORS";
+  if (!strcmp(s, "ALL") || !strcmp(s, "all")) return "ALL";
+  if (!strcmp(s, "CODE") || !strcmp(s, "code")) return "CODE";
 
   // System commands (for SET context)
   if (!strcmp(s, "REG") || !strcmp(s, "reg")) return "REG";
@@ -185,7 +214,7 @@ bool cli_parser_execute(char* line) {
       cli_cmd_show_coils();
       return true;
     } else if (!strcmp(what, "LOGIC")) {
-      // show logic <id|all|stats|program|errors>
+      // show logic <id|all|stats|program|errors|all code|1-4 code>
       if (argc < 3) {
         debug_println("SHOW LOGIC: missing argument");
         debug_println("  Usage: show logic <id>        (show specific program)");
@@ -193,12 +222,41 @@ bool cli_parser_execute(char* line) {
         debug_println("         show logic program    (show overview of all programs)");
         debug_println("         show logic errors     (show only programs with errors)");
         debug_println("         show logic stats      (show statistics)");
+        debug_println("         show logic <id> code  (show specific program source code)");
+        debug_println("         show logic all code   (show all programs source code)");
         return false;
       }
 
       const char* subcommand = argv[2];
       const char* subcommand_norm = normalize_alias(subcommand);
 
+      // Check for "code" subcommand FIRST (takes priority)
+      // Syntax: show logic <id|all> code
+      if (argc >= 4) {
+        const char* subcommand2 = argv[3];
+        const char* subcommand2_norm = normalize_alias(subcommand2);
+
+        if (!strcmp(subcommand2_norm, "CODE")) {
+          if (!strcmp(subcommand_norm, "ALL")) {
+            // show logic all code
+            cli_cmd_show_logic_code_all(st_logic_get_state());
+            return true;
+          } else {
+            // show logic <id> code
+            uint8_t program_id = atoi(subcommand);
+            if (program_id > 0 && program_id <= 4) {
+              cli_cmd_show_logic_code(st_logic_get_state(), program_id - 1);
+              return true;
+            } else {
+              debug_printf("ERROR: Invalid program ID '%s' (expected 1-4)\n", subcommand);
+              return false;
+            }
+          }
+        }
+        // If argv[3] exists but is not "code", fall through to normal handling
+      }
+
+      // Handle other subcommands (without code)
       if (!strcmp(subcommand_norm, "ALL")) {
         cli_cmd_show_logic_all(st_logic_get_state());
         return true;
@@ -340,20 +398,32 @@ bool cli_parser_execute(char* line) {
       // set logic <id> <subcommand> [params...]
       if (argc < 4) {
         debug_println("SET LOGIC: missing arguments");
-        debug_println("  Usage: set logic <id> upload \"<code>\"");
+        debug_println("  Usage (inline):    set logic <id> upload \"<code>\"");
+        debug_println("  Usage (multi-line): set logic <id> upload");
+        debug_println("                      [type code line by line]");
+        debug_println("                      [then type END_UPLOAD]");
+        debug_println("");
+        debug_println("  Also:");
         debug_println("         set logic <id> enabled:true|false");
         debug_println("         set logic <id> delete");
-        debug_println("         set logic <id> bind <var_idx> <register> [input|output|both]");
+        debug_println("         set logic <id> bind <var_name> reg:100|coil:10|input-dis:5");
         return false;
       }
 
       uint8_t program_id = atoi(argv[2]);
       const char* subcommand = argv[3];  // Don't normalize yet - may be key:value
 
+      // Validate program_id (1-4 user facing, 0-3 internal)
+      if (program_id < 1 || program_id > 4) {
+        debug_printf("ERROR: Invalid program ID %d (expected 1-4)\n", program_id);
+        return false;
+      }
+      uint8_t prog_idx = program_id - 1;  // Convert to 0-based index
+
       // Check for enabled:true|false format first (special case)
       if (strstr(subcommand, "enabled:")) {
         bool enabled = (strstr(subcommand, "true")) ? true : false;
-        cli_cmd_set_logic_enabled(st_logic_get_state(), program_id, enabled);
+        cli_cmd_set_logic_enabled(st_logic_get_state(), prog_idx, enabled);
         return true;
       }
 
@@ -361,16 +431,21 @@ bool cli_parser_execute(char* line) {
       const char* cmd_normalized = normalize_alias(subcommand);
 
       if (!strcmp(cmd_normalized, "UPLOAD")) {
-        // set logic <id> upload "<code>"
+        // set logic <id> upload "<code>"   OR   set logic <id> upload (multi-line mode)
+
         if (argc < 5) {
-          debug_println("SET LOGIC UPLOAD: missing source code");
-          return false;
+          // No code provided - start multi-line upload mode
+          // Start multi-line upload mode
+          cli_shell_start_st_upload(prog_idx);  // Use 0-based index
+          return true;
         }
-        cli_cmd_set_logic_upload(st_logic_get_state(), program_id, argv[4]);
+
+        // Code provided in same command - use inline upload (backward compatible)
+        cli_cmd_set_logic_upload(st_logic_get_state(), prog_idx, argv[4]);
         return true;
       } else if (!strcmp(cmd_normalized, "DELETE")) {
         // set logic <id> delete
-        cli_cmd_set_logic_delete(st_logic_get_state(), program_id);
+        cli_cmd_set_logic_delete(st_logic_get_state(), prog_idx);
         return true;
       } else if (!strcmp(cmd_normalized, "BIND")) {
         // set logic <id> bind <var_spec> <register_spec>
@@ -387,7 +462,7 @@ bool cli_parser_execute(char* line) {
         // Detect new syntax: check if arg5 contains "reg:", "coil:", or "input-dis:"
         if (strstr(arg5, "reg:") || strstr(arg5, "coil:") || strstr(arg5, "input-dis:")) {
           // NEW SYNTAX: variable name + binding spec
-          cli_cmd_set_logic_bind_by_name(st_logic_get_state(), program_id, arg4, arg5);
+          cli_cmd_set_logic_bind_by_name(st_logic_get_state(), prog_idx, arg4, arg5);
           return true;
         }
 
@@ -397,7 +472,7 @@ bool cli_parser_execute(char* line) {
         uint16_t register_addr = atoi(arg5);
         const char* direction = (argc > 6) ? argv[6] : "both";
 
-        cli_cmd_set_logic_bind(st_logic_get_state(), program_id, var_idx, register_addr, direction);
+        cli_cmd_set_logic_bind(st_logic_get_state(), prog_idx, var_idx, register_addr, direction);
         return true;
       } else {
         debug_println("SET LOGIC: unknown subcommand");
@@ -542,6 +617,33 @@ bool cli_parser_execute(char* line) {
     debug_println("Unknown command");
     return false;
   }
+}
+
+/* ============================================================================
+ * ST LOGIC MULTI-LINE UPLOAD HANDLER
+ * ============================================================================ */
+
+void cli_parser_execute_st_upload(uint8_t program_id, const char* source_code) {
+  /**
+   * This function is called from cli_shell.cpp when the user finishes
+   * a multi-line ST Logic upload (ends with END_UPLOAD).
+   *
+   * program_id: 0-3 (Logic1-Logic4)
+   * source_code: Complete multi-line source code collected from CLI
+   */
+
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return;
+  }
+
+  if (!source_code || strlen(source_code) == 0) {
+    debug_println("ERROR: Source code is empty");
+    return;
+  }
+
+  // Call the standard upload handler with the collected code
+  cli_cmd_set_logic_upload(st_logic_get_state(), program_id, source_code);
 }
 
 /* ============================================================================
