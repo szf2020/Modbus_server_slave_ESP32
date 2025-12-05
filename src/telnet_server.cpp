@@ -213,10 +213,22 @@ static void telnet_handle_iac_command(TelnetServer *server, uint8_t cmd, uint8_t
 
 static void telnet_send_auth_prompt(TelnetServer *server) {
   if (server->auth_state == TELNET_AUTH_WAITING) {
+    // Full banner only for initial prompt
     telnet_server_writeline(server, "");
     telnet_server_writeline(server, "=== Telnet Server (v3.0) ===");
     telnet_server_writeline(server, "LOGIN REQUIRED");
     telnet_server_writeline(server, "");
+    telnet_server_write(server, "Username: ");
+  } else if (server->auth_state == TELNET_AUTH_USERNAME) {
+    // Just password prompt (username already entered successfully)
+    telnet_server_write(server, "Password: ");
+  }
+}
+
+// Simpler version that just sends the prompt without full banner
+static void telnet_send_retry_prompt(TelnetServer *server) {
+  if (server->auth_state == TELNET_AUTH_WAITING) {
+    // Simplified retry prompt
     telnet_server_write(server, "Username: ");
   } else if (server->auth_state == TELNET_AUTH_USERNAME) {
     telnet_server_write(server, "Password: ");
@@ -272,10 +284,10 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
         telnet_server_writeline(server, "Too many failed attempts. Locking out for 30 seconds.");
         telnet_server_writeline(server, "");
       } else {
-        // Reset to username prompt
+        // Reset to username prompt (show simple retry prompt, not full banner)
         server->auth_state = TELNET_AUTH_WAITING;
         memset(server->auth_username, 0, sizeof(server->auth_username));
-        telnet_send_auth_prompt(server);
+        telnet_send_retry_prompt(server);
       }
     }
   }
@@ -526,10 +538,8 @@ int telnet_server_loop(TelnetServer *server)
     // SECURITY FIX: Process authentication if input is ready and auth is needed
     if (server->input_ready && server->auth_required && server->auth_state != TELNET_AUTH_AUTHENTICATED) {
       telnet_handle_auth_input(server, server->input_buffer);
-      // Show next prompt if auth not complete
-      if (server->auth_state != TELNET_AUTH_AUTHENTICATED) {
-        telnet_send_auth_prompt(server);
-      }
+      // NOTE: telnet_handle_auth_input() already sends the next prompt if needed
+      // DO NOT send prompt again here to avoid duplication!
     }
   }
 
