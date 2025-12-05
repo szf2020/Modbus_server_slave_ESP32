@@ -469,6 +469,12 @@ void cli_cmd_show_config(void) {
   debug_print("  telnet_port=");
   debug_print_uint(g_persist_config.network.telnet_port);
   debug_println("");
+
+  debug_print("  telnet_user=");
+  debug_println(g_persist_config.network.telnet_username[0] ? g_persist_config.network.telnet_username : "(not set)");
+
+  debug_print("  telnet_pass=");
+  debug_println(g_persist_config.network.telnet_password[0] ? "(set)" : "(not set)");
 }
 
 /* ============================================================================
