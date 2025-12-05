@@ -37,33 +37,49 @@ static bool is_whitespace(char c) {
 }
 
 /**
- * @brief Tokenize a command line into argv array
+ * @brief Tokenize a command line into argv array (with bounds checking)
+ * @param line Input line (must be NULL-terminated)
+ * @param argv Output argv array
+ * @param max_argv Maximum number of tokens
  * @return Number of tokens
  */
 static uint8_t tokenize(char* line, char* argv[], uint8_t max_argv) {
+  // SECURITY: Validate input
+  if (!line || !argv || max_argv == 0) {
+    return 0;
+  }
+
+  // Verify line is properly null-terminated (defensive check)
+  // This prevents reading past buffer boundaries if input is malformed
+  size_t line_len = strnlen(line, 256);  // Max length for CLI_INPUT_BUFFER_SIZE
+  if (line_len == 0 || line_len >= 256) {
+    return 0;  // Reject oversized or empty input
+  }
+
   uint8_t argc = 0;
   char* p = line;
+  char* line_end = line + line_len;  // Boundary marker
 
-  while (*p && argc < max_argv) {
-    // Skip whitespace
-    while (*p && is_whitespace(*p)) p++;
-    if (!*p) break;
+  while (*p && argc < max_argv && p < line_end) {
+    // Skip whitespace (with boundary check)
+    while (*p && is_whitespace(*p) && p < line_end) p++;
+    if (!*p || p >= line_end) break;
 
     // Mark token start
     argv[argc++] = p;
 
     // Handle quoted strings
-    if (*p == '"') {
+    if (*p == '"' && p < line_end) {
       // Skip opening quote
       p++;
 
-      // Find closing quote
-      while (*p && *p != '"') {
+      // Find closing quote (with boundary check)
+      while (*p && *p != '"' && p < line_end) {
         p++;
       }
 
       // Remove closing quote by null-terminating
-      if (*p == '"') {
+      if (*p == '"' && p < line_end) {
         *p = '\0';
         p++;
       }
@@ -71,11 +87,11 @@ static uint8_t tokenize(char* line, char* argv[], uint8_t max_argv) {
       // Shift token start to skip opening quote
       argv[argc - 1]++;
     } else {
-      // Skip until whitespace (unquoted token)
-      while (*p && !is_whitespace(*p)) p++;
+      // Skip until whitespace (unquoted token, with boundary check)
+      while (*p && !is_whitespace(*p) && p < line_end) p++;
 
-      // Null-terminate token
-      if (*p) {
+      // Null-terminate token (with boundary check)
+      if (*p && p < line_end) {
         *p = '\0';
         p++;
       }

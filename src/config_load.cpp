@@ -146,32 +146,12 @@ bool config_load_from_nvs(PersistConfig* out) {
     debug_print_uint(stored_crc);
     debug_print(", calculated=");
     debug_print_uint(calculated_crc);
-    debug_print(") var_map_count=");
-    debug_print_uint(out->var_map_count);
+    debug_print(") - CONFIG CORRUPTED, REJECTING");
     debug_println("");
-
-    // CRITICAL FIX: If var_map_count > 0, it means struct is misaligned (old data format)
-    // Reinitialize var_maps and clear the count to prevent corruption
-    if (out->var_map_count > 0) {
-      debug_println("  WARNING: Detected misaligned var_maps (old structure format)");
-      debug_println("  Clearing variable mappings, user must reconfigure GPIO bindings");
-      for (uint8_t i = 0; i < 64; i++) {
-        out->var_maps[i].input_reg = 65535;
-        out->var_maps[i].coil_reg = 65535;
-        out->var_maps[i].associated_counter = 0xff;
-        out->var_maps[i].associated_timer = 0xff;
-        out->var_maps[i].source_type = 0xff;
-      }
-      out->var_map_count = 0;
-      // Recalculate CRC with cleared var_maps
-      calculated_crc = config_calculate_crc16(out);
-      out->crc16 = calculated_crc;
-      debug_println("  Variable mappings cleared and CRC recalculated");
-    } else {
-      debug_println("  Using default configuration");
-      config_init_defaults(out);
-    }
-    return true;
+    debug_println("SECURITY: Corrupt config detected and rejected");
+    debug_println("  Reinitializing with factory defaults");
+    config_init_defaults(out);
+    return false;  // CRITICAL FIX: Return false to indicate load failure
   }
 
   // Print summary
