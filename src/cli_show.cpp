@@ -429,6 +429,46 @@ void cli_cmd_show_config(void) {
     debug_println("  Use: 'set logic <1-4> upload' to upload a program");
   }
   debug_println("");
+
+  // WiFi/Network configuration section (v3.0+)
+  debug_println("\nnetwork");
+  debug_print("  enabled=");
+  debug_println(g_persist_config.network.enabled ? "1" : "0");
+
+  debug_print("  ssid=");
+  debug_println(g_persist_config.network.ssid[0] ? g_persist_config.network.ssid : "(not set)");
+
+  debug_print("  password=");
+  debug_println(g_persist_config.network.password[0] ? "(set)" : "(not set)");
+
+  debug_print("  dhcp=");
+  debug_println(g_persist_config.network.dhcp_enabled ? "1" : "0");
+
+  if (!g_persist_config.network.dhcp_enabled) {
+    char ip_str[16];
+    debug_print("  static_ip=");
+    network_config_ip_to_str(g_persist_config.network.static_ip, ip_str);
+    debug_println(ip_str);
+
+    debug_print("  static_gateway=");
+    network_config_ip_to_str(g_persist_config.network.static_gateway, ip_str);
+    debug_println(ip_str);
+
+    debug_print("  static_netmask=");
+    network_config_ip_to_str(g_persist_config.network.static_netmask, ip_str);
+    debug_println(ip_str);
+
+    debug_print("  static_dns=");
+    network_config_ip_to_str(g_persist_config.network.static_dns, ip_str);
+    debug_println(ip_str);
+  }
+
+  debug_print("  telnet_enabled=");
+  debug_println(g_persist_config.network.telnet_enabled ? "1" : "0");
+
+  debug_print("  telnet_port=");
+  debug_print_uint(g_persist_config.network.telnet_port);
+  debug_println("");
 }
 
 /* ============================================================================
@@ -965,6 +1005,7 @@ void cli_cmd_show_wifi(void) {
   // Get network state from network manager
   if (!network_manager_is_wifi_connected()) {
     debug_println("Wi-Fi Status: NOT CONNECTED");
+    debug_println("(Connect with: connect wifi)");
   } else {
     debug_println("Wi-Fi Status: CONNECTED");
 
@@ -976,7 +1017,7 @@ void cli_cmd_show_wifi(void) {
       debug_print("Local IP: ");
       debug_println(ip_str);
     } else {
-      debug_println("Local IP: Acquiring...");
+      debug_println("Local IP: Acquiring from DHCP...");
     }
   }
 

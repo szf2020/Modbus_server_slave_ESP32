@@ -1233,9 +1233,24 @@ void cli_cmd_connect_wifi(void) {
     return;
   }
 
+  // Check SSID - must not be empty
+  if (strlen(g_persist_config.network.ssid) == 0) {
+    debug_println("CONNECT WIFI: SSID not set (empty)");
+    debug_println("Hint: Use 'set wifi ssid <network_name>' first");
+    return;
+  }
+
   if (!network_config_is_valid_ssid(g_persist_config.network.ssid)) {
-    debug_println("CONNECT WIFI: SSID not configured");
-    debug_println("Hint: Use 'set wifi ssid <name>' first");
+    debug_println("CONNECT WIFI: SSID contains invalid characters");
+    debug_println("Hint: SSID must be 1-32 printable ASCII characters");
+    return;
+  }
+
+  // Check password
+  int pwd_len = strlen(g_persist_config.network.password);
+  if (pwd_len > 0 && pwd_len < 8) {
+    debug_println("CONNECT WIFI: password too short");
+    debug_println("Hint: Password must be empty (open network) or 8-63 characters");
     return;
   }
 
@@ -1246,7 +1261,8 @@ void cli_cmd_connect_wifi(void) {
     debug_println("Wi-Fi connection started (async)");
     debug_println("Use 'show wifi' to check connection status");
   } else {
-    debug_println("CONNECT WIFI: failed to start connection");
+    debug_println("CONNECT WIFI: connection failed - check configuration");
+    debug_println("Hint: Use 'show config' to review network settings");
   }
 }
 

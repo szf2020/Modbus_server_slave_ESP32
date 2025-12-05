@@ -66,6 +66,12 @@ uint8_t network_config_validate(const NetworkConfig *config)
       return 0;
     }
 
+    // SSID cannot be empty if enabled
+    if (strlen(config->ssid) == 0) {
+      ESP_LOGE(TAG, "SSID cannot be empty when WiFi is enabled");
+      return 0;
+    }
+
     if (!network_config_is_valid_password(config->password)) {
       ESP_LOGE(TAG, "Invalid password");
       return 0;
