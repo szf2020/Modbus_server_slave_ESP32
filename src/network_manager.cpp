@@ -271,8 +271,8 @@ int network_manager_loop(void)
     network_mgr.state.local_ip = 0;
   }
 
-  // Process Telnet server events (only if Wi-Fi connected)
-  if (network_mgr.telnet_server && wifi_driver_is_connected()) {
+  // Process Telnet server events (independent of Wi-Fi status)
+  if (network_mgr.telnet_server) {
     events += telnet_server_loop(network_mgr.telnet_server);
 
     // Update Telnet client state
