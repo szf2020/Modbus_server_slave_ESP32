@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [3.1.0] - 2025-12-05 🌐 (WiFi Display & Validation Improvements)
+
+### BUGFIXES & IMPROVEMENTS
+
+#### WiFi Configuration Display & Validation ✅ IMPROVED
+- **Issue:** WiFi configuration not showing in `show config`, IP not displaying on DHCP, Telnet status always showing "DISABLED"
+- **Solution:**
+  1. Added complete WiFi/Network section to `show config` - displays all WiFi settings centrally
+  2. Enhanced `show wifi` IP display - shows actual IP from WiFi driver (works for DHCP and static)
+  3. Fixed Telnet status - now reads from `g_persist_config.network.telnet_enabled` instead of hardcoded
+  4. Added `set wifi telnet enable|disable` command for toggling Telnet via CLI
+  5. Improved WiFi connection validation with specific error messages:
+     - SSID empty check before connection attempt
+     - Password length validation (0 or 8-63 chars)
+     - Clear hints for each validation failure
+  6. Enhanced `network_config_validate()` to explicitly check for empty SSID when WiFi enabled
+
+### NEW FEATURES
+- `set wifi telnet enable|disable` - Toggle Telnet server without file edit
+- Enhanced `show config` network section - centralized configuration display
+- Detailed `connect wifi` error messages with helpful hints
+
+---
+
 ## [2.3.0] - 2025-12-04 🔧 (CRITICAL BUGFIX RELEASE)
 
 ### BUGFIXES & CRITICAL FIXES
