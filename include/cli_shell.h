@@ -57,4 +57,14 @@ void cli_shell_reset_upload_mode(void);
  */
 uint8_t cli_shell_is_in_upload_mode(void);
 
+/**
+ * @brief Execute a CLI command from external source (e.g., Telnet, Remote)
+ * @param cmd Command string to execute
+ *
+ * This function allows external interfaces like Telnet to execute CLI commands
+ * without going through the Serial input parsing. Output is directed to the
+ * normal output stream (Serial or debug).
+ */
+void cli_shell_execute_command(const char *cmd);
+
 #endif // cli_shell_H

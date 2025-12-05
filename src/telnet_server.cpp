@@ -15,6 +15,7 @@
 #include "telnet_server.h"
 #include "constants.h"
 #include "types.h"  // For NetworkConfig
+#include "cli_shell.h"  // For cli_shell_execute_command()
 
 static const char *TAG = "TELNET_SRV";
 
@@ -545,6 +546,21 @@ int telnet_server_loop(TelnetServer *server)
       telnet_handle_auth_input(server, server->input_buffer);
       // NOTE: telnet_handle_auth_input() already sends the next prompt if needed
       // DO NOT send prompt again here to avoid duplication!
+    }
+
+    // FEATURE: Execute CLI commands if authenticated and input is ready
+    if (server->input_ready && server->auth_state == TELNET_AUTH_AUTHENTICATED) {
+      // Execute the command through CLI shell
+      cli_shell_execute_command(server->input_buffer);
+
+      // Show the CLI prompt after command execution
+      telnet_server_write(server, "> ");
+
+      // Clear the input buffer
+      server->input_pos = 0;
+      server->input_ready = 0;
+      memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
+      events++;
     }
   }
 

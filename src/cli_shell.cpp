@@ -452,3 +452,29 @@ void cli_shell_loop(void) {
   }
 }
 
+/* ============================================================================
+ * EXTERNAL COMMAND EXECUTION (Telnet, Remote, etc.)
+ * ============================================================================ */
+
+void cli_shell_execute_command(const char *cmd) {
+  if (!cmd || cmd[0] == '\0') {
+    return;
+  }
+
+  // Copy command to a local buffer for processing (trim, etc.)
+  char cmd_buffer[CLI_INPUT_BUFFER_SIZE];
+  strncpy(cmd_buffer, cmd, sizeof(cmd_buffer) - 1);
+  cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
+
+  // Trim whitespace
+  uint16_t cmd_len = strlen(cmd_buffer);
+  cli_trim_string(cmd_buffer, &cmd_len);
+
+  // Execute only if not empty
+  if (cmd_len > 0) {
+    cli_history_add(cmd_buffer);
+    cli_history_reset_nav();
+    cli_parser_execute(cmd_buffer);
+  }
+}
+
