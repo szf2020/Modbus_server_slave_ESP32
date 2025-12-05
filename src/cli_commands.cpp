@@ -1162,6 +1162,27 @@ void cli_cmd_set_wifi(uint8_t argc, char* argv[]) {
     char dns_str[16];
     debug_println(network_config_ip_to_str(dns, dns_str));
 
+  } else if (!strcmp(option, "telnet-user")) {
+    // Set Telnet username
+    if (!value || value[0] == '\0') {
+      debug_println("SET WIFI TELNET-USER: missing username");
+      return;
+    }
+    strncpy(g_persist_config.network.telnet_username, value, sizeof(g_persist_config.network.telnet_username) - 1);
+    g_persist_config.network.telnet_username[sizeof(g_persist_config.network.telnet_username) - 1] = '\0';
+    debug_print("Telnet username set to: ");
+    debug_println(g_persist_config.network.telnet_username);
+
+  } else if (!strcmp(option, "telnet-pass")) {
+    // Set Telnet password
+    if (!value || value[0] == '\0') {
+      debug_println("SET WIFI TELNET-PASS: missing password");
+      return;
+    }
+    strncpy(g_persist_config.network.telnet_password, value, sizeof(g_persist_config.network.telnet_password) - 1);
+    g_persist_config.network.telnet_password[sizeof(g_persist_config.network.telnet_password) - 1] = '\0';
+    debug_println("Telnet password set (hidden for security)");
+
   } else if (!strcmp(option, "telnet-port")) {
     uint16_t port = atoi(value);
     if (port < 1 || port > 65535) {
@@ -1220,7 +1241,7 @@ void cli_cmd_set_wifi(uint8_t argc, char* argv[]) {
   } else {
     debug_print("SET WIFI: unknown option '");
     debug_print(option);
-    debug_println("' (use: ssid, password, dhcp, ip, gateway, netmask, dns, telnet, telnet-port, enable, disable)");
+    debug_println("' (use: ssid, password, dhcp, ip, gateway, netmask, dns, telnet, telnet-user, telnet-pass, telnet-port, enable, disable)");
   }
 
   debug_println("Hint: Use 'save' to persist configuration to NVS");

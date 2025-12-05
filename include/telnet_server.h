@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "tcp_server.h"
+#include "types.h"  // For NetworkConfig struct definition
 
 /* ============================================================================
  * DATA STRUCTURES
@@ -44,6 +45,7 @@ typedef struct {
   uint8_t echo_enabled;           // Echo input back to client
   uint8_t linemode_enabled;       // Line-mode (vs character-by-character)
   uint8_t auth_required;          // 1 = require authentication, 0 = no auth
+  NetworkConfig *network_config;  // Pointer to network config (for Telnet credentials)
 
   // Internal state
   TcpServer *tcp_server;
@@ -76,9 +78,10 @@ typedef struct {
 /**
  * Create Telnet server
  * @param port Port (typically 23)
+ * @param network_config Pointer to network config (for Telnet credentials)
  * @return server instance, NULL on error
  */
-TelnetServer* telnet_server_create(uint16_t port);
+TelnetServer* telnet_server_create(uint16_t port, NetworkConfig *network_config);
 
 /**
  * Start Telnet server (starts underlying TCP server)

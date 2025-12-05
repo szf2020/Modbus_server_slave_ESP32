@@ -1060,6 +1060,8 @@ void cli_cmd_show_wifi(void) {
   if (g_persist_config.network.telnet_enabled) {
     debug_print("  Telnet: ENABLED (port ");
     debug_print_uint(g_persist_config.network.telnet_port);
+    debug_print(", user: ");
+    debug_print(g_persist_config.network.telnet_username);
     debug_print(")");
     if (!network_manager_is_wifi_connected()) {
       debug_println(" - waiting for WiFi connection...");
@@ -1079,6 +1081,8 @@ void cli_cmd_show_wifi(void) {
   debug_println("  set wifi netmask <ip>");
   debug_println("  set wifi dns <ip>");
   debug_println("  set wifi telnet enable|disable");
+  debug_println("  set wifi telnet-user <username>");
+  debug_println("  set wifi telnet-pass <password>");
   debug_println("  set wifi telnet-port <port>");
   debug_println("  connect wifi");
   debug_println("  disconnect wifi");

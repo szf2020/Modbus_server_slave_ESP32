@@ -59,7 +59,8 @@ int network_manager_init(void)
   }
 
   // Create Telnet server (but don't start yet)
-  network_mgr.telnet_server = telnet_server_create(TELNET_PORT);
+  // Note: We pass NULL for network_config here, will be updated when config is available
+  network_mgr.telnet_server = telnet_server_create(TELNET_PORT, NULL);
   if (!network_mgr.telnet_server) {
     ESP_LOGE(TAG, "Failed to create Telnet server");
     return -1;
@@ -97,6 +98,11 @@ int network_manager_connect(const NetworkConfig *config)
 
   // Save config
   memcpy(&network_mgr.current_config, config, sizeof(NetworkConfig));
+
+  // Update Telnet server with network config (for credentials)
+  if (network_mgr.telnet_server) {
+    network_mgr.telnet_server->network_config = &network_mgr.current_config;
+  }
 
   // Configure DHCP vs static IP
   if (config->dhcp_enabled) {

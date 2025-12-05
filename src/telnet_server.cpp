@@ -14,6 +14,7 @@
 
 #include "telnet_server.h"
 #include "constants.h"
+#include "types.h"  // For NetworkConfig
 
 static const char *TAG = "TELNET_SRV";
 
@@ -40,7 +41,7 @@ static const char *TAG = "TELNET_SRV";
  * INITIALIZATION & CONTROL
  * ============================================================================ */
 
-TelnetServer* telnet_server_create(uint16_t port)
+TelnetServer* telnet_server_create(uint16_t port, NetworkConfig *network_config)
 {
   TelnetServer *server = (TelnetServer*)malloc(sizeof(TelnetServer));
   if (!server) {
@@ -57,6 +58,7 @@ TelnetServer* telnet_server_create(uint16_t port)
   }
 
   server->port = port;
+  server->network_config = network_config;  // Store config pointer
   server->parse_state = TELNET_STATE_NONE;
   server->input_pos = 0;
   server->input_ready = 0;
@@ -205,11 +207,10 @@ static void telnet_handle_iac_command(TelnetServer *server, uint8_t cmd, uint8_t
  * AUTHENTICATION (v3.0+)
  * ============================================================================ */
 
-// Simple authentication - hardcoded for now (can be made configurable)
-#define TELNET_CRED_USERNAME "admin"
-#define TELNET_CRED_PASSWORD "telnet123"
+// Authentication configuration
 #define TELNET_MAX_AUTH_ATTEMPTS 3
 #define TELNET_LOCKOUT_TIME_MS 30000  // 30 second lockout
+// Credentials now come from NetworkConfig in telnet_server->network_config
 
 static void telnet_send_auth_prompt(TelnetServer *server) {
   if (server->auth_state == TELNET_AUTH_WAITING) {
@@ -264,8 +265,12 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
     telnet_send_auth_prompt(server);
   } else if (server->auth_state == TELNET_AUTH_USERNAME) {
     // Password entry
-    if (strcmp(server->auth_username, TELNET_CRED_USERNAME) == 0 &&
-        strcmp(input, TELNET_CRED_PASSWORD) == 0) {
+    // Use credentials from config (or fallback to defaults if config not available)
+    const char *expected_user = (server->network_config) ? server->network_config->telnet_username : "admin";
+    const char *expected_pass = (server->network_config) ? server->network_config->telnet_password : "telnet123";
+
+    if (strcmp(server->auth_username, expected_user) == 0 &&
+        strcmp(input, expected_pass) == 0) {
       // Authentication successful!
       server->auth_state = TELNET_AUTH_AUTHENTICATED;
       server->auth_attempts = 0;

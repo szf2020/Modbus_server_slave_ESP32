@@ -41,6 +41,12 @@ void network_config_init_defaults(NetworkConfig *config)
   strncpy(config->password, "", WIFI_PASSWORD_MAX_LEN - 1);
   config->password[WIFI_PASSWORD_MAX_LEN - 1] = '\0';
 
+  // Default Telnet credentials (MUST be changed by user for security!)
+  strncpy(config->telnet_username, "admin", sizeof(config->telnet_username) - 1);
+  config->telnet_username[sizeof(config->telnet_username) - 1] = '\0';
+  strncpy(config->telnet_password, "telnet123", sizeof(config->telnet_password) - 1);
+  config->telnet_password[sizeof(config->telnet_password) - 1] = '\0';
+
   // Default static IP (192.168.1.100)
   config->static_ip = htonl(0xC0A80164);       // 192.168.1.100
   config->static_gateway = htonl(0xC0A80101);  // 192.168.1.1

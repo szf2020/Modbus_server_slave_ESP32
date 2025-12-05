@@ -246,8 +246,12 @@ typedef struct __attribute__((packed)) {
   uint8_t telnet_enabled;                       // 1 = Telnet server enabled
   uint16_t telnet_port;                         // Telnet port (default 23)
 
+  // Telnet authentication (v3.1+)
+  char telnet_username[32];                     // Telnet username (max 31 chars + null)
+  char telnet_password[64];                     // Telnet password (max 63 chars + null)
+
   // Reserved for future (SSH, mDNS, etc.)
-  uint8_t reserved[30];                         // Future: SSH, certificates, mDNS
+  uint8_t reserved[8];                          // Future: SSH, certificates, mDNS
 } NetworkConfig;
 
 /* ============================================================================
