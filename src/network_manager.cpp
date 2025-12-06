@@ -18,6 +18,7 @@
 #include "telnet_server.h"
 #include "network_config.h"
 #include "constants.h"
+#include "debug.h"
 #include "debug_flags.h"
 
 static const char *TAG = "NET_MGR";
@@ -292,32 +293,32 @@ int network_manager_loop(void)
 
 void network_manager_print_status(void)
 {
-  printf("\n╔════════════════════════════════════════╗\n");
-  printf("║     NETWORK MANAGER STATUS            ║\n");
-  printf("╚════════════════════════════════════════╝\n\n");
+  debug_printf("\n╔════════════════════════════════════════╗\n");
+  debug_printf("║     NETWORK MANAGER STATUS            ║\n");
+  debug_printf("╚════════════════════════════════════════╝\n\n");
 
-  printf("Wi-Fi Status: %s\n", network_manager_get_wifi_state_string());
+  debug_printf("Wi-Fi Status: %s\n", network_manager_get_wifi_state_string());
 
   if (network_mgr.state.wifi_connected) {
     char ip_str[16];
     struct in_addr addr;
     addr.s_addr = network_mgr.state.local_ip;
-    printf("Local IP:     %s\n", inet_ntoa(addr));
+    debug_printf("Local IP:     %s\n", inet_ntoa(addr));
 
     addr.s_addr = network_mgr.state.gateway;
-    printf("Gateway:      %s\n", inet_ntoa(addr));
+    debug_printf("Gateway:      %s\n", inet_ntoa(addr));
 
     int8_t rssi = wifi_driver_get_rssi();
-    printf("Signal:       %d dBm\n", rssi);
+    debug_printf("Signal:       %d dBm\n", rssi);
   }
 
-  printf("Telnet:       %s\n", network_mgr.state.telnet_client_connected ? "Connected" : "Waiting");
+  debug_printf("Telnet:       %s\n", network_mgr.state.telnet_client_connected ? "Connected" : "Waiting");
 
   if (network_mgr.telnet_server) {
-    printf("Telnet Port:  %d\n", TELNET_PORT);
+    debug_printf("Telnet Port:  %d\n", TELNET_PORT);
   }
 
-  printf("\n");
+  debug_printf("\n");
 }
 
 const char* network_manager_get_wifi_state_string(void)

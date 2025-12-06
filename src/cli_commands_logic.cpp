@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "debug.h"
+
 /* ST Logic Engine includes */
 #include "st_logic_config.h"
 #include "st_logic_engine.h"
@@ -27,7 +29,6 @@
 
 /* Forward declarations - from existing CLI infrastructure */
 extern void debug_println(const char *msg);
-extern void debug_printf(const char *fmt, ...);
 
 /* Forward declarations - config persistence */
 extern bool config_save_to_nvs(const PersistConfig* cfg);
@@ -431,7 +432,7 @@ int cli_cmd_show_logic_all(st_logic_engine_state_t *logic_state) {
  * Show execution statistics for logic mode
  */
 int cli_cmd_show_logic_stats(st_logic_engine_state_t *logic_state) {
-  printf("\n=== Logic Engine Statistics ===\n");
+  debug_printf("\n=== Logic Engine Statistics ===\n");
 
   uint32_t total_executions = 0;
   uint32_t total_errors = 0;
@@ -446,17 +447,17 @@ int cli_cmd_show_logic_stats(st_logic_engine_state_t *logic_state) {
     if (prog->compiled) compiled_count++;
   }
 
-  printf("Programs Compiled: %d/4\n", compiled_count);
-  printf("Programs Enabled: %d/4\n", enabled_count);
-  printf("Total Executions: %u\n", total_executions);
-  printf("Total Errors: %u\n", total_errors);
+  debug_printf("Programs Compiled: %d/4\n", compiled_count);
+  debug_printf("Programs Enabled: %d/4\n", enabled_count);
+  debug_printf("Total Executions: %u\n", total_executions);
+  debug_printf("Total Errors: %u\n", total_errors);
 
   if (total_executions > 0) {
     float error_rate = (float)total_errors / total_executions * 100.0f;
-    printf("Error Rate: %.2f%%\n", error_rate);
+    debug_printf("Error Rate: %.2f%%\n", error_rate);
   }
 
-  printf("\n");
+  debug_printf("\n");
   return 0;
 }
 
@@ -466,7 +467,7 @@ int cli_cmd_show_logic_stats(st_logic_engine_state_t *logic_state) {
  * Show overview of all programs with status summary
  */
 int cli_cmd_show_logic_programs(st_logic_engine_state_t *logic_state) {
-  printf("\n=== All Logic Programs ===\n\n");
+  debug_printf("\n=== All Logic Programs ===\n\n");
 
   for (int i = 0; i < 4; i++) {
     st_logic_program_config_t *prog = &logic_state->programs[i];
@@ -483,19 +484,19 @@ int cli_cmd_show_logic_programs(st_logic_engine_state_t *logic_state) {
       status = "🟢 ACTIVE";
     }
 
-    printf("  [%d] %s %s\n", i + 1, prog->name, status);
+    debug_printf("  [%d] %s %s\n", i + 1, prog->name, status);
 
     if (prog->source_size > 0) {
-      printf("      Source: %d bytes | Variables: %d\n", prog->source_size, prog->bytecode.var_count);
-      printf("      Executions: %u | Errors: %u\n", prog->execution_count, prog->error_count);
+      debug_printf("      Source: %d bytes | Variables: %d\n", prog->source_size, prog->bytecode.var_count);
+      debug_printf("      Executions: %u | Errors: %u\n", prog->execution_count, prog->error_count);
 
       if (prog->error_count > 0 && prog->last_error[0] != '\0') {
-        printf("      Last error: %s\n", prog->last_error);
+        debug_printf("      Last error: %s\n", prog->last_error);
       }
     }
   }
 
-  printf("\n");
+  debug_printf("\n");
   return 0;
 }
 
@@ -505,7 +506,7 @@ int cli_cmd_show_logic_programs(st_logic_engine_state_t *logic_state) {
  * Show only programs with compilation or runtime errors
  */
 int cli_cmd_show_logic_errors(st_logic_engine_state_t *logic_state) {
-  printf("\n=== Logic Program Errors ===\n\n");
+  debug_printf("\n=== Logic Program Errors ===\n\n");
 
   int error_count = 0;
 
@@ -519,29 +520,29 @@ int cli_cmd_show_logic_errors(st_logic_engine_state_t *logic_state) {
     if (has_compilation_error || has_runtime_errors) {
       error_count++;
 
-      printf("  [Logic%d] %s\n", i + 1, prog->name);
-      printf("    Status: %s\n", prog->compiled ? "COMPILED" : "NOT COMPILED");
+      debug_printf("  [Logic%d] %s\n", i + 1, prog->name);
+      debug_printf("    Status: %s\n", prog->compiled ? "COMPILED" : "NOT COMPILED");
 
       if (has_compilation_error || (has_runtime_errors && prog->last_error[0] != '\0')) {
-        printf("    Error: %s\n", prog->last_error);
+        debug_printf("    Error: %s\n", prog->last_error);
       }
 
       if (has_runtime_errors) {
-        printf("    Runtime Errors: %u\n", prog->error_count);
+        debug_printf("    Runtime Errors: %u\n", prog->error_count);
         float error_rate = prog->execution_count > 0 ?
           (float)prog->error_count / prog->execution_count * 100.0f : 0.0f;
-        printf("    Error Rate: %.2f%% (%u/%u executions)\n",
+        debug_printf("    Error Rate: %.2f%% (%u/%u executions)\n",
                error_rate, prog->error_count, prog->execution_count);
       }
 
-      printf("\n");
+      debug_printf("\n");
     }
   }
 
   if (error_count == 0) {
-    printf("  ✓ No errors found!\n\n");
+    debug_printf("  ✓ No errors found!\n\n");
   } else {
-    printf("  Total programs with errors: %d/4\n\n", error_count);
+    debug_printf("  Total programs with errors: %d/4\n\n", error_count);
   }
 
   return 0;
@@ -555,23 +556,23 @@ int cli_cmd_show_logic_errors(st_logic_engine_state_t *logic_state) {
 int cli_cmd_show_logic_code(st_logic_engine_state_t *logic_state, uint8_t program_id) {
   st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
   if (!prog) {
-    printf("[ERROR] Invalid program ID: %d\n", program_id);
+    debug_printf("[ERROR] Invalid program ID: %d\n", program_id);
     return 1;
   }
 
-  printf("\n=== Logic Program: %s - Source Code ===\n\n", prog->name);
-  printf("Status: %s | Compiled: %s | Size: %d bytes\n\n",
+  debug_printf("\n=== Logic Program: %s - Source Code ===\n\n", prog->name);
+  debug_printf("Status: %s | Compiled: %s | Size: %d bytes\n\n",
          prog->enabled ? "ENABLED" : "DISABLED",
          prog->compiled ? "YES" : "NO",
          prog->source_size);
 
   if (prog->source_size == 0) {
-    printf("(empty - no program uploaded)\n\n");
+    debug_printf("(empty - no program uploaded)\n\n");
     return 0;
   }
 
   // Print source code with proper line breaks
-  printf("--- SOURCE CODE ---\n");
+  debug_printf("--- SOURCE CODE ---\n");
   const char *source = prog->source_code;
 
   for (int i = 0; i < prog->source_size; i++) {
@@ -579,7 +580,7 @@ int cli_cmd_show_logic_code(st_logic_engine_state_t *logic_state, uint8_t progra
     putchar(source[i]);
   }
 
-  printf("\n--- END SOURCE CODE ---\n\n");
+  debug_printf("\n--- END SOURCE CODE ---\n\n");
   return 0;
 }
 
@@ -589,33 +590,33 @@ int cli_cmd_show_logic_code(st_logic_engine_state_t *logic_state, uint8_t progra
  * Show source code for all logic programs
  */
 int cli_cmd_show_logic_code_all(st_logic_engine_state_t *logic_state) {
-  printf("\n========================================\n");
-  printf("  All Logic Programs - Source Code\n");
-  printf("========================================\n\n");
+  debug_printf("\n========================================\n");
+  debug_printf("  All Logic Programs - Source Code\n");
+  debug_printf("========================================\n\n");
 
   for (int i = 0; i < 4; i++) {
     st_logic_program_config_t *prog = &logic_state->programs[i];
 
-    printf("--- [%d] %s ---\n", i + 1, prog->name);
-    printf("Status: %s | Compiled: %s | Size: %d bytes\n",
+    debug_printf("--- [%d] %s ---\n", i + 1, prog->name);
+    debug_printf("Status: %s | Compiled: %s | Size: %d bytes\n",
            prog->enabled ? "ENABLED" : "DISABLED",
            prog->compiled ? "YES" : "NO",
            prog->source_size);
 
     if (prog->source_size == 0) {
-      printf("(empty - no program uploaded)\n");
+      debug_printf("(empty - no program uploaded)\n");
     } else {
-      printf("\nSource:\n");
+      debug_printf("\nSource:\n");
       const char *source = prog->source_code;
       for (int j = 0; j < prog->source_size; j++) {
         putchar(source[j]);
       }
-      printf("\n");
+      debug_printf("\n");
     }
 
-    printf("\n");
+    debug_printf("\n");
   }
 
-  printf("========================================\n\n");
+  debug_printf("========================================\n\n");
   return 0;
 }

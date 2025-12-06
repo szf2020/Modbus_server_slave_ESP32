@@ -13,6 +13,7 @@
 #include "network_config.h"
 #include "constants.h"
 #include "debug_flags.h"
+#include "debug.h"
 
 static const char *TAG = "NET_CFG";
 
@@ -248,24 +249,24 @@ char* network_config_ip_to_str(uint32_t ip, char *out_str)
 void network_config_print(const NetworkConfig *config)
 {
   if (!config) {
-    printf("Network Config: NULL\n");
+    debug_printf("Network Config: NULL\n");
     return;
   }
 
-  printf("\n=== Network Configuration ===\n");
-  printf("Enabled:       %d\n", config->enabled);
-  printf("SSID:          %s\n", config->ssid[0] ? config->ssid : "(empty)");
-  printf("Password:      %s\n", config->password[0] ? "***" : "(empty)");
-  printf("DHCP:          %s\n", config->dhcp_enabled ? "Enabled" : "Disabled");
+  debug_printf("\n=== Network Configuration ===\n");
+  debug_printf("Enabled:       %d\n", config->enabled);
+  debug_printf("SSID:          %s\n", config->ssid[0] ? config->ssid : "(empty)");
+  debug_printf("Password:      %s\n", config->password[0] ? "***" : "(empty)");
+  debug_printf("DHCP:          %s\n", config->dhcp_enabled ? "Enabled" : "Disabled");
 
   if (!config->dhcp_enabled) {
     char ip_str[16], gw_str[16], nm_str[16], dns_str[16];
-    printf("Static IP:     %s\n", network_config_ip_to_str(config->static_ip, ip_str));
-    printf("Gateway:       %s\n", network_config_ip_to_str(config->static_gateway, gw_str));
-    printf("Netmask:       %s\n", network_config_ip_to_str(config->static_netmask, nm_str));
-    printf("DNS:           %s\n", network_config_ip_to_str(config->static_dns, dns_str));
+    debug_printf("Static IP:     %s\n", network_config_ip_to_str(config->static_ip, ip_str));
+    debug_printf("Gateway:       %s\n", network_config_ip_to_str(config->static_gateway, gw_str));
+    debug_printf("Netmask:       %s\n", network_config_ip_to_str(config->static_netmask, nm_str));
+    debug_printf("DNS:           %s\n", network_config_ip_to_str(config->static_dns, dns_str));
   }
 
-  printf("Telnet:        %s (port %d)\n", config->telnet_enabled ? "Enabled" : "Disabled", config->telnet_port);
-  printf("==============================\n\n");
+  debug_printf("Telnet:        %s (port %d)\n", config->telnet_enabled ? "Enabled" : "Disabled", config->telnet_port);
+  debug_printf("==============================\n\n");
 }
