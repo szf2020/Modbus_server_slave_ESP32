@@ -228,9 +228,17 @@ static void telnet_send_auth_prompt(TelnetServer *server) {
     telnet_server_writeline(server, "=== Telnet Server (v3.0) ===");
     telnet_server_writeline(server, "LOGIN REQUIRED");
     telnet_server_writeline(server, "");
+
+    // Enable echo for username (IAC WILL ECHO = 0xFF 0xFB 0x01)
+    uint8_t enable_echo[] = {0xFF, 0xFB, 0x01};
+    tcp_server_send(server->tcp_server, 0, enable_echo, 3);
+
     telnet_server_write(server, "Username: ");
   } else if (server->auth_state == TELNET_AUTH_USERNAME) {
-    // Just password prompt (username already entered successfully)
+    // Disable echo for password (IAC WONT ECHO = 0xFF 0xFC 0x01)
+    uint8_t disable_echo[] = {0xFF, 0xFC, 0x01};
+    tcp_server_send(server->tcp_server, 0, disable_echo, 3);
+
     telnet_server_write(server, "Password: ");
   }
 }
@@ -283,6 +291,11 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
       // Authentication successful!
       server->auth_state = TELNET_AUTH_AUTHENTICATED;
       server->auth_attempts = 0;
+
+      // Re-enable echo for normal CLI interaction (IAC WILL ECHO = 0xFF 0xFB 0x01)
+      uint8_t enable_echo[] = {0xFF, 0xFB, 0x01};
+      tcp_server_send(server->tcp_server, 0, enable_echo, 3);
+
       telnet_server_writeline(server, "");
       telnet_server_writeline(server, "Authentication successful. Welcome!");
       telnet_server_writeline(server, "");
@@ -301,6 +314,11 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
         // Reset to username prompt (show simple retry prompt, not full banner)
         server->auth_state = TELNET_AUTH_WAITING;
         memset(server->auth_username, 0, sizeof(server->auth_username));
+
+        // Re-enable echo for username retry (IAC WILL ECHO = 0xFF 0xFB 0x01)
+        uint8_t enable_echo[] = {0xFF, 0xFB, 0x01};
+        tcp_server_send(server->tcp_server, 0, enable_echo, 3);
+
         telnet_send_retry_prompt(server);
       }
     }

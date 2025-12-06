@@ -116,7 +116,7 @@ void debug_newline(void) {
 }
 
 void debug_printf(const char* fmt, ...) {
-  char buffer[256];
+  char buffer[2048];  // Increased from 256 to handle large outputs (source code, etc.)
   va_list args;
   va_start(args, fmt);
   vsnprintf(buffer, sizeof(buffer), fmt, args);
