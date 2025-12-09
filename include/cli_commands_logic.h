@@ -53,7 +53,7 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
  */
 int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program_id,
                            uint8_t var_idx, uint16_t register_address,
-                           const char *direction, uint8_t input_type);
+                           const char *direction, uint8_t input_type, uint8_t output_type);
 
 /**
  * @brief show logic <id>

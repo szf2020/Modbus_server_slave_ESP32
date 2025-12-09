@@ -63,6 +63,14 @@ void cli_shell_reset_upload_mode(void);
 uint8_t cli_shell_is_in_upload_mode(void);
 
 /**
+ * @brief Feed a line to ST Logic upload mode (for Telnet copy/paste support)
+ * @param console Console to write output to
+ * @param line Line of ST code (or END_UPLOAD)
+ * @note Only call this if cli_shell_is_in_upload_mode() returns 1
+ */
+void cli_shell_feed_upload_line(Console *console, const char *line);
+
+/**
  * @brief Execute a CLI command on a specific console
  * @param console Console to execute on
  * @param cmd Command string to execute

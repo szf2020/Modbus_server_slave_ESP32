@@ -146,11 +146,28 @@ bool st_logic_set_enabled(st_logic_engine_state_t *state, uint8_t program_id, ui
 bool st_logic_delete(st_logic_engine_state_t *state, uint8_t program_id) {
   if (program_id >= 4) return false;
 
+  // Clear the program itself
   st_logic_program_config_t *prog = &state->programs[program_id];
   memset(prog, 0, sizeof(*prog));
   snprintf(prog->name, sizeof(prog->name), "Logic%d", program_id + 1);
   prog->enabled = 0;
   prog->compiled = 0;
+
+  // Clear all variable bindings for this program
+  extern PersistConfig g_persist_config;
+  uint8_t i = 0;
+  while (i < g_persist_config.var_map_count) {
+    if (g_persist_config.var_maps[i].st_program_id == program_id) {
+      // Remove this binding by shifting all subsequent bindings down
+      for (uint8_t j = i; j < g_persist_config.var_map_count - 1; j++) {
+        g_persist_config.var_maps[j] = g_persist_config.var_maps[j + 1];
+      }
+      g_persist_config.var_map_count--;
+      // Don't increment i - check this position again
+    } else {
+      i++;
+    }
+  }
 
   return true;
 }

@@ -7,12 +7,12 @@
 
 #include "debug_flags.h"
 
-// Global debug flags (default: all enabled for first diagnosis)
+// Global debug flags (default: all disabled for production)
 DebugFlags g_debug_flags = {
-  .config_save = 1,
-  .config_load = 1,
-  .wifi_connect = 1,       // Enable WiFi debug by default
-  .network_validate = 1,   // Enable network validation debug by default
+  .config_save = 0,
+  .config_load = 0,
+  .wifi_connect = 0,
+  .network_validate = 0,
 };
 
 DebugFlags* debug_flags_get(void) {

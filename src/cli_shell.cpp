@@ -160,6 +160,9 @@ void cli_shell_start_st_upload(uint8_t program_id) {
   cli_cursor_pos = 0;
   memset(cli_input_buffer, 0, CLI_INPUT_BUFFER_SIZE);
 
+  // Disable remote echo for upload mode (for Telnet copy/paste support)
+  cli_shell_set_remote_echo(0);
+
   if (g_debug_console) {
     cli_console_println(g_debug_console, "Entering ST Logic upload mode. Type code and end with 'END_UPLOAD':");
     cli_console_print(g_debug_console, ">>> ");
@@ -172,6 +175,9 @@ void cli_shell_reset_upload_mode(void) {
   cli_upload_buffer_pos = 0;
   memset(cli_upload_buffer, 0, CLI_UPLOAD_BUFFER_SIZE);
 
+  // Re-enable remote echo when exiting upload mode
+  cli_shell_set_remote_echo(1);
+
   if (g_debug_console) {
     cli_console_print(g_debug_console, "> ");
   }
@@ -179,6 +185,64 @@ void cli_shell_reset_upload_mode(void) {
 
 uint8_t cli_shell_is_in_upload_mode(void) {
   return (cli_mode == CLI_MODE_ST_UPLOAD);
+}
+
+void cli_shell_feed_upload_line(Console *console, const char *line) {
+  if (cli_mode != CLI_MODE_ST_UPLOAD) {
+    return;  // Not in upload mode, ignore
+  }
+
+  if (!line) {
+    return;
+  }
+
+  // Set debug console temporarily
+  Console *prev_debug_console = g_debug_console;
+  g_debug_console = console;
+
+  // Create a trimmed copy for END_UPLOAD check
+  char trimmed_check[256];
+  uint16_t check_len = strlen(line);
+  if (check_len >= sizeof(trimmed_check)) {
+    check_len = sizeof(trimmed_check) - 1;
+  }
+  strncpy(trimmed_check, line, check_len);
+  trimmed_check[check_len] = '\0';
+  cli_trim_string(trimmed_check, &check_len);
+
+  if (strcasecmp(trimmed_check, "END_UPLOAD") == 0) {
+    // End of upload - compile and return to normal mode
+    cli_console_println(console, "Compiling ST Logic program...");
+
+    // Null-terminate the upload buffer
+    if (cli_upload_buffer_pos < CLI_UPLOAD_BUFFER_SIZE) {
+      cli_upload_buffer[cli_upload_buffer_pos] = '\0';
+    }
+
+    // Execute upload with collected code
+    cli_parser_execute_st_upload(cli_upload_program_id, cli_upload_buffer);
+
+    // Reset to normal mode
+    cli_shell_reset_upload_mode();
+  } else {
+    // Add line to upload buffer (with newline)
+    uint16_t line_len = strlen(line);
+    if (cli_upload_buffer_pos + line_len + 1 < CLI_UPLOAD_BUFFER_SIZE) {
+      // Copy line
+      strncpy(&cli_upload_buffer[cli_upload_buffer_pos], line, line_len);
+      cli_upload_buffer_pos += line_len;
+
+      // Add newline
+      cli_upload_buffer[cli_upload_buffer_pos] = '\n';
+      cli_upload_buffer_pos++;
+    } else {
+      cli_console_println(console, "ERROR: Upload buffer full!");
+      cli_shell_reset_upload_mode();
+    }
+  }
+
+  // Restore previous debug console
+  g_debug_console = prev_debug_console;
 }
 
 /* ============================================================================

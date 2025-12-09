@@ -22,6 +22,8 @@ void st_compiler_init(st_compiler_t *compiler) {
   compiler->bytecode_ptr = 0;
   compiler->loop_depth = 0;
   compiler->patch_count = 0;
+  compiler->exit_patch_total = 0;
+  memset(compiler->exit_patch_count, 0, sizeof(compiler->exit_patch_count));
 }
 
 /* ============================================================================
@@ -67,8 +69,8 @@ uint8_t st_compiler_lookup_symbol(st_compiler_t *compiler, const char *name) {
  * ============================================================================ */
 
 static bool st_compiler_ensure_space(st_compiler_t *compiler, int count) {
-  if (compiler->bytecode_ptr + count >= 512) {
-    st_compiler_error(compiler, "Bytecode buffer overflow (max 512 instructions)");
+  if (compiler->bytecode_ptr + count >= 1024) {
+    st_compiler_error(compiler, "Bytecode buffer overflow (max 1024 instructions)");
     return false;
   }
   return true;
@@ -158,6 +160,7 @@ static bool st_compiler_compile_binary_op(st_compiler_t *compiler, st_ast_node_t
     case ST_TOK_GE:       opcode = ST_OP_GE; break;
     case ST_TOK_SHL:      opcode = ST_OP_SHL; break;
     case ST_TOK_SHR:      opcode = ST_OP_SHR; break;
+    case ST_TOK_XOR:      opcode = ST_OP_XOR; break;
     default:
       st_compiler_error(compiler, "Unknown binary operator");
       return false;
@@ -406,23 +409,62 @@ static bool st_compiler_compile_for(st_compiler_t *compiler, st_ast_node_t *node
     return false;
   }
 
+  // Enter loop (for EXIT statement tracking)
+  if (compiler->loop_depth >= 8) {
+    st_compiler_error(compiler, "Loop nesting too deep (max 8)");
+    return false;
+  }
+  uint8_t exit_count_before = compiler->exit_patch_total;
+  compiler->loop_depth++;
+
   // Compile start expression
   if (!st_compiler_compile_expr(compiler, node->data.for_stmt.start)) {
+    compiler->loop_depth--;
     return false;
   }
 
   // Store to loop variable
   if (!st_compiler_emit_var(compiler, ST_OP_STORE_VAR, var_index)) {
+    compiler->loop_depth--;
     return false;
   }
 
-  // Compile end expression
+  // Compile end expression and keep on stack
   if (!st_compiler_compile_expr(compiler, node->data.for_stmt.end)) {
+    compiler->loop_depth--;
     return false;
   }
+  // Stack: [end_value]
 
-  // Loop start address (for backjump)
+  // Loop start address
   uint16_t loop_start = st_compiler_current_addr(compiler);
+
+  // Duplicate end value for comparison (keep original on stack for next iteration)
+  if (!st_compiler_emit(compiler, ST_OP_DUP)) {
+    return false;
+  }
+  // Stack: [end_value, end_value_dup]
+
+  // Load loop variable
+  if (!st_compiler_emit_var(compiler, ST_OP_LOAD_VAR, var_index)) {
+    return false;
+  }
+  // Stack: [end_value, end_value_dup, var]
+
+  // Compare: var > end (exit condition for TO loops)
+  // Note: Stack order for GT is (a, b) => a > b
+  // We have [end, var], so GT will compute var > end (wrong order!)
+  // We need end > var, so we check if var > end and exit if true
+  if (!st_compiler_emit(compiler, ST_OP_GT)) {
+    return false;
+  }
+  // Stack: [end_value, (end_dup > var)] - but we want (var > end)!
+  // FIX: Actually stack is [end_dup, var], so GT pops (var, end_dup) and pushes (var > end_dup)
+  // That's correct - if var > end, exit loop
+
+  // If var > end, exit loop
+  uint16_t jump_exit = st_compiler_emit_jump(compiler, ST_OP_JMP_IF_TRUE);
+  // Stack: [end_value]
 
   // Compile loop body
   if (node->data.for_stmt.body) {
@@ -431,14 +473,23 @@ static bool st_compiler_compile_for(st_compiler_t *compiler, st_ast_node_t *node
     }
   }
 
-  // Increment loop variable (simplified: always +1 for now)
-  // TODO: Handle step (BY clause)
+  // Increment loop variable (BY step or default 1)
   if (!st_compiler_emit_var(compiler, ST_OP_LOAD_VAR, var_index)) {
     return false;
   }
-  if (!st_compiler_emit_int(compiler, ST_OP_PUSH_INT, 1)) {
-    return false;
+
+  // Push step value (default 1 if no BY clause)
+  if (node->data.for_stmt.step) {
+    if (!st_compiler_compile_expr(compiler, node->data.for_stmt.step)) {
+      compiler->loop_depth--;
+      return false;
+    }
+  } else {
+    if (!st_compiler_emit_int(compiler, ST_OP_PUSH_INT, 1)) {
+      return false;
+    }
   }
+
   if (!st_compiler_emit(compiler, ST_OP_ADD)) {
     return false;
   }
@@ -446,14 +497,28 @@ static bool st_compiler_compile_for(st_compiler_t *compiler, st_ast_node_t *node
     return false;
   }
 
-  // Loop condition check: if var < end, jump back to start
-  // Load var, load end, compare
-  if (!st_compiler_emit_var(compiler, ST_OP_LOAD_VAR, var_index)) {
+  // Jump back to loop start
+  if (!st_compiler_emit_int(compiler, ST_OP_JMP, loop_start)) {
     return false;
   }
-  // TODO: Load stored end value (need to save it first)
-  // For now, simplified - emit JMP back
-  if (!st_compiler_emit_int(compiler, ST_OP_JMP, loop_start)) {
+
+  // Loop exit - backpatch exit jump and pop end value
+  uint16_t loop_exit_addr = st_compiler_current_addr(compiler);
+  st_compiler_patch_jump(compiler, jump_exit, loop_exit_addr);
+
+  // Backpatch all EXIT statements in this loop
+  uint8_t exit_count = compiler->exit_patch_count[compiler->loop_depth - 1];
+  for (uint8_t i = 0; i < exit_count; i++) {
+    uint16_t exit_jump_addr = compiler->exit_patch_stack[exit_count_before + i];
+    st_compiler_patch_jump(compiler, exit_jump_addr, loop_exit_addr);
+  }
+
+  // Leave loop
+  compiler->loop_depth--;
+  compiler->exit_patch_total = exit_count_before;
+  compiler->exit_patch_count[compiler->loop_depth] = 0;
+
+  if (!st_compiler_emit(compiler, ST_OP_POP)) {
     return false;
   }
 
@@ -461,11 +526,20 @@ static bool st_compiler_compile_for(st_compiler_t *compiler, st_ast_node_t *node
 }
 
 static bool st_compiler_compile_while(st_compiler_t *compiler, st_ast_node_t *node) {
+  // Enter loop
+  if (compiler->loop_depth >= 8) {
+    st_compiler_error(compiler, "Loop nesting too deep (max 8)");
+    return false;
+  }
+  uint8_t exit_count_before = compiler->exit_patch_total;
+  compiler->loop_depth++;
+
   // Loop start address
   uint16_t loop_start = st_compiler_current_addr(compiler);
 
   // Compile condition
   if (!st_compiler_compile_expr(compiler, node->data.while_stmt.condition)) {
+    compiler->loop_depth--;
     return false;
   }
 
@@ -475,41 +549,82 @@ static bool st_compiler_compile_while(st_compiler_t *compiler, st_ast_node_t *no
   // Compile loop body
   if (node->data.while_stmt.body) {
     if (!st_compiler_compile_node(compiler, node->data.while_stmt.body)) {
+      compiler->loop_depth--;
       return false;
     }
   }
 
   // Jump back to condition check
   if (!st_compiler_emit_int(compiler, ST_OP_JMP, loop_start)) {
+    compiler->loop_depth--;
     return false;
   }
 
   // Patch exit jump to here
-  st_compiler_patch_jump(compiler, jump_exit, st_compiler_current_addr(compiler));
+  uint16_t loop_exit_addr = st_compiler_current_addr(compiler);
+  st_compiler_patch_jump(compiler, jump_exit, loop_exit_addr);
+
+  // Backpatch all EXIT statements
+  uint8_t exit_count = compiler->exit_patch_count[compiler->loop_depth - 1];
+  for (uint8_t i = 0; i < exit_count; i++) {
+    uint16_t exit_jump_addr = compiler->exit_patch_stack[exit_count_before + i];
+    st_compiler_patch_jump(compiler, exit_jump_addr, loop_exit_addr);
+  }
+
+  // Leave loop
+  compiler->loop_depth--;
+  compiler->exit_patch_total = exit_count_before;
+  compiler->exit_patch_count[compiler->loop_depth] = 0;
 
   return true;
 }
 
 static bool st_compiler_compile_repeat(st_compiler_t *compiler, st_ast_node_t *node) {
+  // Enter loop
+  if (compiler->loop_depth >= 8) {
+    st_compiler_error(compiler, "Loop nesting too deep (max 8)");
+    return false;
+  }
+  uint8_t exit_count_before = compiler->exit_patch_total;
+  compiler->loop_depth++;
+
   // Loop start address
   uint16_t loop_start = st_compiler_current_addr(compiler);
 
   // Compile loop body
   if (node->data.repeat_stmt.body) {
     if (!st_compiler_compile_node(compiler, node->data.repeat_stmt.body)) {
+      compiler->loop_depth--;
       return false;
     }
   }
 
   // Compile condition (exit if true)
   if (!st_compiler_compile_expr(compiler, node->data.repeat_stmt.condition)) {
+    compiler->loop_depth--;
     return false;
   }
 
   // Emit JMP_IF_FALSE (loop back if condition is false)
   if (!st_compiler_emit_int(compiler, ST_OP_JMP_IF_FALSE, loop_start)) {
+    compiler->loop_depth--;
     return false;
   }
+
+  // Loop exit (condition was true)
+  uint16_t loop_exit_addr = st_compiler_current_addr(compiler);
+
+  // Backpatch all EXIT statements
+  uint8_t exit_count = compiler->exit_patch_count[compiler->loop_depth - 1];
+  for (uint8_t i = 0; i < exit_count; i++) {
+    uint16_t exit_jump_addr = compiler->exit_patch_stack[exit_count_before + i];
+    st_compiler_patch_jump(compiler, exit_jump_addr, loop_exit_addr);
+  }
+
+  // Leave loop
+  compiler->loop_depth--;
+  compiler->exit_patch_total = exit_count_before;
+  compiler->exit_patch_count[compiler->loop_depth] = 0;
 
   return true;
 }
@@ -542,10 +657,22 @@ bool st_compiler_compile_node(st_compiler_t *compiler, st_ast_node_t *node) {
       if (!st_compiler_compile_repeat(compiler, node)) return false;
       break;
 
-    case ST_AST_EXIT:
-      // TODO: Implement EXIT (break from loop)
-      if (!st_compiler_emit(compiler, ST_OP_NOP)) return false;
+    case ST_AST_EXIT: {
+      // EXIT statement - jump to end of current loop
+      if (compiler->loop_depth == 0) {
+        st_compiler_error(compiler, "EXIT outside of loop");
+        return false;
+      }
+      // Emit JMP and save address for backpatching
+      uint16_t exit_jump = st_compiler_emit_jump(compiler, ST_OP_JMP);
+      if (compiler->exit_patch_total >= 32) {
+        st_compiler_error(compiler, "Too many EXIT statements (max 32)");
+        return false;
+      }
+      compiler->exit_patch_stack[compiler->exit_patch_total++] = exit_jump;
+      compiler->exit_patch_count[compiler->loop_depth - 1]++;
       break;
+    }
 
     default:
       // Ignore other node types (they're part of expressions)

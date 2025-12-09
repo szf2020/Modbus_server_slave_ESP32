@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(git push:*)",
+      "WebSearch",
+      "Bash(pio run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFEATURE: v3.2.0 - CLI Commands Complete + Persistent Settings\n\n## Features Added:\n- New `show counter <id>` and `show timer <id>` commands for detailed status\n- `set hostname <name>` now persistent (was runtime-only)\n- `set echo <on|off>` now persistent (was runtime-only)\n- Schema version upgrade: v5→v6→v7 with auto-migration\n\n## Bugfixes:\n- Fixed `show debug` command (added DEBUG normalization)\n- Fixed `set hostname` to save to NVS and survive reboot\n- Fixed `set echo` to save to NVS and apply at boot\n- Improved schema migration safety (no data corruption risk)\n- Removed duplicate \"Hostname:\" line in show config\n- Added missing cli_shell.h include in config_apply.cpp\n\n## Schema Changes:\n- Added `char hostname[32]` to PersistConfig (v3.2+)\n- Added `uint8_t remote_echo` to PersistConfig (v3.2+)\n- Dynamic CRC calculation (works with any struct size)\n- Old configs auto-migrate on schema mismatch\n\n## Files Modified:\n- include/types.h (PersistConfig struct)\n- include/constants.h (PROJECT_VERSION, CONFIG_SCHEMA_VERSION)\n- include/cli_show.h (new function declarations)\n- src/cli_show.cpp (new commands, fixed duplicate hostname)\n- src/cli_parser.cpp (DEBUG normalization, dispatch logic)\n- src/cli_commands.cpp (persistent hostname & echo)\n- src/config_struct.cpp (default initialization)\n- src/config_load.cpp (schema migration)\n- src/config_apply.cpp (echo application, include)\n- CHANGELOG.md (release notes)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git tag:*)",
+      "Bash(for f in *.py)",
+      "Bash(do mv \"$f\" TEST/)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

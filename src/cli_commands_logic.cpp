@@ -35,7 +35,7 @@ extern bool config_save_to_nvs(const PersistConfig* cfg);
 
 /* Forward declaration for bind function */
 int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program_id,
-                           uint8_t var_index, uint16_t modbus_reg, const char *direction, uint8_t input_type);
+                           uint8_t var_index, uint16_t modbus_reg, const char *direction, uint8_t input_type, uint8_t output_type);
 
 /* ============================================================================
  * COMMAND HANDLERS
@@ -238,22 +238,26 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
   uint16_t register_addr = 0;
   const char *direction = "both";  // default
   uint8_t input_type = 0;  // 0 = Holding Register (HR), 1 = Discrete Input (DI)
+  uint8_t output_type = 0;  // 0 = Holding Register (HR), 1 = Coil
 
   if (strncmp(binding_spec, "reg:", 4) == 0) {
     // Holding register (16-bit integer)
     register_addr = atoi(binding_spec + 4);
     direction = "both";  // INT variables work as input/output
     input_type = 0;  // HR
+    output_type = 0;  // HR
   } else if (strncmp(binding_spec, "coil:", 5) == 0) {
     // Coil output (BOOL write)
     register_addr = atoi(binding_spec + 5);
     direction = "output";
     input_type = 0;  // N/A for output
+    output_type = 1;  // Coil
   } else if (strncmp(binding_spec, "input-dis:", 10) == 0) {
     // Discrete input (BOOL read)
     register_addr = atoi(binding_spec + 10);
     direction = "input";
     input_type = 1;  // DI
+    output_type = 0;  // N/A for input
   } else {
     debug_printf("ERROR: Invalid binding spec '%s' (use reg:, coil:, or input-dis:)\n", binding_spec);
     return -1;
@@ -265,8 +269,8 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
     return -1;
   }
 
-  // Call original bind function with input_type
-  return cli_cmd_set_logic_bind(logic_state, program_id, var_index, register_addr, direction, input_type);
+  // Call original bind function with input_type and output_type
+  return cli_cmd_set_logic_bind(logic_state, program_id, var_index, register_addr, direction, input_type, output_type);
 }
 
 /**
@@ -280,7 +284,7 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
  *   set logic 1 bind 1 101 output  # ST var[1] writes to HR#101
  */
 int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program_id,
-                           uint8_t var_index, uint16_t modbus_reg, const char *direction, uint8_t input_type) {
+                           uint8_t var_index, uint16_t modbus_reg, const char *direction, uint8_t input_type, uint8_t output_type) {
   if (program_id >= 4) {
     debug_println("ERROR: Invalid program ID (0-3)");
     return -1;
@@ -336,6 +340,7 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
       }
       if (is_output) {
         map->is_input = 0;
+        map->output_type = output_type;
         map->coil_reg = modbus_reg;
       }
 
@@ -368,6 +373,7 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
   }
   if (is_output) {
     map->is_input = 0;  // OUTPUT mode
+    map->output_type = output_type;
     map->coil_reg = modbus_reg;
   }
 

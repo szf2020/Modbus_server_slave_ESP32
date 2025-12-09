@@ -362,7 +362,7 @@ typedef struct {
 
 /* Bytecode program (compiled) */
 typedef struct {
-  st_bytecode_instr_t instructions[512]; // Max 512 instructions
+  st_bytecode_instr_t instructions[1024]; // Max 1024 instructions (doubled from 512)
   uint16_t instr_count;
 
   // Variable memory

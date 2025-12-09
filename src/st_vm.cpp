@@ -258,6 +258,15 @@ static bool st_vm_exec_or(st_vm_t *vm, st_bytecode_instr_t *instr) {
   return st_vm_push(vm, result);
 }
 
+static bool st_vm_exec_xor(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  if (!st_vm_pop(vm, &right)) return false;
+  if (!st_vm_pop(vm, &left)) return false;
+
+  result.bool_val = (left.bool_val != 0) != (right.bool_val != 0);
+  return st_vm_push(vm, result);
+}
+
 static bool st_vm_exec_not(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t val, result;
   if (!st_vm_pop(vm, &val)) return false;
@@ -442,6 +451,7 @@ bool st_vm_step(st_vm_t *vm) {
     case ST_OP_NEG:             result = st_vm_exec_neg(vm, instr); break;
     case ST_OP_AND:             result = st_vm_exec_and(vm, instr); break;
     case ST_OP_OR:              result = st_vm_exec_or(vm, instr); break;
+    case ST_OP_XOR:             result = st_vm_exec_xor(vm, instr); break;
     case ST_OP_NOT:             result = st_vm_exec_not(vm, instr); break;
     case ST_OP_EQ:              result = st_vm_exec_eq(vm, instr); break;
     case ST_OP_NE:              result = st_vm_exec_ne(vm, instr); break;

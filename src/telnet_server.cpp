@@ -66,6 +66,7 @@ TelnetServer* telnet_server_create(uint16_t port, NetworkConfig *network_config)
   server->parse_state = TELNET_STATE_NONE;
   server->escape_seq_state = 0;             // Initialize escape sequence state
   server->input_pos = 0;
+  server->cursor_pos = 0;                   // Initialize cursor position
   server->input_ready = 0;
   server->echo_enabled = 1;
   server->linemode_enabled = 1;
@@ -140,6 +141,7 @@ int telnet_server_disconnect_client(TelnetServer *server)
   }
 
   server->input_pos = 0;
+  server->cursor_pos = 0;
   server->input_ready = 0;
   server->parse_state = TELNET_STATE_NONE;
 
@@ -263,6 +265,7 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
     if (millis() < server->auth_lockout_time) {
       telnet_server_writeline(server, "ERROR: Too many failed attempts. Please try again later.");
       server->input_pos = 0;
+      server->cursor_pos = 0;
       server->input_ready = 0;
       return;
     } else {
@@ -271,6 +274,7 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
       server->auth_attempts = 0;
       telnet_send_auth_prompt(server);
       server->input_pos = 0;
+      server->cursor_pos = 0;
       server->input_ready = 0;
       return;
     }
@@ -326,6 +330,7 @@ static void telnet_handle_auth_input(TelnetServer *server, const char *input) {
   }
 
   server->input_pos = 0;
+  server->cursor_pos = 0;
   server->input_ready = 0;
 }
 
@@ -367,6 +372,7 @@ static void telnet_process_input(TelnetServer *server, uint8_t byte)
             memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
             strncpy(server->input_buffer, prev_cmd, TELNET_INPUT_BUFFER_SIZE - 1);
             server->input_pos = strlen(server->input_buffer);
+            server->cursor_pos = server->input_pos;  // Cursor at end of recalled command
 
             // Redraw line: clear current, show new
             if (server->echo_enabled) {
@@ -385,8 +391,10 @@ static void telnet_process_input(TelnetServer *server, uint8_t byte)
             if (next_cmd[0] != '\0') {
               strncpy(server->input_buffer, next_cmd, TELNET_INPUT_BUFFER_SIZE - 1);
               server->input_pos = strlen(server->input_buffer);
+              server->cursor_pos = server->input_pos;  // Cursor at end of recalled command
             } else {
               server->input_pos = 0;
+              server->cursor_pos = 0;
             }
 
             // Redraw line
@@ -399,8 +407,25 @@ static void telnet_process_input(TelnetServer *server, uint8_t byte)
             }
           }
           return;
-        } else if (byte == 'C' || byte == 'D') {
-          // Left/Right arrows - ignore for now
+        } else if (byte == 'C') {
+          // Right arrow - move cursor right
+          server->escape_seq_state = 0;
+          if (server->cursor_pos < server->input_pos) {
+            server->cursor_pos++;
+            if (server->echo_enabled) {
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)"\x1B[C", 3);
+            }
+          }
+          return;
+        } else if (byte == 'D') {
+          // Left arrow - move cursor left
+          server->escape_seq_state = 0;
+          if (server->cursor_pos > 0) {
+            server->cursor_pos--;
+            if (server->echo_enabled) {
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)"\x1B[D", 3);
+            }
+          }
           return;
         } else {
           // Not a recognized arrow key - discard silently
@@ -420,44 +445,112 @@ static void telnet_process_input(TelnetServer *server, uint8_t byte)
       // ====================================================================
       if (byte == TELNET_CMD_IAC) {
         server->parse_state = TELNET_STATE_IAC;
-      } else if (byte == '\r') {
-        // Carriage return - ignore (waiting for \n)
-      } else if (byte == '\n') {
+      } else if (byte == '\r' || byte == '\n') {
+        // Line ending - process command
+        // Handle both \r and \n independently (for copy/paste compatibility)
+        // Skip if this is \n immediately after \r (Windows CRLF)
+        static uint8_t last_was_cr = 0;
+
+        if (byte == '\n' && last_was_cr) {
+          last_was_cr = 0;
+          return;  // Skip \n after \r
+        }
+
+        last_was_cr = (byte == '\r') ? 1 : 0;
+
         // Line complete (with boundary check)
-        // SECURITY FIX: Ensure we don't write past buffer boundary
         if (server->input_pos >= TELNET_INPUT_BUFFER_SIZE) {
           server->input_pos = TELNET_INPUT_BUFFER_SIZE - 1;
         }
         server->input_buffer[server->input_pos] = '\0';
         server->input_ready = 1;
         server->input_pos = 0;
+        server->cursor_pos = 0;  // Reset cursor position for new line
 
         // Echo if enabled
         if (server->echo_enabled) {
           tcp_server_send(server->tcp_server, 0, (uint8_t*)"\r\n", 2);
         }
       } else if (byte >= 32 && byte < 127) {
-        // Printable character (with strict boundary check)
+        // Printable character - insert at cursor position (insert mode)
         // NOTE: Escape sequences are already handled above and return early,
         // so if we reach here, we're guaranteed escape_seq_state == 0
         if (server->input_pos < TELNET_INPUT_BUFFER_SIZE - 1) {
-          server->input_buffer[server->input_pos++] = byte;
+          // If cursor is at end, simple append
+          if (server->cursor_pos == server->input_pos) {
+            server->input_buffer[server->input_pos++] = byte;
+            server->cursor_pos++;
 
-          // Echo back
-          if (server->echo_enabled) {
-            tcp_server_send(server->tcp_server, 0, &byte, 1);
+            // Echo back
+            if (server->echo_enabled) {
+              tcp_server_send(server->tcp_server, 0, &byte, 1);
+            }
+          } else {
+            // Insert mode: shift characters to the right
+            // Move all characters from cursor_pos to end, one position right
+            for (int i = server->input_pos; i > server->cursor_pos; i--) {
+              server->input_buffer[i] = server->input_buffer[i - 1];
+            }
+
+            // Insert new character at cursor position
+            server->input_buffer[server->cursor_pos] = byte;
+            server->input_pos++;
+            server->cursor_pos++;
+
+            // Redraw line from cursor position to end
+            if (server->echo_enabled) {
+              // Send the new character + all characters after it
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)&server->input_buffer[server->cursor_pos - 1],
+                             server->input_pos - server->cursor_pos + 1);
+
+              // Move cursor back to correct position
+              int chars_to_move_back = server->input_pos - server->cursor_pos;
+              for (int i = 0; i < chars_to_move_back; i++) {
+                tcp_server_send(server->tcp_server, 0, (uint8_t*)"\x1B[D", 3);  // Move left
+              }
+            }
           }
         }
       } else if (byte == 8 || byte == 127) {
-        // Backspace - always process, even if in escape sequence (to allow correction)
+        // Backspace - delete character at cursor position
         // Reset escape state if user is trying to backspace
         server->escape_seq_state = 0;
 
-        if (server->input_pos > 0) {
-          server->input_pos--;
+        if (server->cursor_pos > 0) {
+          // If cursor is at end, simple delete
+          if (server->cursor_pos == server->input_pos) {
+            server->input_pos--;
+            server->cursor_pos--;
 
-          if (server->echo_enabled) {
-            tcp_server_send(server->tcp_server, 0, (uint8_t*)"\b \b", 3);
+            if (server->echo_enabled) {
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)"\b \b", 3);
+            }
+          } else {
+            // Delete mode: shift characters to the left
+            // Move all characters from cursor_pos to end, one position left
+            for (int i = server->cursor_pos - 1; i < server->input_pos - 1; i++) {
+              server->input_buffer[i] = server->input_buffer[i + 1];
+            }
+
+            server->input_pos--;
+            server->cursor_pos--;
+
+            // Redraw line from cursor position to end
+            if (server->echo_enabled) {
+              // Move cursor back one position
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)"\b", 1);
+
+              // Send all characters from cursor to end + space to clear last char
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)&server->input_buffer[server->cursor_pos],
+                             server->input_pos - server->cursor_pos);
+              tcp_server_send(server->tcp_server, 0, (uint8_t*)" ", 1);  // Clear last character
+
+              // Move cursor back to correct position
+              int chars_to_move_back = server->input_pos - server->cursor_pos + 1;
+              for (int i = 0; i < chars_to_move_back; i++) {
+                tcp_server_send(server->tcp_server, 0, (uint8_t*)"\x1B[D", 3);  // Move left
+              }
+            }
           }
         }
       }
@@ -473,6 +566,7 @@ static void telnet_process_input(TelnetServer *server, uint8_t byte)
         // Escaped IAC (literal 255)
         if (server->input_pos < TELNET_INPUT_BUFFER_SIZE - 1) {
           server->input_buffer[server->input_pos++] = byte;
+          server->cursor_pos = server->input_pos;  // Keep cursor at end
           if (server->echo_enabled) {
             tcp_server_send(server->tcp_server, 0, &byte, 1);
           }
@@ -705,6 +799,7 @@ int telnet_server_loop(TelnetServer *server)
     // New client detected - reset all state
     server->escape_seq_state = 0;  // Reset escape sequence parser
     server->input_pos = 0;         // Clear input buffer
+    server->cursor_pos = 0;        // Reset cursor position
     memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
 
     // SIMPLIFIED: No IAC negotiation - just echo from server side
@@ -742,6 +837,13 @@ int telnet_server_loop(TelnetServer *server)
     while (tcp_server_recv_byte(server->tcp_server, 0, &byte) > 0) {
       telnet_process_input(server, byte);
       events++;
+
+      // CRITICAL: Stop reading bytes if a complete line is ready!
+      // This prevents subsequent lines from overwriting the current line buffer
+      // during copy/paste (when multiple \n arrive rapidly)
+      if (server->input_ready) {
+        break;
+      }
     }
 
     // SECURITY FIX: Process authentication if input is ready and auth is needed
@@ -753,11 +855,20 @@ int telnet_server_loop(TelnetServer *server)
 
     // FEATURE: Execute CLI commands if authenticated and input is ready
     if (server->input_ready && server->auth_state == TELNET_AUTH_AUTHENTICATED) {
+      // Check if CLI is in upload mode BEFORE processing line
+      uint8_t was_in_upload_mode = cli_shell_is_in_upload_mode();
+
       // Create a temporary Telnet console for this command
       Console *telnet_console = console_telnet_create(server);
       if (telnet_console) {
-        // Execute the command on the Telnet console
-        cli_shell_execute_command(telnet_console, server->input_buffer);
+
+        if (was_in_upload_mode) {
+          // Feed this line to upload mode (handles ST code and END_UPLOAD)
+          cli_shell_feed_upload_line(telnet_console, server->input_buffer);
+        } else {
+          // Execute as normal command
+          cli_shell_execute_command(telnet_console, server->input_buffer);
+        }
 
         // Check if "exit" command was issued
         if (telnet_console->close_requested) {
@@ -777,6 +888,7 @@ int telnet_server_loop(TelnetServer *server)
 
           // Clear the input buffer
           server->input_pos = 0;
+          server->cursor_pos = 0;
           server->input_ready = 0;
           memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
 
@@ -784,15 +896,85 @@ int telnet_server_loop(TelnetServer *server)
           return events;
         }
 
+        // Check if we just entered upload mode AND there's pending data (copy/paste scenario)
+        uint8_t is_in_upload_mode = cli_shell_is_in_upload_mode();
+        if (!was_in_upload_mode && is_in_upload_mode) {
+          // We just entered upload mode - check if there's more data pending (copy/paste)
+          uint16_t pending = tcp_server_available(server->tcp_server, 0);
+          if (pending > 0) {
+            // COPY/PASTE DETECTED: Process all pending lines immediately
+            // This prevents them from being executed as commands
+            while (tcp_server_available(server->tcp_server, 0) > 0) {
+              // Clear current buffer
+              server->input_pos = 0;
+              server->cursor_pos = 0;
+              server->input_ready = 0;
+              memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
+
+              // Read pending bytes into buffer (reuse existing telnet input logic)
+              // Process bytes until we get a complete line or run out of data
+              uint8_t byte;
+              int timeout = 100; // Safety: max 100 bytes per line
+              while (timeout-- > 0 && tcp_server_recv_byte(server->tcp_server, 0, &byte) == 1) {
+                // Handle CRLF line endings
+                if (byte == '\r' || byte == '\n') {
+                  if (server->input_pos > 0) {
+                    // Got a complete line
+                    server->input_buffer[server->input_pos] = '\0';
+                    server->input_ready = 1;
+                    break;
+                  } else {
+                    // Skip empty line (double CRLF)
+                    continue;
+                  }
+                } else if (byte >= 32 && byte < 127) {
+                  // Printable character
+                  if (server->input_pos < TELNET_INPUT_BUFFER_SIZE - 1) {
+                    server->input_buffer[server->input_pos++] = byte;
+                  }
+                }
+              }
+
+              // If we got a complete line, feed it to upload mode
+              if (server->input_ready) {
+                cli_shell_feed_upload_line(telnet_console, server->input_buffer);
+
+                // Check if we exited upload mode (END_UPLOAD was received)
+                if (!cli_shell_is_in_upload_mode()) {
+                  break;
+                }
+              } else {
+                // No complete line yet - exit loop
+                break;
+              }
+            }
+          }
+        }
+
         // Destroy the temporary console
         console_telnet_destroy(telnet_console);
       }
 
       // Show the CLI prompt after command execution
-      telnet_server_write(server, "> ");
+      // Only send prompt if:
+      // 1. We're still in upload mode AND we were already in it (not just entered)
+      // 2. We're in normal mode
+      // DO NOT send prompt if we just entered upload mode - cli_shell_start_st_upload() already sent it
+      uint8_t is_in_upload_mode = cli_shell_is_in_upload_mode();
+
+      if (is_in_upload_mode && was_in_upload_mode) {
+        // Still in upload mode - send upload prompt for next line
+        telnet_server_write(server, ">>> ");
+      } else if (!is_in_upload_mode) {
+        // Normal mode - send normal prompt
+        // (Note: Don't send if we just entered upload mode - that prompt was already sent)
+        telnet_server_write(server, "> ");
+      }
+      // If we just entered upload mode (!was_in_upload_mode && is_in_upload_mode), don't send prompt
 
       // Clear the input buffer
       server->input_pos = 0;
+      server->cursor_pos = 0;
       server->input_ready = 0;
       memset(server->input_buffer, 0, TELNET_INPUT_BUFFER_SIZE);
       events++;

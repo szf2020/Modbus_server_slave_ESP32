@@ -161,11 +161,27 @@ void st_logic_print_program(st_logic_engine_state_t *state, uint8_t program_id) 
       const char *var_name = prog->bytecode.var_names[map->st_var_index];
 
       if (map->is_input) {
-        debug_printf("  [%d] %s ← HR#%d (input)\n",
-               map->st_var_index, var_name, map->input_reg);
+        // Input: Read from register/discrete input
+        if (map->input_type == 1) {
+          // Discrete Input
+          debug_printf("  [%d] %s ← Input-dis#%d (input)\n",
+                 map->st_var_index, var_name, map->input_reg);
+        } else {
+          // Holding Register (default)
+          debug_printf("  [%d] %s ← HR#%d (input)\n",
+                 map->st_var_index, var_name, map->input_reg);
+        }
       } else {
-        debug_printf("  [%d] %s → Coil#%d (output)\n",
-               map->st_var_index, var_name, map->coil_reg);
+        // Output: Write to register or coil
+        if (map->output_type == 1) {
+          // Coil output
+          debug_printf("  [%d] %s → Coil#%d (output)\n",
+                 map->st_var_index, var_name, map->coil_reg);
+        } else {
+          // Holding Register output
+          debug_printf("  [%d] %s → Reg#%d (output)\n",
+                 map->st_var_index, var_name, map->coil_reg);
+        }
       }
     }
   }

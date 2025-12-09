@@ -320,13 +320,14 @@ static st_ast_node_t *parser_parse_logical_and(st_parser_t *parser) {
 static st_ast_node_t *parser_parse_logical_or(st_parser_t *parser) {
   st_ast_node_t *left = parser_parse_logical_and(parser);
 
-  while (parser_match(parser, ST_TOK_OR)) {
+  while (parser_match(parser, ST_TOK_OR) || parser_match(parser, ST_TOK_XOR)) {
     uint32_t line = parser->current_token.line;
+    st_token_type_t op = parser->current_token.type;
     parser_advance(parser);
 
     st_ast_node_t *right = parser_parse_logical_and(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
-    node->data.binary_op.op = ST_TOK_OR;
+    node->data.binary_op.op = op;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
     left = node;
@@ -401,15 +402,74 @@ static st_ast_node_t *parser_parse_if_statement(st_parser_t *parser) {
   }
 
   st_ast_node_t *then_body = NULL;
-  if (!parser_match(parser, ST_TOK_ELSE) && !parser_match(parser, ST_TOK_END_IF)) {
+  if (!parser_match(parser, ST_TOK_ELSE) && !parser_match(parser, ST_TOK_ELSIF) && !parser_match(parser, ST_TOK_END_IF)) {
     then_body = st_parser_parse_statements(parser);
   }
 
   st_ast_node_t *else_body = NULL;
+
+  // Handle ELSIF chain recursively
+  while (parser_match(parser, ST_TOK_ELSIF)) {
+    parser_advance(parser);
+
+    st_ast_node_t *elsif_condition = parser_parse_expression(parser);
+    if (!elsif_condition) {
+      st_ast_node_free(condition);
+      st_ast_node_free(then_body);
+      st_ast_node_free(else_body);
+      return NULL;
+    }
+
+    if (!parser_expect(parser, ST_TOK_THEN)) {
+      parser_error(parser, "Expected THEN after ELSIF condition");
+      st_ast_node_free(condition);
+      st_ast_node_free(then_body);
+      st_ast_node_free(else_body);
+      st_ast_node_free(elsif_condition);
+      return NULL;
+    }
+
+    st_ast_node_t *elsif_then = NULL;
+    if (!parser_match(parser, ST_TOK_ELSE) && !parser_match(parser, ST_TOK_ELSIF) && !parser_match(parser, ST_TOK_END_IF)) {
+      elsif_then = st_parser_parse_statements(parser);
+    }
+
+    // Create IF node for this ELSIF
+    st_ast_node_t *elsif_node = ast_node_alloc(ST_AST_IF, elsif_condition->line);
+    elsif_node->data.if_stmt.condition_expr = elsif_condition;
+    elsif_node->data.if_stmt.then_body = elsif_then;
+    elsif_node->data.if_stmt.else_body = NULL;
+
+    // Chain ELSIFs: first ELSIF goes into original else_body, subsequent into previous ELSIF's else_body
+    if (else_body == NULL) {
+      else_body = elsif_node;
+    } else {
+      // Find last node in ELSIF chain
+      st_ast_node_t *last = else_body;
+      while (last->data.if_stmt.else_body != NULL) {
+        last = last->data.if_stmt.else_body;
+      }
+      last->data.if_stmt.else_body = elsif_node;
+    }
+  }
+
+  // Handle final ELSE (if any)
   if (parser_match(parser, ST_TOK_ELSE)) {
     parser_advance(parser);
+    st_ast_node_t *final_else = NULL;
     if (!parser_match(parser, ST_TOK_END_IF)) {
-      else_body = st_parser_parse_statements(parser);
+      final_else = st_parser_parse_statements(parser);
+    }
+
+    // Attach to last ELSIF (if any), otherwise to main IF
+    if (else_body != NULL) {
+      st_ast_node_t *last = else_body;
+      while (last->data.if_stmt.else_body != NULL) {
+        last = last->data.if_stmt.else_body;
+      }
+      last->data.if_stmt.else_body = final_else;
+    } else {
+      else_body = final_else;
     }
   }
 
