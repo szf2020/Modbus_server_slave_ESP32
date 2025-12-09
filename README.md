@@ -450,7 +450,7 @@ GND        →  GND
 
 **RS-485 Notes:**
 - **Termination:** 120Ω resistor mellem A-B på bus ends
-- **Biasing:** 680Ω pullup på A, 680Ω pulldown på B (optional)
+- **Biasing:** 120Ω pullup på A, 120Ω pulldown på B (optional)
 - **Cable:** Twisted pair, shielded (Cat5e eller bedre)
 - **Max Distance:** 1200m (4000ft) at 9600 bps
 - **Max Nodes:** 32 devices (247 med repeaters)
