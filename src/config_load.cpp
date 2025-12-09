@@ -29,6 +29,9 @@ static void config_init_defaults(PersistConfig* cfg) {
   cfg->schema_version = CONFIG_SCHEMA_VERSION;  // Current schema version
   cfg->slave_id = 1;
   cfg->baudrate = 9600;
+  strncpy(cfg->hostname, "modbus-esp32", 31);  // Default hostname (v3.2+)
+  cfg->hostname[31] = '\0';
+  cfg->remote_echo = 1;  // Default: echo ON (v3.2+)
 
   // Initialize network config with defaults (v3.0+)
   network_config_init_defaults(&cfg->network);
@@ -40,6 +43,8 @@ static void config_init_defaults(PersistConfig* cfg) {
     cfg->var_maps[i].associated_counter = 0xff;
     cfg->var_maps[i].associated_timer = 0xff;
     cfg->var_maps[i].source_type = 0xff;  // Mark as unused
+    cfg->var_maps[i].input_type = 0;      // Default: Holding Register
+    cfg->var_maps[i].output_type = 0;     // Default: Holding Register
   }
   cfg->var_map_count = 0;  // No mappings in default config
 }

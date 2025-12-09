@@ -4,6 +4,152 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [3.2.0] - 2025-12-09 🎛️ (CLI Commands Complete + Persistent Settings)
+
+### FEATURES ADDED
+
+#### Show Commands - Specific Item Details ✅ NEW
+- **New Commands:**
+  - `show counter <id>` - Display detailed status for specific counter (1-4)
+    - Shows hardware mode (SW/ISR/HW), edge type, prescaler, scale factor
+    - Displays register mappings (index, raw, frequency, control)
+    - Shows current values (raw, prescaled, scaled, frequency in Hz)
+    - Shows compare feature configuration if enabled
+  - `show timer <id>` - Display detailed status for specific timer (1-4)
+    - Shows mode-specific parameters (one-shot, monostable, astable, input-triggered)
+    - Displays output coil and control register addresses
+    - Mode-specific details (phases, pulse duration, on/off times, etc.)
+
+#### Persistent Configuration Settings ✅ NEW
+- **`set hostname <name>` - FIXED & PERSISTENT**
+  - Now saves hostname to `PersistConfig` (was runtime-only)
+  - Persists to NVS on `save` command
+  - Default: "modbus-esp32"
+  - Max 31 characters (+ null terminator)
+  - Shows in `show config` output
+  - Survives reboot
+
+- **`set echo <on|off>` - NOW PERSISTENT**
+  - Previously runtime-only, now saves to persistent config
+  - Persists to NVS on `save` command
+  - Default: ON (echo enabled)
+  - Applied automatically at boot via `config_apply()`
+  - Shows in `show config` output
+
+#### Schema Version Upgrade ✅
+- **Schema v5 → v6:** Added `hostname` field to PersistConfig
+- **Schema v6 → v7:** Added `remote_echo` field to PersistConfig
+- **Backward Compatibility:** Old v5 configs auto-migrate on load (schema mismatch triggers reinit with defaults)
+- **CRC Protection:** Dynamic CRC calculation (works with any struct size)
+
+### BUGFIXES & IMPROVEMENTS
+
+#### CLI Show Commands - Missing Normalization ✅ FIXED
+- **Issue:** `show debug` command failed with "SHOW: unknown argument" error
+- **Root Cause:** "DEBUG" token not added to `normalize_alias()` function
+- **Solution:** Added DEBUG normalization in cli_parser.cpp (line 142)
+- **Result:** `show debug` now works correctly
+
+#### Configuration Save/Load Schema Safety ✅ IMPROVED
+- **Issue:** When extending PersistConfig struct, old configs could cause data corruption
+- **Root Cause:** `config_init_defaults()` in config_load.cpp didn't initialize new fields during schema migration
+- **Solution:**
+  1. Added hostname initialization in `config_init_defaults()` (config_load.cpp:32-33)
+  2. Added remote_echo initialization in `config_init_defaults()` (config_load.cpp:34)
+  3. Added same initializations in `config_struct_create_default()` (config_struct.cpp)
+  4. Verified CRC calculation is dynamic (sizeof(PersistConfig) calculated at runtime)
+  5. Verified schema version mismatch triggers full reinit (safe migration)
+- **Result:**
+  - Old v5/v6 configs → schema mismatch → reinit with new defaults
+  - No data corruption possible
+  - All new fields guaranteed initialized
+  - CRC validation ensures integrity
+
+#### Show Config Output - Duplicate Hostname ✅ FIXED
+- **Issue:** `show config` displayed hostname twice:
+  ```
+  Hostname: GREENS         (correct, from config)
+  ...
+  Hostname: esp32-modbus   (wrong, hardcoded)
+  ```
+- **Root Cause:** Leftover debug line at cli_show.cpp:69
+- **Solution:** Removed duplicate hardcoded hostname line
+- **Result:** Single hostname display (correct value from persistent config)
+
+#### Config Apply - Missing Include ✅ FIXED
+- **Issue:** `config_apply()` calls `cli_shell_set_remote_echo()` but header not included
+- **Solution:** Added `#include "cli_shell.h"` to config_apply.cpp
+- **Result:** Proper include dependency chain
+
+### FILES MODIFIED
+- `include/types.h` - Added `hostname[32]` and `remote_echo` fields to PersistConfig
+- `include/constants.h` - Bumped CONFIG_SCHEMA_VERSION from 5→6→7
+- `include/cli_show.h` - Added `cli_cmd_show_counter(uint8_t id)` and `cli_cmd_show_timer(uint8_t id)` declarations
+- `src/cli_show.cpp` - Implemented counter/timer detail commands, added hostname display, removed duplicate hostname
+- `src/cli_parser.cpp` - Added DEBUG normalization, added counter/timer <id> dispatch logic
+- `src/cli_commands.cpp` - Implemented `set hostname` persistent storage, implemented `set echo` persistent storage
+- `src/config_struct.cpp` - Added default initialization of hostname and remote_echo
+- `src/config_load.cpp` - Added hostname/remote_echo initialization in schema migration
+- `src/config_apply.cpp` - Added remote_echo application at boot, added cli_shell.h include
+
+---
+
+## [3.1.1] - 2025-12-08 ⌨️ (Telnet Insert Mode & ST Upload Copy/Paste)
+
+### BUGFIXES & IMPROVEMENTS
+
+#### Telnet ST Logic Upload Copy/Paste Support ✅ FIXED (Build #533)
+- **Issue:** When copy/pasting multi-line ST code into telnet during `set logic X upload`, all lines after first were executed as commands instead of being added to upload buffer. Only last line was captured.
+- **User Feedback #1:** "når jeg kopi pasta tekst ind den få ikke fanget tekst input på multi linies"
+- **User Feedback #2:** "det gør det så IKKE" - Double prompts (`>>> >>>`) and lines not properly captured
+- **User Feedback #3:** "ok gør det IKKE, analyse og fiks" - Lines still showing "Unknown command" errors
+- **User Feedback #4:** "ultrathink samme lort prøv igen" - Only 30 bytes (one line) captured instead of entire program
+- **Root Cause (The REAL Problem):**
+  1. Copy/paste sends ALL bytes at once: `set logic 2 upload\r\nVAR\r\n  state: INT;\r\n  loop_var: INT;\r\n...`
+  2. Telnet byte-reading loop (line 837-840) reads ALL bytes in one go via `while (tcp_server_recv_byte())`
+  3. Each `\n` sets `input_ready = 1` and RESETS `input_pos = 0` immediately (line 467-468)
+  4. **Critical Bug:** Loop continues reading → next line OVERWRITES previous line in buffer!
+  5. Result: Only LAST line remains in buffer when loop finishes, all others lost
+  6. Only "  loop_var: INT;" (30 bytes) captured, rest overwritten
+- **Solution - Stop Reading After Complete Line:**
+  1. Modified byte-reading loop to BREAK when `input_ready` becomes 1
+  2. This ensures only ONE line is read per iteration, preventing buffer overwrite
+  3. Subsequent lines remain in TCP buffer for next iteration
+  4. Combined with existing batch processing logic for upload mode
+  5. **Files Modified:**
+     - `src/telnet_server.cpp` (line 841-846): Added `if (server->input_ready) break;` in byte-reading loop
+     - `src/cli_shell.cpp`: Upload line feeding with echo control
+     - `include/cli_shell.h`: `cli_shell_feed_upload_line()` declaration
+- **Technical Details:**
+  - Byte-reading loop now processes ONE line at a time
+  - When `input_ready = 1` detected, break immediately
+  - Remaining bytes stay in TCP buffer for next `telnet_server_loop()` iteration
+  - Batch processing logic reads pending lines when upload mode just entered
+  - Each line properly fed to upload buffer via `cli_shell_feed_upload_line()`
+- **Result:** Copy/paste of entire ST programs into telnet now works correctly - ALL lines captured in upload buffer (not just last one), no buffer overwrites, no "Unknown command" errors
+
+#### Telnet Cursor Position Editing (Insert Mode) ✅ FIXED
+- **Issue:** When cursor moved left (LEFT arrow) and text inserted, existing text was overwritten instead of shifted forward
+- **User Feedback:** "cursor fungere næster, problem: hvis jeg flytte curser tilbage en text og indsætter text flyttes text foran curser ikke frem den overskriver bare"
+- **Root Cause:** Cursor position not tracked internally, text always inserted at end of buffer (append mode)
+- **Solution:**
+  1. Added `cursor_pos` field to `TelnetServer` struct (tracks current cursor position independent of buffer write position)
+  2. Modified LEFT/RIGHT arrow handlers to update `cursor_pos` and only echo movement if within valid range
+  3. Implemented true insert mode for character input:
+     - When cursor at end: simple append (fast path)
+     - When cursor in middle: shift all characters right, insert at cursor, redraw line with ANSI sequences
+  4. Implemented cursor-aware backspace:
+     - When cursor at end: simple delete (fast path)
+     - When cursor in middle: shift all characters left, redraw line with clear+reposition
+  5. Updated all `input_pos = 0` locations to also reset `cursor_pos = 0`:
+     - Line completion, disconnect, auth reset, history navigation, new connection
+- **Files Modified:**
+  - `include/telnet_server.h` - Added `cursor_pos` field
+  - `src/telnet_server.cpp` - Complete cursor position tracking and insert mode implementation
+- **Result:** Text editing now works like standard terminals (insert mode by default, cursor-aware editing)
+
+---
+
 ## [3.1.0] - 2025-12-05 🌐 (WiFi Display, Validation, & Telnet Auth Improvements)
 
 ### BUGFIXES & IMPROVEMENTS

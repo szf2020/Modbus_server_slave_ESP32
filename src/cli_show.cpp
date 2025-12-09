@@ -26,6 +26,7 @@
 #include "st_logic_config.h"
 #include "network_manager.h"
 #include "network_config.h"
+#include "debug_flags.h"
 #include "debug.h"
 #include <stdio.h>
 #include <string.h>
@@ -49,6 +50,10 @@ void cli_cmd_show_config(void) {
   debug_print(GIT_HASH);
   debug_println(")");
 
+  // Show hostname
+  debug_print("Hostname: ");
+  debug_println(g_persist_config.hostname[0] ? g_persist_config.hostname : "(NOT SET)");
+
   // Show actual slave ID from config
   debug_print("Unit-ID: ");
   debug_print_uint(g_persist_config.slave_id);
@@ -61,7 +66,6 @@ void cli_cmd_show_config(void) {
 
   debug_println("Server: RUNNING");
   debug_println("Mode: SERVER");
-  debug_println("Hostname: esp32-modbus");
   debug_println("=====================\n");
 
   // Counter configuration block (Mega2560 format)
@@ -307,7 +311,7 @@ void cli_cmd_show_config(void) {
       debug_print_uint(map->gpio_pin);
       debug_print(" - ");
       if (map->is_input) {
-        debug_print("INPUT REG:");
+        debug_print("INPUT:");
         debug_print_uint(map->input_reg);
       } else {
         debug_print("COIL:");
@@ -431,50 +435,51 @@ void cli_cmd_show_config(void) {
   debug_println("");
 
   // WiFi/Network configuration section (v3.0+)
-  debug_println("\nnetwork");
-  debug_print("  enabled=");
-  debug_println(g_persist_config.network.enabled ? "1" : "0");
+  debug_println("\nINTERFACE WIFI");
+  debug_print("  ENABLE STATUS: ");
+  debug_println(g_persist_config.network.enabled ? "ENABLE" : "DISABLE");
 
-  debug_print("  ssid=");
-  debug_println(g_persist_config.network.ssid[0] ? g_persist_config.network.ssid : "(not set)");
+  debug_print("  SSID: ");
+  debug_println(g_persist_config.network.ssid[0] ? g_persist_config.network.ssid : "(NOT SET)");
 
-  debug_print("  password=");
-  debug_println(g_persist_config.network.password[0] ? "(set)" : "(not set)");
+  debug_print("  PSK PASSWORD: ");
+  debug_println(g_persist_config.network.password[0] ? g_persist_config.network.password : "(NOT SET)");
 
-  debug_print("  dhcp=");
-  debug_println(g_persist_config.network.dhcp_enabled ? "1" : "0");
+  debug_print("  DHCP STATUS: ");
+  debug_println(g_persist_config.network.dhcp_enabled ? "ENABLE" : "DISABLE");
 
   if (!g_persist_config.network.dhcp_enabled) {
     char ip_str[16];
-    debug_print("  static_ip=");
+    debug_print("  STATIC IP: ");
     network_config_ip_to_str(g_persist_config.network.static_ip, ip_str);
     debug_println(ip_str);
 
-    debug_print("  static_gateway=");
+    debug_print("  STATIC GATEWAY: ");
     network_config_ip_to_str(g_persist_config.network.static_gateway, ip_str);
     debug_println(ip_str);
 
-    debug_print("  static_netmask=");
+    debug_print("  STATIC SUBNET: ");
     network_config_ip_to_str(g_persist_config.network.static_netmask, ip_str);
     debug_println(ip_str);
 
-    debug_print("  static_dns=");
+    debug_print("  STATIC DNS: ");
     network_config_ip_to_str(g_persist_config.network.static_dns, ip_str);
     debug_println(ip_str);
   }
 
-  debug_print("  telnet_enabled=");
-  debug_println(g_persist_config.network.telnet_enabled ? "1" : "0");
+  debug_print("  TELNET STATUS: ");
+  debug_println(g_persist_config.network.telnet_enabled ? "ENABLE" : "DISABLE");
 
-  debug_print("  telnet_port=");
+  debug_print("  TELNET PORT: ");
   debug_print_uint(g_persist_config.network.telnet_port);
   debug_println("");
 
-  debug_print("  telnet_user=");
-  debug_println(g_persist_config.network.telnet_username[0] ? g_persist_config.network.telnet_username : "(not set)");
+  debug_print("  TELNET USER: ");
+  debug_println(g_persist_config.network.telnet_username[0] ? g_persist_config.network.telnet_username : "(NOT SET)");
 
-  debug_print("  telnet_pass=");
-  debug_println(g_persist_config.network.telnet_password[0] ? "(set)" : "(not set)");
+  debug_print("  TELNET PASS: ");
+  // debug_println(g_persist_config.network.telnet_password[0] ? "(SET)" : "(NOT SET)");
+  debug_println(g_persist_config.network.telnet_password[0] ? g_persist_config.network.telnet_password : "(NOT SET)");
 }
 
 /* ============================================================================
@@ -727,6 +732,177 @@ void cli_cmd_show_counters(void) {
 }
 
 /* ============================================================================
+ * SHOW COUNTER (SPECIFIC ID)
+ * ============================================================================ */
+
+void cli_cmd_show_counter(uint8_t id) {
+  if (id < 1 || id > 4) {
+    debug_printf("SHOW COUNTER: invalid ID %d (expected 1-4)\n", id);
+    return;
+  }
+
+  CounterConfig cfg;
+  if (!counter_config_get(id, &cfg)) {
+    debug_printf("SHOW COUNTER: could not get config for counter %d\n", id);
+    return;
+  }
+
+  debug_println("");
+  debug_print("=== COUNTER ");
+  debug_print_uint(id);
+  debug_println(" ===\n");
+
+  if (!cfg.enabled) {
+    debug_println("Status: DISABLED\n");
+    return;
+  }
+
+  debug_println("Status: ENABLED");
+  debug_println("");
+
+  // Hardware mode
+  const char* hw_str = "unknown";
+  if (cfg.hw_mode == COUNTER_HW_SW) hw_str = "SW (polling)";
+  else if (cfg.hw_mode == COUNTER_HW_SW_ISR) hw_str = "SW-ISR (interrupt)";
+  else if (cfg.hw_mode == COUNTER_HW_PCNT) hw_str = "HW (PCNT)";
+  debug_print("Hardware Mode: ");
+  debug_println(hw_str);
+
+  // Edge type
+  const char* edge_str = "rising";
+  if (cfg.edge_type == COUNTER_EDGE_FALLING) edge_str = "falling";
+  else if (cfg.edge_type == COUNTER_EDGE_BOTH) edge_str = "both";
+  debug_print("Edge Type: ");
+  debug_println(edge_str);
+
+  // Prescaler
+  debug_print("Prescaler: ");
+  debug_print_uint(cfg.prescaler);
+  debug_println("");
+
+  // Scale factor
+  debug_print("Scale Factor: ");
+  debug_print_float(cfg.scale_factor);
+  debug_println("");
+
+  // Bit width
+  debug_print("Bit Width: ");
+  debug_print_uint(cfg.bit_width);
+  debug_println("");
+
+  // Direction
+  const char* dir_str = (cfg.direction == COUNTER_DIR_DOWN) ? "down" : "up";
+  debug_print("Direction: ");
+  debug_println(dir_str);
+
+  // Debounce
+  debug_print("Debounce: ");
+  if (cfg.debounce_enabled && cfg.debounce_ms > 0) {
+    debug_print("ON (");
+    debug_print_uint(cfg.debounce_ms);
+    debug_println("ms)");
+  } else {
+    debug_println("OFF");
+  }
+
+  debug_println("");
+
+  // Register mappings
+  debug_println("Register Mappings:");
+  debug_print("  Index Register (scaled value): ");
+  debug_print_uint(cfg.index_reg);
+  debug_println("");
+
+  if (cfg.raw_reg > 0) {
+    debug_print("  Raw Register (prescaled): ");
+    debug_print_uint(cfg.raw_reg);
+    debug_println("");
+  }
+
+  if (cfg.freq_reg > 0) {
+    debug_print("  Frequency Register (Hz): ");
+    debug_print_uint(cfg.freq_reg);
+    debug_println("");
+  }
+
+  if (cfg.ctrl_reg < 1000) {
+    debug_print("  Control Register: ");
+    debug_print_uint(cfg.ctrl_reg);
+    debug_println("");
+  }
+
+  if (cfg.overload_reg < 1000) {
+    debug_print("  Overload Register: ");
+    debug_print_uint(cfg.overload_reg);
+    debug_println("");
+  }
+
+  debug_println("");
+
+  // Input/Pin configuration
+  debug_println("Input Configuration:");
+  if (cfg.hw_mode == COUNTER_HW_SW && cfg.input_dis > 0) {
+    debug_print("  Discrete Input: ");
+    debug_print_uint(cfg.input_dis);
+    debug_println("");
+  } else if (cfg.hw_mode == COUNTER_HW_SW_ISR && cfg.interrupt_pin > 0) {
+    debug_print("  Interrupt GPIO: ");
+    debug_print_uint(cfg.interrupt_pin);
+    debug_println("");
+  } else if (cfg.hw_mode == COUNTER_HW_PCNT && cfg.hw_gpio > 0) {
+    debug_print("  PCNT GPIO: ");
+    debug_print_uint(cfg.hw_gpio);
+    debug_println("");
+  }
+
+  debug_println("");
+
+  // Current values
+  debug_println("Current Values:");
+  uint64_t raw_value = counter_engine_get_value(id);
+  uint64_t scaled_value = (uint64_t)(raw_value * cfg.scale_factor);
+  uint64_t raw_prescaled = raw_value / cfg.prescaler;
+  uint32_t freq = counter_frequency_get(id);
+
+  debug_print("  Raw Value: ");
+  debug_print_uint((unsigned int)raw_value);
+  debug_println("");
+
+  debug_print("  Prescaled Value: ");
+  debug_print_uint((unsigned int)raw_prescaled);
+  debug_println("");
+
+  debug_print("  Scaled Value: ");
+  debug_print_uint((unsigned int)scaled_value);
+  debug_println("");
+
+  debug_print("  Frequency: ");
+  debug_print_uint(freq);
+  debug_println(" Hz");
+
+  // Compare feature
+  if (cfg.compare_enabled) {
+    debug_println("");
+    debug_println("Compare Feature: ENABLED");
+    debug_print("  Threshold: ");
+    debug_print_uint((unsigned int)cfg.compare_value);
+    debug_println("");
+
+    const char* cmp_mode = "unknown";
+    if (cfg.compare_mode == 0) cmp_mode = ">= (greater or equal)";
+    else if (cfg.compare_mode == 1) cmp_mode = "> (greater than)";
+    else if (cfg.compare_mode == 2) cmp_mode = "= (exact match)";
+    debug_print("  Mode: ");
+    debug_println(cmp_mode);
+
+    debug_print("  Reset on Read: ");
+    debug_println(cfg.reset_on_read ? "ON" : "OFF");
+  }
+
+  debug_println("");
+}
+
+/* ============================================================================
  * SHOW TIMERS
  * ============================================================================ */
 
@@ -826,6 +1002,129 @@ void cli_cmd_show_timers(void) {
     debug_println("");
     debug_println("");
   }
+}
+
+/* ============================================================================
+ * SHOW TIMER (SPECIFIC ID)
+ * ============================================================================ */
+
+void cli_cmd_show_timer(uint8_t id) {
+  if (id < 1 || id > 4) {
+    debug_printf("SHOW TIMER: invalid ID %d (expected 1-4)\n", id);
+    return;
+  }
+
+  TimerConfig cfg;
+  if (!timer_engine_get_config(id, &cfg)) {
+    debug_printf("SHOW TIMER: could not get config for timer %d\n", id);
+    return;
+  }
+
+  debug_println("");
+  debug_print("=== TIMER ");
+  debug_print_uint(id);
+  debug_println(" ===\n");
+
+  if (!cfg.enabled) {
+    debug_println("Status: DISABLED\n");
+    return;
+  }
+
+  debug_println("Status: ENABLED");
+  debug_println("");
+
+  // Show mode and parameters
+  switch (cfg.mode) {
+    case TIMER_MODE_1_ONESHOT:
+      debug_println("Mode: ONE-SHOT (Mode 1 - 3-phase sequence)");
+      debug_println("");
+      debug_println("Phase 1:");
+      debug_print("  Duration: ");
+      debug_print_uint(cfg.phase1_duration_ms);
+      debug_println("ms");
+      debug_print("  Output State: ");
+      debug_print_uint(cfg.phase1_output_state);
+      debug_println("");
+
+      debug_println("Phase 2:");
+      debug_print("  Duration: ");
+      debug_print_uint(cfg.phase2_duration_ms);
+      debug_println("ms");
+      debug_print("  Output State: ");
+      debug_print_uint(cfg.phase2_output_state);
+      debug_println("");
+
+      debug_println("Phase 3:");
+      debug_print("  Duration: ");
+      debug_print_uint(cfg.phase3_duration_ms);
+      debug_println("ms");
+      debug_print("  Output State: ");
+      debug_print_uint(cfg.phase3_output_state);
+      debug_println("");
+      break;
+
+    case TIMER_MODE_2_MONOSTABLE:
+      debug_println("Mode: MONOSTABLE (Mode 2 - Retriggerable pulse)");
+      debug_println("");
+      debug_print("Pulse Duration: ");
+      debug_print_uint(cfg.pulse_duration_ms);
+      debug_println("ms");
+      debug_print("Rest Output State: ");
+      debug_print_uint(cfg.phase1_output_state);
+      debug_println("");
+      debug_print("Pulse Output State: ");
+      debug_print_uint(cfg.phase2_output_state);
+      debug_println("");
+      break;
+
+    case TIMER_MODE_3_ASTABLE:
+      debug_println("Mode: ASTABLE (Mode 3 - Oscillator/Blink)");
+      debug_println("");
+      debug_print("ON Duration: ");
+      debug_print_uint(cfg.on_duration_ms);
+      debug_println("ms");
+      debug_print("OFF Duration: ");
+      debug_print_uint(cfg.off_duration_ms);
+      debug_println("ms");
+      debug_print("ON Output State: ");
+      debug_print_uint(cfg.phase1_output_state);
+      debug_println("");
+      debug_print("OFF Output State: ");
+      debug_print_uint(cfg.phase2_output_state);
+      debug_println("");
+      break;
+
+    case TIMER_MODE_4_INPUT_TRIGGERED:
+      debug_println("Mode: INPUT-TRIGGERED (Mode 4 - Edge detection)");
+      debug_println("");
+      debug_print("Discrete Input: ");
+      debug_print_uint(cfg.input_dis);
+      debug_println("");
+      debug_print("Trigger Edge: ");
+      debug_println(cfg.trigger_edge == 1 ? "RISING (0→1)" : "FALLING (1→0)");
+      debug_print("Delay: ");
+      debug_print_uint(cfg.delay_ms);
+      debug_println("ms");
+      debug_print("Output Level: ");
+      debug_print_uint(cfg.phase1_output_state);
+      debug_println("");
+      break;
+
+    default:
+      debug_println("Mode: UNKNOWN");
+      break;
+  }
+
+  debug_println("");
+  debug_print("Output Coil: ");
+  debug_print_uint(cfg.output_coil);
+  debug_println("");
+
+  debug_print("Control Register: ");
+  debug_print_uint(cfg.ctrl_reg);
+  debug_println("");
+
+  debug_println("");
 }
 
 /* ============================================================================
@@ -1266,5 +1565,33 @@ void cli_cmd_read_input(uint8_t argc, char* argv[]) {
     debug_print(value ? "1" : "0");
     debug_println("");
   }
+  debug_println("");
+}
+
+/* ============================================================================
+ * SHOW DEBUG FLAGS
+ * ============================================================================ */
+
+void cli_cmd_show_debug(void) {
+  debug_println("");
+  debug_println("=== DEBUG FLAGS ===");
+  debug_println("");
+
+  DebugFlags* dbg = debug_flags_get();
+
+  debug_print("  config_save:       ");
+  debug_println(dbg->config_save ? "ENABLED" : "DISABLED");
+
+  debug_print("  config_load:       ");
+  debug_println(dbg->config_load ? "ENABLED" : "DISABLED");
+
+  debug_print("  wifi_connect:      ");
+  debug_println(dbg->wifi_connect ? "ENABLED" : "DISABLED");
+
+  debug_print("  network_validate:  ");
+  debug_println(dbg->network_validate ? "ENABLED" : "DISABLED");
+
+  debug_println("");
+  debug_println("Use 'set debug <flag> <on|off>' to toggle debug flags");
   debug_println("");
 }

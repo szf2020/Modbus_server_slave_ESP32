@@ -222,8 +222,9 @@ typedef struct __attribute__((packed)) {
   // I/O Configuration
   uint8_t is_input;             // 1 = INPUT mode (source → register), 0 = OUTPUT mode (register → source)
   uint8_t input_type;           // 0 = Holding Register (HR), 1 = Discrete Input (DI) - only for INPUT mode
+  uint8_t output_type;          // 0 = Holding Register (HR), 1 = Coil - only for OUTPUT mode
   uint16_t input_reg;           // Input register index (65535 if none) - for INPUT mode
-  uint16_t coil_reg;            // Coil/output register index (65535 if none) - for OUTPUT mode
+  uint16_t coil_reg;            // Coil/output register index (65535 if none) - for OUTPUT mode (NOTE: also holds reg address if output_type=0)
 } VariableMapping;
 
 /* ============================================================================
@@ -265,6 +266,10 @@ typedef struct __attribute__((packed)) {
   // Modbus configuration
   uint8_t slave_id;
   uint32_t baudrate;
+  char hostname[32];                // System hostname (max 31 chars + null)
+
+  // CLI configuration (v3.2+)
+  uint8_t remote_echo;              // Enable/disable remote echo (for serial terminals)
 
   // Network configuration (v3.0+)
   NetworkConfig network;

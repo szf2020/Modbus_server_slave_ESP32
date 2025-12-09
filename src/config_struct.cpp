@@ -17,6 +17,9 @@ PersistConfig* config_struct_create_default(void) {
   g_persist_config.schema_version = CONFIG_SCHEMA_VERSION;  // Current schema version
   g_persist_config.slave_id = 1;
   g_persist_config.baudrate = 115200;
+  strncpy(g_persist_config.hostname, "modbus-esp32", 31);
+  g_persist_config.hostname[31] = '\0';
+  g_persist_config.remote_echo = 1;  // Default: echo ON
 
   // Initialize all var_maps as unused (important for CRC stability)
   for (uint8_t i = 0; i < 64; i++) {
@@ -25,6 +28,8 @@ PersistConfig* config_struct_create_default(void) {
     g_persist_config.var_maps[i].associated_counter = 0xff;
     g_persist_config.var_maps[i].associated_timer = 0xff;
     g_persist_config.var_maps[i].source_type = 0xff;
+    g_persist_config.var_maps[i].input_type = 0;      // Default: Holding Register
+    g_persist_config.var_maps[i].output_type = 0;     // Default: Holding Register
   }
   g_persist_config.var_map_count = 0;
 

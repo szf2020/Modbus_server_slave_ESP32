@@ -13,6 +13,7 @@
 #include "config_struct.h"
 #include "registers.h"
 #include "heartbeat.h"
+#include "cli_shell.h"
 #include "debug.h"
 #include <cstddef>
 
@@ -42,6 +43,11 @@ bool config_apply(const PersistConfig* cfg) {
     heartbeat_enable();
     debug_println("    Heartbeat enabled (GPIO2 LED blink)");
   }
+
+  // Apply remote echo configuration
+  debug_print("  Remote echo: ");
+  debug_println(cfg->remote_echo ? "ON" : "OFF");
+  cli_shell_set_remote_echo(cfg->remote_echo);
 
   // Apply variable mappings (initialize GPIO pins)
   debug_print("  Variable mappings (GPIO + ST): ");

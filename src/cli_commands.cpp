@@ -495,9 +495,19 @@ void cli_cmd_set_hostname(const char* hostname) {
     return;
   }
 
-  // Note: Hostname storage would be in config_apply.cpp
+  // Validate hostname length (max 31 chars + null terminator)
+  if (strlen(hostname) > 31) {
+    debug_println("SET HOSTNAME: hostname too long (max 31 characters)");
+    return;
+  }
+
+  // Update configuration
+  strncpy(g_persist_config.hostname, hostname, 31);
+  g_persist_config.hostname[31] = '\0';
+
   debug_print("Hostname set to: ");
   debug_println(hostname);
+  debug_println("NOTE: Use 'save' to persist to NVS");
 }
 
 void cli_cmd_set_baud(uint32_t baud) {
@@ -853,6 +863,8 @@ void cli_cmd_defaults(void) {
     g_persist_config.var_maps[i].coil_reg = 65535;
     g_persist_config.var_maps[i].associated_counter = 0xff;
     g_persist_config.var_maps[i].associated_timer = 0xff;
+    g_persist_config.var_maps[i].input_type = 0;      // Default: Holding Register
+    g_persist_config.var_maps[i].output_type = 0;     // Default: Holding Register
   }
 
   debug_println("DEFAULTS: Configuration reset to factory defaults");
@@ -899,15 +911,20 @@ void cli_cmd_set_echo(uint8_t argc, char* argv[]) {
   const char* state = argv[0];
   if (!strcmp(state, "on")) {
     cli_shell_set_remote_echo(1);
+    g_persist_config.remote_echo = 1;
     debug_println("Remote echo: ON");
   } else if (!strcmp(state, "off")) {
     cli_shell_set_remote_echo(0);
+    g_persist_config.remote_echo = 0;
     debug_println("Remote echo: OFF");
   } else {
     debug_print("SET ECHO: invalid state '");
     debug_print(state);
     debug_println("' (use: on|off)");
+    return;
   }
+
+  debug_println("NOTE: Use 'save' to persist to NVS");
 }
 
 /* ============================================================================

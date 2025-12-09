@@ -139,6 +139,7 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
+  if (!strcmp(s, "DEBUG") || !strcmp(s, "debug")) return "DEBUG";
 
   // Logic subcommands
   if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
@@ -169,6 +170,176 @@ static const char* normalize_alias(const char* s) {
 }
 
 /* ============================================================================
+ * HELP SYSTEM
+ * ============================================================================ */
+
+static void print_show_help(void) {
+  debug_println("");
+  debug_println("Available 'show' commands:");
+  debug_println("  show config          - Vis fuld konfiguration");
+  debug_println("  show wifi            - Vis Wi-Fi status og IP");
+  debug_println("  show counters        - Vis alle counters");
+  debug_println("  show counter <id>    - Vis specifik counter (1-4)");
+  debug_println("  show timers          - Vis alle timers");
+  debug_println("  show timer <id>      - Vis specifik timer (1-4)");
+  debug_println("  show logic           - Vis alle ST Logic programmer");
+  debug_println("  show logic <id>      - Vis specifikt program (1-4)");
+  debug_println("  show logic <id> code - Vis compiled bytecode");
+  debug_println("  show gpio            - Vis GPIO mappings");
+  debug_println("  show registers       - Vis holding registers");
+  debug_println("  show inputs          - Vis input registers");
+  debug_println("  show coils           - Vis coils");
+  debug_println("  show debug           - Vis debug flags");
+  debug_println("  show version         - Vis firmware version");
+  debug_println("  show echo            - Vis echo status");
+  debug_println("");
+}
+
+static void print_set_help(void) {
+  debug_println("");
+  debug_println("Available 'set' commands:");
+  debug_println("  set hostname <name>     - Sæt hostname");
+  debug_println("  set baud <rate>         - Sæt baudrate");
+  debug_println("  set id <slave_id>       - Sæt Modbus slave ID (1-247)");
+  debug_println("  set reg <addr> <value>  - Skriv holding register");
+  debug_println("  set coil <idx> <0|1>    - Skriv coil");
+  debug_println("  set wifi ?              - Vis Wi-Fi kommandoer");
+  debug_println("  set counter ?           - Vis counter kommandoer");
+  debug_println("  set timer ?             - Vis timer kommandoer");
+  debug_println("  set gpio ?              - Vis GPIO kommandoer");
+  debug_println("  set debug ?             - Vis debug kommandoer");
+  debug_println("  set echo <on|off>       - Sæt remote echo");
+  debug_println("");
+}
+
+static void print_wifi_help(void) {
+  debug_println("");
+  debug_println("Available 'set wifi' commands:");
+  debug_println("  set wifi ssid <name>       - Sæt Wi-Fi SSID");
+  debug_println("  set wifi password <pass>   - Sæt Wi-Fi password");
+  debug_println("  set wifi dhcp <on|off>     - Aktivér/deaktivér DHCP");
+  debug_println("  set wifi ip <ip>           - Sæt statisk IP (hvis DHCP off)");
+  debug_println("  set wifi gateway <ip>      - Sæt gateway IP");
+  debug_println("  set wifi netmask <mask>    - Sæt netmask");
+  debug_println("  set wifi dns <ip>          - Sæt DNS server");
+  debug_println("  set wifi port <port>       - Sæt Telnet port (default 23)");
+  debug_println("  set wifi telnet_user <u>   - Sæt Telnet username");
+  debug_println("  set wifi telnet_pass <p>   - Sæt Telnet password");
+  debug_println("");
+}
+
+static void print_counter_help(void) {
+  debug_println("");
+  debug_println("Available 'set counter' commands:");
+  debug_println("  set counter <id> mode 1 parameter <key:value> ...");
+  debug_println("");
+  debug_println("Parameters (key:value format):");
+  debug_println("  hw-mode:<sw|sw-isr|hw>     - Hardware mode");
+  debug_println("  edge:<rising|falling|both> - Edge detection type");
+  debug_println("  prescaler:<value>          - Prescaler divisor (1-65535)");
+  debug_println("  scale:<float>              - Scale factor (default 1.0)");
+  debug_println("  index-reg:<addr>           - Scaled value register");
+  debug_println("  raw-reg:<addr>             - Prescaled value register");
+  debug_println("  freq-reg:<addr>            - Frequency register (Hz)");
+  debug_println("  ctrl-reg:<addr>            - Control register");
+  debug_println("  overload-reg:<addr>        - Overload status register");
+  debug_println("  start-value:<value>        - Initial counter value");
+  debug_println("  bit-width:<16|32>          - Counter bit width");
+  debug_println("  direction:<up|down>        - Count direction");
+  debug_println("  debounce:<on|off>          - Enable debounce");
+  debug_println("  debounce-ms:<ms>           - Debounce time (default 10ms)");
+  debug_println("  input-dis:<idx>            - Input discrete index");
+  debug_println("  interrupt-pin:<pin>        - ISR mode GPIO pin");
+  debug_println("  hw-gpio:<pin>              - HW mode GPIO pin");
+  debug_println("  compare:<on|off>           - Enable compare feature");
+  debug_println("  compare-value:<value>      - Compare threshold");
+  debug_println("  compare-mode:<0|1|2>       - 0:≥, 1:>, 2:exact");
+  debug_println("  reset-on-read:<on|off>     - Reset counter on read");
+  debug_println("");
+  debug_println("Control commands:");
+  debug_println("  reset counter <id>         - Nulstil counter");
+  debug_println("  clear counters             - Nulstil alle counters");
+  debug_println("");
+  debug_println("Example:");
+  debug_println("  set counter 1 mode 1 parameter hw-mode:hw edge:rising prescaler:10 hw-gpio:19");
+  debug_println("");
+}
+
+static void print_timer_help(void) {
+  debug_println("");
+  debug_println("Available 'set timer' commands:");
+  debug_println("  set timer <id> mode <1|2|3|4> parameter <key:value> ...");
+  debug_println("");
+  debug_println("Timer Modes:");
+  debug_println("  1 - One-shot (3-phase sequence)");
+  debug_println("  2 - Monostable (retriggerable pulse)");
+  debug_println("  3 - Astable (blink/toggle)");
+  debug_println("  4 - Input-triggered (responds to discrete inputs)");
+  debug_println("");
+  debug_println("Mode 1 Parameters (One-shot):");
+  debug_println("  p1-duration:<ms>    - Phase 1 duration");
+  debug_println("  p1-output:<0|1>     - Phase 1 output state");
+  debug_println("  p2-duration:<ms>    - Phase 2 duration");
+  debug_println("  p2-output:<0|1>     - Phase 2 output state");
+  debug_println("  p3-duration:<ms>    - Phase 3 duration");
+  debug_println("  p3-output:<0|1>     - Phase 3 output state");
+  debug_println("");
+  debug_println("Mode 2 Parameters (Monostable):");
+  debug_println("  pulse-ms:<ms>       - Pulse duration");
+  debug_println("  trigger-level:<0|1> - Trigger on LOW or HIGH");
+  debug_println("");
+  debug_println("Mode 3 Parameters (Astable):");
+  debug_println("  on-ms:<ms>          - ON duration");
+  debug_println("  off-ms:<ms>         - OFF duration");
+  debug_println("");
+  debug_println("Mode 4 Parameters (Input-triggered):");
+  debug_println("  input-dis:<idx>     - Discrete input index");
+  debug_println("  delay-ms:<ms>       - Delay before trigger");
+  debug_println("  trigger-edge:<0|1>  - 0:falling, 1:rising");
+  debug_println("");
+  debug_println("Common Parameters:");
+  debug_println("  output-coil:<idx>   - Output coil index");
+  debug_println("  ctrl-reg:<addr>     - Control register address");
+  debug_println("  enabled:<on|off>    - Enable/disable timer");
+  debug_println("");
+  debug_println("Example:");
+  debug_println("  set timer 1 mode 3 parameter on-ms:1000 off-ms:500 output-coil:0");
+  debug_println("");
+}
+
+static void print_gpio_help(void) {
+  debug_println("");
+  debug_println("Available 'set gpio' commands:");
+  debug_println("  set gpio <pin> coil <idx>         - Map GPIO til coil output");
+  debug_println("  set gpio <pin> input <idx>        - Map GPIO til discrete input");
+  debug_println("  set gpio <pin> mode <in|out|...>  - Sæt GPIO mode");
+  debug_println("  no set gpio <pin>                 - Fjern GPIO mapping");
+  debug_println("");
+}
+
+static void print_debug_help(void) {
+  debug_println("");
+  debug_println("Available 'set debug' commands:");
+  debug_println("  set debug <flag> <on|off>  - Sæt debug flag");
+  debug_println("Available flags:");
+  debug_println("  modbus, counter, timer, logic, wifi, telnet, cli");
+  debug_println("");
+}
+
+static void print_logic_help(void) {
+  debug_println("");
+  debug_println("Available 'show logic' commands:");
+  debug_println("  show logic <id>        - Vis specifikt program (1-4)");
+  debug_println("  show logic all         - Vis alle programmer");
+  debug_println("  show logic program     - Vis oversigt over alle programmer");
+  debug_println("  show logic errors      - Vis kun programmer med fejl");
+  debug_println("  show logic stats       - Vis statistik");
+  debug_println("  show logic <id> code   - Vis program source code");
+  debug_println("  show logic all code    - Vis alle programmer source code");
+  debug_println("");
+}
+
+/* ============================================================================
  * COMMAND DISPATCH
  * ============================================================================ */
 
@@ -195,14 +366,38 @@ bool cli_parser_execute(char* line) {
 
     const char* what = normalize_alias(argv[1]);
 
+    // CHECK FOR HELP REQUEST
+    if (!strcmp(what, "HELP") || !strcmp(what, "?")) {
+      print_show_help();
+      return true;
+    }
+
     if (!strcmp(what, "CONFIG")) {
       cli_cmd_show_config();
       return true;
     } else if (!strcmp(what, "COUNTERS")) {
       cli_cmd_show_counters();
       return true;
+    } else if (!strcmp(what, "COUNTER")) {
+      // show counter <id>
+      if (argc < 3) {
+        debug_println("SHOW COUNTER: missing ID (use: show counter 1-4)");
+        return false;
+      }
+      uint8_t id = atoi(argv[2]);
+      cli_cmd_show_counter(id);
+      return true;
     } else if (!strcmp(what, "TIMERS")) {
       cli_cmd_show_timers();
+      return true;
+    } else if (!strcmp(what, "TIMER")) {
+      // show timer <id>
+      if (argc < 3) {
+        debug_println("SHOW TIMER: missing ID (use: show timer 1-4)");
+        return false;
+      }
+      uint8_t id = atoi(argv[2]);
+      cli_cmd_show_timer(id);
       return true;
     } else if (!strcmp(what, "REGISTERS")) {
       uint16_t start = 0, count = 0;
@@ -228,6 +423,9 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "WIFI")) {
       cli_cmd_show_wifi();
       return true;
+    } else if (!strcmp(what, "DEBUG")) {
+      cli_cmd_show_debug();
+      return true;
     } else if (!strcmp(what, "REG")) {
       // show reg - Display register configuration
       cli_cmd_show_regs();
@@ -239,19 +437,18 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "LOGIC")) {
       // show logic <id|all|stats|program|errors|all code|1-4 code>
       if (argc < 3) {
-        debug_println("SHOW LOGIC: missing argument");
-        debug_println("  Usage: show logic <id>        (show specific program)");
-        debug_println("         show logic all        (show all programs)");
-        debug_println("         show logic program    (show overview of all programs)");
-        debug_println("         show logic errors     (show only programs with errors)");
-        debug_println("         show logic stats      (show statistics)");
-        debug_println("         show logic <id> code  (show specific program source code)");
-        debug_println("         show logic all code   (show all programs source code)");
+        debug_println("SHOW LOGIC: missing argument. Use 'show logic ?' for help.");
         return false;
       }
 
       const char* subcommand = argv[2];
       const char* subcommand_norm = normalize_alias(subcommand);
+
+      // CHECK FOR HELP REQUEST
+      if (!strcmp(subcommand_norm, "HELP") || !strcmp(subcommand_norm, "?")) {
+        print_logic_help();
+        return true;
+      }
 
       // Check for "code" subcommand FIRST (takes priority)
       // Syntax: show logic <id|all> code
@@ -311,13 +508,27 @@ bool cli_parser_execute(char* line) {
   } else if (!strcmp(cmd, "SET")) {
     // set <what> <params...>
     if (argc < 2) {
-      debug_println("SET: missing argument");
+      debug_println("SET: missing argument. Use 'set ?' for help.");
       return false;
     }
 
     const char* what = normalize_alias(argv[1]);
 
+    // CHECK FOR HELP REQUEST
+    if (!strcmp(what, "HELP") || !strcmp(what, "?")) {
+      print_set_help();
+      return true;
+    }
+
     if (!strcmp(what, "COUNTER")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_counter_help();
+          return true;
+        }
+      }
       // Check if third argument is "control"
       if (argc >= 4 && (!strcmp(argv[3], "control") || !strcmp(argv[3], "CONTROL"))) {
         // set counter <id> control ... → skip "counter" and "control", pass <id> + params
@@ -333,6 +544,14 @@ bool cli_parser_execute(char* line) {
       }
       return true;
     } else if (!strcmp(what, "TIMER")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_timer_help();
+          return true;
+        }
+      }
       cli_cmd_set_timer(argc - 2, argv + 2);
       return true;
     } else if (!strcmp(what, "HOSTNAME")) {
@@ -402,6 +621,14 @@ bool cli_parser_execute(char* line) {
       }
       return true;
     } else if (!strcmp(what, "GPIO")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_gpio_help();
+          return true;
+        }
+      }
       // Check if it's GPIO 2 enable/disable command
       if (argc >= 4 && atoi(argv[2]) == 2) {
         const char* action = normalize_alias(argv[3]);
@@ -418,12 +645,28 @@ bool cli_parser_execute(char* line) {
       cli_cmd_set_echo(argc - 2, argv + 2);
       return true;
     } else if (!strcmp(what, "DEBUG")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_debug_help();
+          return true;
+        }
+      }
       cli_cmd_set_debug(argc - 2, argv + 2);
       return true;
     } else if (!strcmp(what, "WIFI")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_wifi_help();
+          return true;
+        }
+      }
       // set wifi <option> <value>
       if (argc < 3) {
-        cli_cmd_set_wifi(0, NULL);  // Show help
+        print_wifi_help();
         return true;
       }
       cli_cmd_set_wifi(argc - 2, argv + 2);
@@ -517,8 +760,9 @@ bool cli_parser_execute(char* line) {
         uint16_t register_addr = atoi(arg5);
         const char* direction = (argc > 6) ? argv[6] : "both";
         uint8_t input_type = 0;  // Default: Holding Register (HR), not Discrete Input
+        uint8_t output_type = 0;  // Default: Holding Register (HR), not Coil
 
-        cli_cmd_set_logic_bind(st_logic_get_state(), prog_idx, var_idx, register_addr, direction, input_type);
+        cli_cmd_set_logic_bind(st_logic_get_state(), prog_idx, var_idx, register_addr, direction, input_type, output_type);
         return true;
       } else {
         debug_println("SET LOGIC: unknown subcommand");

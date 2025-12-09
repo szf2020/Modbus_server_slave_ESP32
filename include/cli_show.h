@@ -44,9 +44,21 @@ void cli_cmd_show_config(void);
 void cli_cmd_show_counters(void);
 
 /**
+ * @brief Handle "show counter <id>" command (specific counter status)
+ * @param id Counter ID (1-4)
+ */
+void cli_cmd_show_counter(uint8_t id);
+
+/**
  * @brief Handle "show timers" command (timer status)
  */
 void cli_cmd_show_timers(void);
+
+/**
+ * @brief Handle "show timer <id>" command (specific timer status)
+ * @param id Timer ID (1-4)
+ */
+void cli_cmd_show_timer(uint8_t id);
 
 /**
  * @brief Handle "show registers" command
@@ -84,6 +96,11 @@ void cli_cmd_show_echo(void);
  * @brief Handle "show wifi" command (Wi-Fi status)
  */
 void cli_cmd_show_wifi(void);
+
+/**
+ * @brief Handle "show debug" command (Debug flags status)
+ */
+void cli_cmd_show_debug(void);
 
 /**
  * @brief Handle "read reg <id> <antal>" command
