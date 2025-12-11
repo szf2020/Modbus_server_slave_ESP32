@@ -50,6 +50,28 @@ I (Claude Code) CONFIRM that I understand and ACCEPT these restrictions:
 - ✅ I will ONLY change this rule if CLAUDE.md is explicitly modified
 - ✅ I will treat this rule as permanent unless CLAUDE.md says otherwise
 
+### Full Control Within Project Directory:
+
+**WITHIN `C:\Projekter\Modbus_server_slave_ESP32\*.*` I (Claude Code) have FULL CONTROL:**
+
+- ✅ **READ** - Jeg kan læse alle filer i projektet
+- ✅ **WRITE** - Jeg kan skrive til eksisterende filer
+- ✅ **CREATE** - Jeg kan oprette nye filer og mapper
+- ✅ **DELETE** - Jeg kan slette filer og mapper
+- ✅ **MODIFY** - Jeg kan ændre enhver fil i projektet
+- ✅ **EXECUTE** - Jeg kan køre kommandoer (git, pio, osv.) i denne mappe
+
+**Ingen begrænsninger indenfor projektmappen** - Jeg skal ikke spørge om tilladelse til at:
+- Oprette nye kildefiler (.cpp, .h)
+- Slette forældede filer
+- Ændre konfigurationsfiler
+- Køre build kommandoer
+- Committe til git
+- Lave refactoring
+- Reorganisere mapper
+
+**Eneste undtagelse:** Ved destruktive git operationer (force push, hard reset) skal jeg advare brugeren først.
+
 ## Project Overview
 
 **Modbus RTU Server v1.0.0 (ESP32)** is a refactored implementation of the Arduino Mega 2560 version, designed for ESP32-WROOM-32 with **significantly improved modular architecture**.
