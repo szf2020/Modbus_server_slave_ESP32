@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v3.2.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v3.3.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering, Wi-Fi netværk, og telnet CLI interface.
 

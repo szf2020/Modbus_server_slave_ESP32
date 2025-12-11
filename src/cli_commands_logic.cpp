@@ -234,6 +234,11 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
     return -1;
   }
 
+  // Debug output if debug mode enabled
+  if (logic_state && logic_state->debug) {
+    debug_printf("[BIND_DEBUG] Found variable '%s' at index %d\n", var_name, var_index);
+  }
+
   // Parse binding spec: reg:100, coil:10, or input-dis:5
   uint16_t register_addr = 0;
   const char *direction = "both";  // default
@@ -252,14 +257,15 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
     direction = "output";
     input_type = 0;  // N/A for output
     output_type = 1;  // Coil
-  } else if (strncmp(binding_spec, "input-dis:", 10) == 0) {
-    // Discrete input (BOOL read)
-    register_addr = atoi(binding_spec + 10);
+  } else if (strncmp(binding_spec, "input-dis:", 10) == 0 || strncmp(binding_spec, "input:", 6) == 0) {
+    // Discrete input (BOOL read) - supports both "input-dis:5" and "input:5" shortcuts
+    register_addr = (strncmp(binding_spec, "input-dis:", 10) == 0) ?
+                    atoi(binding_spec + 10) : atoi(binding_spec + 6);
     direction = "input";
     input_type = 1;  // DI
     output_type = 0;  // N/A for input
   } else {
-    debug_printf("ERROR: Invalid binding spec '%s' (use reg:, coil:, or input-dis:)\n", binding_spec);
+    debug_printf("ERROR: Invalid binding spec '%s' (use reg:, coil:, or input:)\n", binding_spec);
     return -1;
   }
 
@@ -267,6 +273,12 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
   if (register_addr >= 160) {  // HOLDING_REGS_SIZE
     debug_printf("ERROR: Invalid Modbus register %d (0-159)\n", register_addr);
     return -1;
+  }
+
+  // Debug output if debug mode enabled
+  if (logic_state && logic_state->debug) {
+    debug_printf("[BIND_DEBUG] Parsed binding: reg=%d, dir=%s, input_type=%d, output_type=%d\n",
+                 register_addr, direction, input_type, output_type);
   }
 
   // Call original bind function with input_type and output_type
@@ -320,77 +332,90 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
     return -1;
   }
 
-  // Use unified VariableMapping system
-  if (g_persist_config.var_map_count >= 16) {
-    debug_println("ERROR: Maximum variable mappings (16) reached");
-    return -1;
-  }
+  // IMPORTANT: VariableMapping.is_input is a MODE flag (1=INPUT, 0=OUTPUT), NOT a capability flag!
+  // This means we CANNOT have a single mapping that does both INPUT and OUTPUT.
+  // For "both" mode, we need to create TWO separate mappings:
+  //   - Mapping 1: INPUT mode (Modbus → ST var)
+  //   - Mapping 2: OUTPUT mode (ST var → Modbus)
 
-  // Check for existing binding for this variable
+  // Step 1: Delete ALL existing bindings for this ST variable (we'll recreate them)
   for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
     VariableMapping *map = &g_persist_config.var_maps[i];
     if (map->source_type == MAPPING_SOURCE_ST_VAR &&
         map->st_program_id == program_id &&
         map->st_var_index == var_index) {
-      // Update existing binding
-      if (is_input) {
-        map->is_input = 1;
-        map->input_type = input_type;
-        map->input_reg = modbus_reg;
+      // Delete this mapping by shifting all subsequent mappings down
+      for (uint8_t j = i; j < g_persist_config.var_map_count - 1; j++) {
+        g_persist_config.var_maps[j] = g_persist_config.var_maps[j + 1];
       }
-      if (is_output) {
-        map->is_input = 0;
-        map->output_type = output_type;
-        map->coil_reg = modbus_reg;
-      }
-
-      if (is_input && !is_output && input_type == 1) {
-        debug_printf("[OK] Logic%d: var[%d] %s Modbus DI#%d (updated)\n",
-                     program_id + 1, var_index,
-                     (is_input && is_output) ? "<->" : (is_input) ? "<-" : "->",
-                     modbus_reg);
-      } else {
-        debug_printf("[OK] Logic%d: var[%d] %s Modbus HR#%d (updated)\n",
-                     program_id + 1, var_index,
-                     (is_input && is_output) ? "<->" : (is_input) ? "<-" : "->",
-                     modbus_reg);
-      }
-      return 0;
+      g_persist_config.var_map_count--;
+      i--;  // Re-check this index (we just shifted)
     }
   }
 
-  // Add new binding
-  VariableMapping *map = &g_persist_config.var_maps[g_persist_config.var_map_count++];
-  memset(map, 0xff, sizeof(*map));  // Initialize to 0xff (unused)
-  map->source_type = MAPPING_SOURCE_ST_VAR;
-  map->st_program_id = program_id;
-  map->st_var_index = var_index;
-
-  if (is_input) {
-    map->is_input = 1;
-    map->input_type = input_type;
-    map->input_reg = modbus_reg;
-  }
-  if (is_output) {
-    map->is_input = 0;  // OUTPUT mode
-    map->output_type = output_type;
-    map->coil_reg = modbus_reg;
+  // Step 2: Check if we have space for new mapping(s)
+  uint8_t mappings_needed = (is_input && is_output) ? 2 : 1;
+  if (g_persist_config.var_map_count + mappings_needed > 64) {
+    debug_printf("ERROR: Maximum variable mappings (64) would be exceeded (need %d more)\n", mappings_needed);
+    return -1;
   }
 
-  debug_printf("[OK] Logic%d: var[%d] (%s) %s Modbus ",
-               program_id + 1, var_index, prog->bytecode.var_names[var_index],
-               (is_input && is_output) ? "<->" : (is_input) ? "<-" : "->");
+  // Step 3: Create new mapping(s)
+  if (is_input && is_output) {
+    // "both" mode: Create TWO mappings (INPUT + OUTPUT)
 
-  if (is_input && !is_output) {
-    if (input_type == 1) {
-      debug_printf("DI#%d (input)\n", modbus_reg);
-    } else {
-      debug_printf("HR#%d (input)\n", modbus_reg);
-    }
-  } else if (is_output && !is_input) {
-    debug_printf("Coil#%d (output)\n", modbus_reg);
+    // Mapping 1: INPUT (Modbus HR → ST var)
+    VariableMapping *map_in = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(map_in, 0xff, sizeof(*map_in));
+    map_in->source_type = MAPPING_SOURCE_ST_VAR;
+    map_in->st_program_id = program_id;
+    map_in->st_var_index = var_index;
+    map_in->is_input = 1;
+    map_in->input_type = 0;  // HR
+    map_in->input_reg = modbus_reg;
+
+    // Mapping 2: OUTPUT (ST var → Modbus HR)
+    VariableMapping *map_out = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(map_out, 0xff, sizeof(*map_out));
+    map_out->source_type = MAPPING_SOURCE_ST_VAR;
+    map_out->st_program_id = program_id;
+    map_out->st_var_index = var_index;
+    map_out->is_input = 0;
+    map_out->output_type = 0;  // HR
+    map_out->coil_reg = modbus_reg;
+
+    debug_printf("[OK] Logic%d: var[%d] (%s) <-> Modbus HR#%d (2 mappings created)\n",
+                 program_id + 1, var_index, prog->bytecode.var_names[var_index], modbus_reg);
   } else {
-    debug_printf("HR#%d (bidirectional)\n", modbus_reg);
+    // "input" or "output" mode: Create ONE mapping
+    VariableMapping *map = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(map, 0xff, sizeof(*map));
+    map->source_type = MAPPING_SOURCE_ST_VAR;
+    map->st_program_id = program_id;
+    map->st_var_index = var_index;
+
+    if (is_input) {
+      map->is_input = 1;
+      map->input_type = input_type;
+      map->input_reg = modbus_reg;
+    } else {
+      map->is_input = 0;
+      map->output_type = output_type;
+      map->coil_reg = modbus_reg;
+    }
+
+    // Print confirmation
+    debug_printf("[OK] Logic%d: var[%d] (%s) ", program_id + 1, var_index, prog->bytecode.var_names[var_index]);
+
+    if (is_input && input_type == 1) {
+      debug_printf("<- Modbus INPUT#%d\n", modbus_reg);
+    } else if (is_input) {
+      debug_printf("<- Modbus HR#%d\n", modbus_reg);
+    } else if (output_type == 1) {
+      debug_printf("-> Modbus COIL#%d\n", modbus_reg);
+    } else {
+      debug_printf("-> Modbus HR#%d\n", modbus_reg);
+    }
   }
 
   // Save config to NVS to make binding persistent

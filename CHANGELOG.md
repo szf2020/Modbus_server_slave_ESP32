@@ -4,6 +4,64 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [3.3.0] - 2025-12-11 🔄 (GPIO Mapping Split & ST Logic Binding Improvements)
+
+### FEATURES ADDED
+
+#### GPIO Mapping Split - INPUT/OUTPUT Separation ✅ NEW
+- **Nye funktioner:**
+  - `gpio_mapping_read_before_st_logic()` - Læser alle INPUT mappings FØR ST logic kører
+  - `gpio_mapping_write_after_st_logic()` - Skriver alle OUTPUT mappings EFTER ST logic kører
+- **Formål:** Forhindrer INPUT i at overskrive OUTPUT i samme loop iteration
+- **Implementation:**
+  - `gpio_mapping_update()` nu deprecated (men stadig functional)
+  - `main.cpp` opdateret til at kalde de to separate funktioner omkring ST logic loop
+  - GPIO og ST variable mappings håndteres korrekt i begge retninger
+
+#### ST Logic Binding - "Both" Mode Fix ✅ FIXED
+- **Issue:** "both" mode (bidirectional binding) overskrev data i samme loop iteration
+- **Root Cause:** `VariableMapping.is_input` er en MODE flag (1=INPUT, 0=OUTPUT), IKKE capability flag
+- **Solution:**
+  - "both" mode opretter nu 2 separate mappings:
+    - Mapping 1: INPUT mode (Modbus → ST var)
+    - Mapping 2: OUTPUT mode (ST var → Modbus)
+  - Eksisterende bindings for samme variabel slettes før nye oprettes
+  - Maximum mappings øget fra 16 til 64
+- **Result:** Bidirectional bindings fungerer nu korrekt uden data tab
+
+#### ST Logic Binding - CLI Improvements ✅ NEW
+- **Nye features:**
+  - "input:" shortcut (alias for "input-dis:") - hurtigere at skrive
+  - Debug output ved binding oprettelse (hvis debug mode aktiveret)
+  - Bedre fejlmeddelelser ved parsing errors
+- **CLI opdateringer:**
+  - Hjælpetekst opdateret: `set logic <id> bind <var_name> reg:100|coil:10|input:5`
+  - `show config` viser nu variable navne (ikke kun indeks)
+  - `show config` viser INPUT/OUTPUT retning mere klart
+
+### BUGFIXES & IMPROVEMENTS
+
+#### GPIO Mapping - Input/Output Conflict ✅ FIXED
+- **Issue:** INPUT mappings kunne overskrive OUTPUT mappings i samme loop iteration
+- **Solution:** Split i to funktioner der kaldes omkring ST logic execution
+- **Result:** GPIO og ST variable mappings fungerer korrekt uden race conditions
+
+#### ST Logic Binding - Variable Name Display ✅ IMPROVED
+- **Improvement:** `show config` viser nu variable navne fra bytecode (f.eks. "bEnable") i stedet for indeks
+- **Fallback:** Viser indeks hvis variable navn ikke tilgængelig
+- **Result:** Lettere at identificere bindings i config output
+
+### FILES MODIFIED
+- `include/gpio_mapping.h` - Tilføjet `gpio_mapping_read_before_st_logic()` og `gpio_mapping_write_after_st_logic()`, deprecated `gpio_mapping_update()`
+- `src/gpio_mapping.cpp` - Implementeret split i read/write funktioner
+- `src/main.cpp` - Opdateret main loop til at bruge nye split funktioner
+- `src/cli_commands_logic.cpp` - Implementeret "both" mode med 2 mappings, tilføjet "input:" shortcut, tilføjet debug output
+- `src/cli_parser.cpp` - Opdateret hjælpetekst til "input:" shortcut
+- `src/cli_show.cpp` - Implementeret variable navn display i `show config`
+- `include/build_version.h` - Auto-genereret build info (build #499, 2025-12-11)
+
+---
+
 ## [3.2.0] - 2025-12-09 🎛️ (CLI Commands Complete + Persistent Settings)
 
 ### FEATURES ADDED

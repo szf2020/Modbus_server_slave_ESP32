@@ -351,29 +351,37 @@ void cli_cmd_show_config(void) {
       debug_print("  Logic");
       debug_print_uint(map->st_program_id + 1);
       debug_print(" var[");
-      debug_print_uint(map->st_var_index);
-      debug_print("] - ");
+
+      // Lookup variable name from bytecode
+      st_logic_program_config_t *prog = st_logic_get_program(st_state, map->st_program_id);
+      if (prog && prog->compiled && map->st_var_index < prog->bytecode.var_count) {
+        debug_print(prog->bytecode.var_names[map->st_var_index]);
+      } else {
+        debug_print_uint(map->st_var_index);  // Fallback if name not available
+      }
+
+      debug_print("] ");
 
       if (map->is_input) {
-        debug_print("INPUT REG:");
-        debug_print_uint(map->input_reg);
-      } else {
-        // OUTPUT mode: determine if it's a coil (BOOL) or holding register (INT)
-        // by checking the variable type in bytecode
-        st_logic_program_config_t *prog = st_logic_get_program(st_state, map->st_program_id);
-        if (prog && map->st_program_id < 4 && map->st_var_index < 32) {
-          st_datatype_t var_type = prog->bytecode.var_types[map->st_var_index];
-          if (var_type == ST_TYPE_BOOL) {
-            debug_print("COIL:");
-          } else if (var_type == ST_TYPE_INT || var_type == ST_TYPE_DWORD) {
-            debug_print("REG:");
-          } else {
-            debug_print("OUTPUT:");  // Unknown type
-          }
+        // INPUT mode: check if it's a Holding Register or Discrete Input
+        debug_print("<- ");
+        if (map->input_type == 1) {
+          debug_print("INPUT:");  // Discrete Input
         } else {
-          debug_print("OUTPUT:");  // Can't determine type
+          debug_print("REG:");    // Holding Register input
+        }
+        debug_print_uint(map->input_reg);
+        debug_print(" (input)");
+      } else {
+        // OUTPUT mode: check if it's a Coil or Holding Register
+        debug_print("-> ");
+        if (map->output_type == 1) {
+          debug_print("COIL:");  // Coil output
+        } else {
+          debug_print("REG:");   // Holding Register output
         }
         debug_print_uint(map->coil_reg);
+        debug_print(" (output)");
       }
       debug_println("");
     }

@@ -693,7 +693,7 @@ bool cli_parser_execute(char* line) {
         debug_println("  Also:");
         debug_println("         set logic <id> enabled:true|false");
         debug_println("         set logic <id> delete");
-        debug_println("         set logic <id> bind <var_name> reg:100|coil:10|input-dis:5");
+        debug_println("         set logic <id> bind <var_name> reg:100|coil:10|input:5");
         debug_println("         set logic debug:true|false");
         return false;
       }
@@ -739,7 +739,7 @@ bool cli_parser_execute(char* line) {
         // set logic <id> bind <var_spec> <register_spec>
         if (argc < 6) {
           debug_println("SET LOGIC BIND: missing parameters");
-          debug_println("  Usage (NEW):  set logic <id> bind <var_name> reg:100|coil:10|input-dis:5");
+          debug_println("  Usage (NEW):  set logic <id> bind <var_name> reg:100|coil:10|input:5");
           debug_println("  Usage (OLD):  set logic <id> bind <var_idx> <register> [input|output|both]");
           return false;
         }
@@ -747,8 +747,8 @@ bool cli_parser_execute(char* line) {
         const char* arg4 = argv[4];
         const char* arg5 = argv[5];
 
-        // Detect new syntax: check if arg5 contains "reg:", "coil:", or "input-dis:"
-        if (strstr(arg5, "reg:") || strstr(arg5, "coil:") || strstr(arg5, "input-dis:")) {
+        // Detect new syntax: check if arg5 contains "reg:", "coil:", "input-dis:", or "input:"
+        if (strstr(arg5, "reg:") || strstr(arg5, "coil:") || strstr(arg5, "input-dis:") || strstr(arg5, "input:")) {
           // NEW SYNTAX: variable name + binding spec
           cli_cmd_set_logic_bind_by_name(st_logic_get_state(), prog_idx, arg4, arg5);
           return true;

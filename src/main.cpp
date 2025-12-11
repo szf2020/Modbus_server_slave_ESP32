@@ -153,14 +153,14 @@ void loop() {
 
   // UNIFIED VARIABLE MAPPING: Read INPUT bindings (GPIO + ST variables)
   // This must happen BEFORE st_logic_engine_loop() to provide fresh inputs
-  gpio_mapping_update();
+  gpio_mapping_read_before_st_logic();
 
   // ST Logic Mode execution (non-blocking, runs compiled programs)
   st_logic_engine_loop(st_logic_get_state(), registers_get_holding_regs(), registers_get_input_regs());
 
   // UNIFIED VARIABLE MAPPING: Write OUTPUT bindings (GPIO + ST variables)
   // This must happen AFTER st_logic_engine_loop() to push results to registers
-  gpio_mapping_update();
+  gpio_mapping_write_after_st_logic();
 
   // Heartbeat/watchdog
   heartbeat_loop();

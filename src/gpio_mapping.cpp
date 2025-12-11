@@ -17,21 +17,18 @@
 #include "st_logic_config.h"
 
 /**
- * @brief Update all variable mappings (GPIO + ST variables)
+ * @brief Read all INPUT mappings (GPIO + ST variables)
  *
- * This function is called once per main loop iteration.
- * It synchronizes ALL mapped sources with Modbus registers/coils:
+ * Called BEFORE st_logic_engine_loop() to provide fresh inputs.
  * - GPIO INPUT mode: Read GPIO pin → write to discrete input
- * - GPIO OUTPUT mode: Read coil → write to GPIO pin
- * - ST VAR INPUT mode: Read holding register → write to ST variable
- * - ST VAR OUTPUT mode: Read ST variable → write to holding register
+ * - ST VAR INPUT mode: Read holding register/discrete input → write to ST variable
  */
-void gpio_mapping_update(void) {
+static void gpio_mapping_read_inputs(void) {
   for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
     const VariableMapping* map = &g_persist_config.var_maps[i];
 
     // ========================================================================
-    // GPIO MAPPING
+    // GPIO MAPPING - INPUT ONLY
     // ========================================================================
     if (map->source_type == MAPPING_SOURCE_GPIO) {
       // Skip mappings associated with counters/timers (handled by their engines)
@@ -55,16 +52,10 @@ void gpio_mapping_update(void) {
 
           registers_set_discrete_input(map->input_reg, level);
         }
-      } else {
-        // OUTPUT mode: Coil → GPIO pin
-        if (map->coil_reg != 65535) {
-          uint8_t value = registers_get_coil(map->coil_reg);
-          gpio_write(map->gpio_pin, value);
-        }
       }
     }
     // ========================================================================
-    // ST LOGIC VARIABLE MAPPING
+    // ST LOGIC VARIABLE MAPPING - INPUT ONLY
     // ========================================================================
     else if (map->source_type == MAPPING_SOURCE_ST_VAR) {
       st_logic_engine_state_t *st_state = st_logic_get_state();
@@ -92,7 +83,52 @@ void gpio_mapping_update(void) {
           // Store as INT (simple type conversion)
           prog->bytecode.variables[map->st_var_index].int_val = (int16_t)reg_value;
         }
-      } else {
+      }
+    }
+  }
+}
+
+/**
+ * @brief Write all OUTPUT mappings (GPIO + ST variables)
+ *
+ * Called AFTER st_logic_engine_loop() to push results to registers.
+ * - GPIO OUTPUT mode: Read coil → write to GPIO pin
+ * - ST VAR OUTPUT mode: Read ST variable → write to holding register/coil
+ */
+static void gpio_mapping_write_outputs(void) {
+  for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+    const VariableMapping* map = &g_persist_config.var_maps[i];
+
+    // ========================================================================
+    // GPIO MAPPING - OUTPUT ONLY
+    // ========================================================================
+    if (map->source_type == MAPPING_SOURCE_GPIO) {
+      // Skip mappings associated with counters/timers (handled by their engines)
+      if (map->associated_counter != 0xff || map->associated_timer != 0xff) {
+        continue;
+      }
+
+      if (!map->is_input) {
+        // OUTPUT mode: Coil → GPIO pin
+        if (map->coil_reg != 65535) {
+          uint8_t value = registers_get_coil(map->coil_reg);
+          gpio_write(map->gpio_pin, value);
+        }
+      }
+    }
+    // ========================================================================
+    // ST LOGIC VARIABLE MAPPING - OUTPUT ONLY
+    // ========================================================================
+    else if (map->source_type == MAPPING_SOURCE_ST_VAR) {
+      st_logic_engine_state_t *st_state = st_logic_get_state();
+      if (!st_state) continue;
+
+      st_logic_program_config_t *prog = st_logic_get_program(st_state, map->st_program_id);
+      if (!prog || !prog->compiled || map->st_var_index >= prog->bytecode.var_count) {
+        continue;
+      }
+
+      if (!map->is_input) {
         // OUTPUT mode: Read from ST variable, write to Modbus
         int16_t var_value = prog->bytecode.variables[map->st_var_index].int_val;
 
@@ -111,5 +147,41 @@ void gpio_mapping_update(void) {
       }
     }
   }
+}
+
+/**
+ * @brief Update all variable mappings (GPIO + ST variables)
+ *
+ * This function is called once per main loop iteration.
+ * It synchronizes ALL mapped sources with Modbus registers/coils:
+ * - GPIO INPUT mode: Read GPIO pin → write to discrete input
+ * - GPIO OUTPUT mode: Read coil → write to GPIO pin
+ * - ST VAR INPUT mode: Read holding register → write to ST variable
+ * - ST VAR OUTPUT mode: Read ST variable → write to holding register
+ *
+ * DEPRECATED: Use gpio_mapping_read_inputs() and gpio_mapping_write_outputs() separately
+ * to avoid INPUT overwriting OUTPUT in the same loop iteration.
+ */
+void gpio_mapping_update(void) {
+  gpio_mapping_read_inputs();
+  gpio_mapping_write_outputs();
+}
+
+/**
+ * @brief Read all INPUT mappings BEFORE ST logic execution
+ *
+ * Wrapper for gpio_mapping_read_inputs() for use in main.cpp
+ */
+void gpio_mapping_read_before_st_logic(void) {
+  gpio_mapping_read_inputs();
+}
+
+/**
+ * @brief Write all OUTPUT mappings AFTER ST logic execution
+ *
+ * Wrapper for gpio_mapping_write_outputs() for use in main.cpp
+ */
+void gpio_mapping_write_after_st_logic(void) {
+  gpio_mapping_write_outputs();
 }
 
