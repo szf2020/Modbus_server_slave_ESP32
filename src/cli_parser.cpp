@@ -165,6 +165,12 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "ADD") || !strcmp(s, "add")) return "ADD";
   if (!strcmp(s, "REMOVE") || !strcmp(s, "remove")) return "REMOVE";
 
+  // Boolean values
+  if (!strcmp(s, "ON") || !strcmp(s, "on")) return "ON";
+  if (!strcmp(s, "OFF") || !strcmp(s, "off")) return "OFF";
+  if (!strcmp(s, "TRUE") || !strcmp(s, "true")) return "TRUE";
+  if (!strcmp(s, "FALSE") || !strcmp(s, "false")) return "FALSE";
+
   // Logic Mode subcommands
   if (!strcmp(s, "UPLOAD") || !strcmp(s, "upload")) return "UPLOAD";
   if (!strcmp(s, "BIND") || !strcmp(s, "bind")) return "BIND";
@@ -739,7 +745,7 @@ bool cli_parser_execute(char* line) {
           return false;
         }
         const char* onoff = normalize_alias(argv[3]);
-        bool enabled = (!strcmp(onoff, "ON") || !strcmp(onoff, "1") || !strcmp(onoff, "TRUE"));
+        bool enabled = (!strcmp(onoff, "on") || !strcmp(onoff, "1") || !strcmp(onoff, "TRUE"));
         cli_cmd_set_persist_enable(enabled);
         return true;
       } else {

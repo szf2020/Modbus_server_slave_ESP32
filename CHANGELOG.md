@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [4.0.1] - 2025-12-11 🐛 (Bugfix Patch)
+
+### FIXED
+- **CLI Parser:** Fixed `set persist enable on|off` command
+  - Duplicate output removed - command now prints status only once
+  - Boolean value normalization added (`on`/`off`/`true`/`false` → uppercase)
+  - Command now correctly enables/disables persistence system
+  - Previous bug: `set persist enable on` incorrectly printed "DISABLED" twice
+
+**Files changed:** 2 files, +8 lines
+- `src/cli_commands.cpp` - Removed duplicate debug print
+- `src/cli_parser.cpp` - Added ON/OFF/TRUE/FALSE normalization
+
+---
+
 ## [4.0.0] - 2025-12-11 💾 (Persistent Registers & Watchdog Monitor)
 
 ### FEATURES ADDED

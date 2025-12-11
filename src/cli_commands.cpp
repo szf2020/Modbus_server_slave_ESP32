@@ -1007,9 +1007,6 @@ void cli_cmd_save_registers(uint8_t argc, char* argv[]) {
 void cli_cmd_set_persist_enable(bool enabled) {
   registers_persist_set_enabled(enabled);
 
-  debug_print("Persistence system ");
-  debug_println(enabled ? "ENABLED" : "DISABLED");
-
   if (enabled) {
     debug_println("You can now create groups with: set persist group <name> add <reg1> ...");
   }
