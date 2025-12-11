@@ -329,9 +329,10 @@ exit                                     # Exit telnet session (telnet only)
 #### Persistent Configuration (NVS Storage)
 - **Storage Backend:** ESP32 NVS (Non-Volatile Storage)
 - **CRC Protection:** CRC16-CCITT checksum on all saved data
-- **Schema Versioning:** v7 (current)
+- **Schema Versioning:** v8 (current)
   - v5 → v6: Added `hostname` field
   - v6 → v7: Added `remote_echo` field
+  - v7 → v8: Added `persist_regs` (persistence groups)
 - **Auto-Migration:** Old configs auto-upgrade on schema mismatch
 - **Config Size:** ~30KB (PersistConfig struct)
 - **Save Command:** `save` (manual)
@@ -356,6 +357,70 @@ exit                                     # Exit telnet session (telnet only)
 - **Pin:** GPIO2 (onboard LED på de fleste ESP32 boards)
 - **Mode:** Toggle at 500ms intervals
 - **Disable:** Frigør GPIO2 til user applications
+
+#### Persistent Registers (v4.0+)
+- **Named Groups:** Organize registers in groups for selective persistence
+  - Max 8 groups, 16 registers per group
+  - Groups saved to NVS, auto-restored at boot
+- **ST Logic Integration:** Built-in SAVE()/LOAD() functions
+  - Save from ST programs when conditions are met
+  - Rate limited (max 1 save per 5 seconds)
+- **Use Cases:**
+  - Sensor calibration data
+  - Last known good setpoints
+  - Production counters
+  - Configuration parameters
+
+**CLI Commands:**
+```bash
+set persist group "sensors" add 100 101 102    # Create group
+save registers all                              # Save all groups
+save registers group "sensors"                  # Save specific group
+show persist                                    # Display groups
+```
+
+**ST Logic Example:**
+```st
+PROGRAM Logic1
+VAR
+  sensor_value: INT;
+  save_trigger: BOOL;
+END_VAR
+
+sensor_value := 42;  (* Bound to HR#100 *)
+
+IF save_trigger THEN
+  SAVE();  (* Save all persistence groups *)
+END_IF;
+END_PROGRAM
+```
+
+#### Watchdog Monitor (v4.0+)
+- **Auto-Restart:** ESP32 Task Watchdog Timer (30s timeout)
+  - Automatically restarts system if main loop hangs
+  - Persistent reboot counter in NVS
+- **Diagnostics:** Last reset reason and error message
+  - Power-on, Panic, Brownout, Watchdog timeout
+  - Last error message (max 127 chars)
+  - Uptime before last reboot
+- **Production Ready:**
+  - Prevents system hang in field deployments
+  - Debug-friendly: Error visible after reboot
+
+**CLI Commands:**
+```bash
+show watchdog                                   # Display status
+```
+
+**Example Output:**
+```
+=== Watchdog Monitor (v4.0+) ===
+Status: ENABLED
+Timeout: 30 seconds
+Reboot counter: 12
+Current uptime: 3600 seconds
+Last reset reason: Power-on
+```
 
 #### Build System & Versioning
 - **Build Tool:** PlatformIO
@@ -788,6 +853,92 @@ Telnet: ENABLED (port 23)
 # telnet 192.168.1.145 23
 # Username: admin
 # Password: secret123
+```
+
+### Example 5: Persistent Registers with ST Logic (v4.0+)
+```bash
+# Create persistence group for sensor calibration
+> set persist group "calibration" add 200 201 202
+✓ Added 3 registers to group 'calibration'
+
+# Enable persistence system
+> set persist enable on
+Persistence system enabled
+
+# Upload ST Logic program with SAVE/LOAD
+> set logic 1 upload
+PROGRAM CalibrationManager
+VAR
+  cal_offset: INT;      (* Calibration offset *)
+  cal_scale: INT;       (* Calibration scale factor *)
+  save_trigger: BOOL;   (* Manual save trigger *)
+  load_trigger: BOOL;   (* Manual restore trigger *)
+  save_result: INT;     (* SAVE() return value *)
+END_VAR
+
+BEGIN
+  (* Manual save when triggered *)
+  IF save_trigger THEN
+    save_result := SAVE();  (* Save all groups to NVS *)
+    save_trigger := 0;      (* Clear trigger *)
+  END_IF;
+
+  (* Manual restore when triggered *)
+  IF load_trigger THEN
+    save_result := LOAD();  (* Restore all groups from NVS *)
+    load_trigger := 0;      (* Clear trigger *)
+  END_IF;
+END
+
+<blank line to finish upload>
+
+# Bind variables to persistence group registers
+> set logic 1 bind cal_offset reg:200
+> set logic 1 bind cal_scale reg:201
+> set logic 1 bind save_trigger reg:202
+> set logic 1 bind load_trigger reg:203
+> set logic 1 bind save_result reg:204
+
+# Enable program
+> set logic 1 enabled:true
+
+# Write calibration values
+> write reg 200 value 42    # Set offset
+> write reg 201 value 100   # Set scale
+
+# Trigger save from ST Logic
+> write reg 202 value 1     # Trigger SAVE()
+
+# Check save result
+> read reg 204 1
+Result: 0 (success)
+
+# View persistence status
+> show persist
+
+=== Persistent Registers (v4.0+) ===
+Enabled: YES
+Groups: 1
+
+Group "calibration" (3 registers)
+  Reg 200 = 42
+  Reg 201 = 100
+  Reg 202 = 0
+  Last save: 5 sec ago
+
+# Save to NVS (manual CLI save)
+> save registers all
+✓ Saved 1 groups to NVS
+
+# Reboot to test restore
+> reboot
+
+# After reboot, check if values restored
+> read reg 200 1
+Result: 42 ✓ (restored from NVS)
+
+> read reg 201 1
+Result: 100 ✓ (restored from NVS)
 ```
 
 ---

@@ -33,6 +33,11 @@ static void config_init_defaults(PersistConfig* cfg) {
   cfg->hostname[31] = '\0';
   cfg->remote_echo = 1;  // Default: echo ON (v3.2+)
 
+  // Initialize persistent register system (v4.0+)
+  memset(&cfg->persist_regs, 0, sizeof(PersistentRegisterData));
+  cfg->persist_regs.enabled = 0;  // Disabled by default
+  cfg->persist_regs.group_count = 0;
+
   // Initialize network config with defaults (v3.0+)
   network_config_init_defaults(&cfg->network);
 
@@ -129,13 +134,29 @@ bool config_load_from_nvs(PersistConfig* out) {
 
   // Validate schema version (MUST be checked before CRC to prevent struct misalignment)
   if (out->schema_version != CONFIG_SCHEMA_VERSION) {
-    debug_print("ERROR: Schema version mismatch (stored=");
-    debug_print_uint(out->schema_version);
-    debug_print(", current=");
-    debug_print_uint(CONFIG_SCHEMA_VERSION);
-    debug_println("), reinitializing with defaults");
-    config_init_defaults(out);
-    return true;
+    // Schema migration support (v7 → v8)
+    if (out->schema_version == 7) {
+      debug_println("CONFIG LOAD: Migrating schema 7 → 8 (adding persist_regs)");
+
+      // Initialize new persist_regs field with defaults
+      memset(&out->persist_regs, 0, sizeof(PersistentRegisterData));
+      out->persist_regs.enabled = 0;
+      out->persist_regs.group_count = 0;
+
+      // Update schema version
+      out->schema_version = 8;
+
+      debug_println("CONFIG LOAD: Migration complete");
+      // Note: CRC will be invalid, but we'll recalculate on next save
+    } else {
+      debug_print("ERROR: Unsupported schema version (stored=");
+      debug_print_uint(out->schema_version);
+      debug_print(", current=");
+      debug_print_uint(CONFIG_SCHEMA_VERSION);
+      debug_println("), reinitializing with defaults");
+      config_init_defaults(out);
+      return true;
+    }
   }
 
   if (dbg->config_load) {

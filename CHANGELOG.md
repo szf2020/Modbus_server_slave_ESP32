@@ -4,6 +4,106 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [4.0.0] - 2025-12-11 💾 (Persistent Registers & Watchdog Monitor)
+
+### FEATURES ADDED
+
+#### Persistent Register System ✅ NEW
+- **Persistence Groups:** Named groups for selective register persistence (max 8 groups × 16 registers)
+  - Create groups via CLI: `set persist group <name> add <reg1> [reg2] ...`
+  - Remove registers: `set persist group <name> remove <reg>`
+  - Delete groups: `set persist group <name> delete`
+  - Enable/disable system: `set persist enable on|off`
+- **Manual Save:** Save groups to NVS via CLI commands
+  - `save registers all` - Save all persistence groups
+  - `save registers group <name>` - Save specific group
+  - Groups auto-restore at boot via `config_apply()`
+- **ST Logic Integration:** Built-in SAVE()/LOAD() functions
+  - `SAVE()` - Save all persistence groups to NVS from ST program
+  - `LOAD()` - Restore all persistence groups from NVS
+  - Rate limiting: Max 1 save per 5 seconds (flash wear protection)
+  - Return value: 0=success, -1=error, -2=rate limited
+- **CLI Commands:**
+  - `show persist` - Display all persistence groups with register values
+  - `set persist ?` - Show detailed help
+
+**Use Cases:**
+- Save sensor calibration data across reboots
+- Restore last known good setpoints after power loss
+- Conditional persistence from ST programs (save only when valid)
+- Differentiated save/load (not all-or-nothing)
+
+#### Watchdog Monitor ✅ NEW
+- **ESP32 Task Watchdog Timer:** Auto-restart system if main loop hangs (30s timeout)
+  - Initialized in `setup()` - increments reboot counter
+  - `watchdog_feed()` called in `loop()` - MUST be called < 30s
+  - Auto-restart on timeout (panic trigger)
+- **Persistence:** Watchdog state saved to NVS
+  - Reboot counter (persistent across resets)
+  - Last reset reason (Power-on, Panic, Brownout, etc.)
+  - Last error message (max 127 chars)
+  - Last reboot uptime (seconds before crash)
+- **CLI Command:**
+  - `show watchdog` - Display watchdog status, reboot counter, reset reason
+- **API Functions:**
+  - `watchdog_init()` - Initialize (called in setup)
+  - `watchdog_feed()` - Reset timer (called in loop)
+  - `watchdog_enable(bool)` - Enable/disable
+  - `watchdog_record_error(msg)` - Save error before crash
+  - `watchdog_get_state()` - Get state for CLI
+
+**Safety Features:**
+- Production-ready: Auto-restart on system hang
+- Debug-friendly: Last error message visible after reboot
+- Configurable timeout (default 30s)
+
+### SCHEMA & STORAGE
+
+#### Schema Version 7 → 8 ✅ BREAKING
+- **New Fields in PersistConfig:**
+  - `PersistentRegisterData persist_regs` - Persistence groups (8 groups × 16 registers)
+  - Total: ~600 bytes for persistence system
+- **Backward Compatibility:** v7 configs auto-migrate to v8 on load
+  - `persist_regs` initialized to empty/disabled
+  - All existing configs preserved
+
+#### NVS Storage Organization
+- **Config namespace:** `modbus_cfg` (existing)
+  - Key `config` - Main PersistConfig blob (CRC16 validated)
+  - Now includes `persist_regs` with group data
+- **Watchdog namespace:** `modbus_cfg` (shared)
+  - Key `watchdog` - WatchdogState blob
+  - Reboot counter, reset reason, last error
+
+### FILES ADDED
+- `include/registers_persist.h` - Persistence group management API
+- `src/registers_persist.cpp` - Group create/delete, save/restore engine (444 lines)
+- `include/st_builtin_persist.h` - ST Logic SAVE()/LOAD() declarations
+- `src/st_builtin_persist.cpp` - Built-in function implementations
+- `include/watchdog_monitor.h` - Watchdog API
+- `src/watchdog_monitor.cpp` - ESP32 Task WDT wrapper (295 lines)
+
+### FILES MODIFIED
+- `include/types.h` - Added PersistGroup, PersistentRegisterData, WatchdogState structs
+- `include/constants.h` - Bumped CONFIG_SCHEMA_VERSION to 8, PROJECT_VERSION to "4.0.0"
+- `src/config_load.cpp` - Schema migration 7→8, persist_regs initialization
+- `src/config_apply.cpp` - Restore persistence groups at boot
+- `src/st_builtins.h` - Added ST_BUILTIN_PERSIST_SAVE/LOAD enums
+- `src/st_builtins.cpp` - Integrated SAVE/LOAD into dispatcher
+- `include/cli_commands.h` - Added persist command declarations
+- `src/cli_commands.cpp` - Implemented persistence CLI commands
+- `include/cli_show.h` - Added show persist/watchdog declarations
+- `src/cli_show.cpp` - Implemented show persist/watchdog displays
+- `src/cli_parser.cpp` - Added routing for persist/watchdog commands
+- `src/main.cpp` - Integrated watchdog_init() and watchdog_feed()
+
+### RESOURCE USAGE
+- **RAM:** 36.7% (120,296 bytes / 327,680 bytes) - +152 bytes from v3.3.0
+- **Flash:** 64.6% (847,177 bytes / 1,310,720 bytes) - +2,896 bytes from v3.3.0
+- **NVS:** +600 bytes for persistence groups, +200 bytes for watchdog state
+
+---
+
 ## [3.3.0] - 2025-12-11 🔄 (GPIO Mapping Split & ST Logic Binding Improvements)
 
 ### FEATURES ADDED

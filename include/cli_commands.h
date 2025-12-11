@@ -123,6 +123,35 @@ void cli_cmd_save(void);
 void cli_cmd_load(void);
 
 /**
+ * @brief Handle "set persist group" command (create/modify persistence group)
+ * @param argc Argument count
+ * @param argv Argument array
+ *
+ * Syntax:
+ *   set persist group <name> add <reg1> [reg2] [reg3] ...
+ *   set persist group <name> remove <reg>
+ *   set persist group <name> delete
+ */
+void cli_cmd_set_persist_group(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "save registers" command (save persistent register groups)
+ * @param argc Argument count
+ * @param argv Argument array
+ *
+ * Syntax:
+ *   save registers all
+ *   save registers group <name>
+ */
+void cli_cmd_save_registers(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "set persist enable" command
+ * @param enabled true to enable, false to disable
+ */
+void cli_cmd_set_persist_enable(bool enabled);
+
+/**
  * @brief Handle "defaults" command (reset to factory defaults)
  */
 void cli_cmd_defaults(void);

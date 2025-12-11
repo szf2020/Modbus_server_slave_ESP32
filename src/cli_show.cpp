@@ -20,6 +20,8 @@
 #include "timer_engine.h"
 #include "timer_config.h"
 #include "registers.h"
+#include "registers_persist.h"
+#include "watchdog_monitor.h"
 #include "version.h"
 #include "cli_shell.h"
 #include "config_struct.h"
@@ -28,6 +30,7 @@
 #include "network_config.h"
 #include "debug_flags.h"
 #include "debug.h"
+#include <Arduino.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -1601,5 +1604,62 @@ void cli_cmd_show_debug(void) {
 
   debug_println("");
   debug_println("Use 'set debug <flag> <on|off>' to toggle debug flags");
+  debug_println("");
+}
+
+/* ============================================================================
+ * SHOW PERSIST (v4.0+)
+ * ============================================================================ */
+
+void cli_cmd_show_persist(void) {
+  // Simply call the persistence system's built-in list function
+  registers_persist_list_groups();
+}
+
+void cli_cmd_show_watchdog(void) {
+  WatchdogState* wdt = watchdog_get_state();
+
+  debug_println("");
+  debug_println("=== Watchdog Monitor (v4.0+) ===");
+  debug_print("Status: ");
+  debug_println(wdt->enabled ? "ENABLED" : "DISABLED");
+  debug_print("Timeout: ");
+  debug_print_uint(wdt->timeout_ms / 1000);
+  debug_println(" seconds");
+  debug_print("Reboot counter: ");
+  debug_print_uint(wdt->reboot_counter);
+  debug_println("");
+  debug_print("Current uptime: ");
+  debug_print_uint(millis() / 1000);
+  debug_println(" seconds");
+
+  // Last reset reason
+  debug_print("Last reset reason: ");
+  const char* reason_str = "Unknown";
+  switch (wdt->last_reset_reason) {
+    case 0:  reason_str = "Unknown"; break;
+    case 1:  reason_str = "Power-on"; break;
+    case 2:  reason_str = "External reset"; break;
+    case 3:  reason_str = "Software reset"; break;
+    case 4:  reason_str = "Panic/Exception"; break;
+    case 5:  reason_str = "Interrupt watchdog"; break;
+    case 6:  reason_str = "Task watchdog"; break;
+    case 7:  reason_str = "Other watchdog"; break;
+    case 8:  reason_str = "Deep sleep"; break;
+    case 9:  reason_str = "Brownout"; break;
+    case 10: reason_str = "SDIO reset"; break;
+    default: reason_str = "Unknown"; break;
+  }
+  debug_println(reason_str);
+
+  // Last error message
+  if (strlen(wdt->last_error) > 0) {
+    debug_print("Last error: ");
+    debug_println(wdt->last_error);
+  }
+
+  debug_print("Last reboot uptime: ");
+  debug_print_uint(wdt->last_reboot_uptime_ms / 1000);
+  debug_println(" seconds");
   debug_println("");
 }

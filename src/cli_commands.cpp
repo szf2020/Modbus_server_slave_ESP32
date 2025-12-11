@@ -19,6 +19,7 @@
 #include "timer_engine.h"
 #include "timer_config.h"
 #include "registers.h"
+#include "registers_persist.h"
 #include "cli_shell.h"
 #include "config_struct.h"
 #include "config_save.h"
@@ -845,6 +846,172 @@ void cli_cmd_load(void) {
     debug_println("NOTE: Configuration applied. Some changes may require reboot.");
   } else {
     debug_println("LOAD: Failed to load configuration (using defaults)");
+  }
+}
+
+/* ============================================================================
+ * PERSISTENCE GROUP MANAGEMENT (v4.0+)
+ * ============================================================================ */
+
+void cli_cmd_set_persist_group(uint8_t argc, char* argv[]) {
+  // Syntax:
+  //   set persist group <name> add <reg1> [reg2] [reg3] ...
+  //   set persist group <name> remove <reg>
+  //   set persist group <name> delete
+
+  if (argc < 2) {
+    debug_println("ERROR: Missing group name");
+    debug_println("Usage: set persist group <name> add|remove|delete [registers...]");
+    return;
+  }
+
+  const char* group_name = argv[0];
+  const char* action = argv[1];
+
+  if (strcmp(action, "add") == 0) {
+    // Create group if it doesn't exist
+    PersistGroup* grp = registers_persist_group_find(group_name);
+    if (grp == NULL) {
+      if (!registers_persist_group_create(group_name)) {
+        return;  // Error already printed
+      }
+    }
+
+    // Add registers (argv[2], argv[3], ...)
+    if (argc < 3) {
+      debug_println("ERROR: No registers specified");
+      debug_println("Usage: set persist group <name> add <reg1> [reg2] [reg3] ...");
+      return;
+    }
+
+    uint8_t added = 0;
+    for (uint8_t i = 2; i < argc; i++) {
+      uint16_t reg_addr = atoi(argv[i]);
+      if (registers_persist_group_add_reg(group_name, reg_addr)) {
+        added++;
+      }
+    }
+
+    debug_print("✓ Added ");
+    debug_print_uint(added);
+    debug_print(" registers to group '");
+    debug_print(group_name);
+    debug_println("'");
+
+    // Enable persistence system if not already enabled
+    if (!registers_persist_is_enabled()) {
+      registers_persist_set_enabled(true);
+    }
+
+  } else if (strcmp(action, "remove") == 0) {
+    if (argc < 3) {
+      debug_println("ERROR: No register specified");
+      debug_println("Usage: set persist group <name> remove <reg>");
+      return;
+    }
+
+    uint16_t reg_addr = atoi(argv[2]);
+    if (registers_persist_group_remove_reg(group_name, reg_addr)) {
+      debug_print("✓ Removed register ");
+      debug_print_uint(reg_addr);
+      debug_print(" from group '");
+      debug_print(group_name);
+      debug_println("'");
+    }
+
+  } else if (strcmp(action, "delete") == 0) {
+    if (registers_persist_group_delete(group_name)) {
+      debug_print("✓ Deleted group '");
+      debug_print(group_name);
+      debug_println("'");
+    }
+
+  } else {
+    debug_print("ERROR: Unknown action '");
+    debug_print(action);
+    debug_println("'");
+    debug_println("Valid actions: add, remove, delete");
+  }
+}
+
+void cli_cmd_save_registers(uint8_t argc, char* argv[]) {
+  // Syntax:
+  //   save registers all
+  //   save registers group <name>
+
+  if (argc == 0) {
+    debug_println("ERROR: Missing argument");
+    debug_println("Usage: save registers all | save registers group <name>");
+    return;
+  }
+
+  if (strcmp(argv[0], "all") == 0) {
+    // Save all groups
+    debug_println("Saving all persistent register groups...");
+
+    if (!registers_persist_is_enabled()) {
+      debug_println("ERROR: Persistence system disabled");
+      debug_println("Hint: Use 'set persist enable on' first");
+      return;
+    }
+
+    // Snapshot all groups
+    registers_persist_save_all_groups();
+
+    // Save entire config to NVS
+    g_persist_config.crc16 = config_calculate_crc16(&g_persist_config);
+    bool success = config_save_to_nvs(&g_persist_config);
+
+    if (success) {
+      debug_print("✓ Saved ");
+      debug_print_uint(g_persist_config.persist_regs.group_count);
+      debug_println(" groups to NVS");
+    } else {
+      debug_println("ERROR: Failed to save to NVS");
+    }
+
+  } else if (strcmp(argv[0], "group") == 0) {
+    if (argc < 2) {
+      debug_println("ERROR: Missing group name");
+      debug_println("Usage: save registers group <name>");
+      return;
+    }
+
+    const char* group_name = argv[1];
+
+    // Snapshot specific group
+    if (!registers_persist_group_save(group_name)) {
+      return;  // Error already printed
+    }
+
+    // Save entire config to NVS
+    g_persist_config.crc16 = config_calculate_crc16(&g_persist_config);
+    bool success = config_save_to_nvs(&g_persist_config);
+
+    if (success) {
+      debug_print("✓ Saved group '");
+      debug_print(group_name);
+      debug_println("' to NVS");
+    } else {
+      debug_println("ERROR: Failed to save to NVS");
+    }
+
+  } else {
+    debug_print("ERROR: Unknown argument '");
+    debug_print(argv[0]);
+    debug_println("'");
+    debug_println("Usage: save registers all | save registers group <name>");
+  }
+}
+
+void cli_cmd_set_persist_enable(bool enabled) {
+  registers_persist_set_enabled(enabled);
+
+  debug_print("Persistence system ");
+  debug_println(enabled ? "ENABLED" : "DISABLED");
+
+  if (enabled) {
+    debug_println("You can now create groups with: set persist group <name> add <reg1> ...");
   }
 }
 

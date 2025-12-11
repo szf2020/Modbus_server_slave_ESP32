@@ -150,7 +150,7 @@ typedef enum {
  * EEPROM / NVS CONFIGURATION
  * ============================================================================ */
 
-#define CONFIG_SCHEMA_VERSION   7       // Current config schema version (v3.2+: remote_echo field added to PersistConfig)
+#define CONFIG_SCHEMA_VERSION   8       // Current config schema version (v4.0+: persist_regs added to PersistConfig)
 #define CONFIG_CRC_SEED         0xFFFF  // CRC16 initial value
 
 /* ============================================================================
@@ -251,7 +251,7 @@ typedef enum {
  * ============================================================================ */
 
 #define PROJECT_NAME        "Modbus RTU Server (ESP32)"
-#define PROJECT_VERSION     "3.3.0"
+#define PROJECT_VERSION     "4.0.0"
 // BUILD_DATE and BUILD_NUMBER now in build_version.h (auto-generated)
 
 /* Version history:

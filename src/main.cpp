@@ -29,6 +29,7 @@
 #include "st_logic_config.h"
 #include "st_logic_engine.h"
 #include "network_manager.h"
+#include "watchdog_monitor.h"
 
 // ============================================================================
 // GLOBAL CONSOLE
@@ -61,6 +62,9 @@ void setup() {
   }
   ESP_ERROR_CHECK(err);
   Serial.println("NVS: Initialized");
+
+  // Initialize watchdog monitor (v4.0+)
+  watchdog_init();  // 30s timeout, auto-restart on hang
 
   // Load configuration from NVS
   config_load_from_nvs(&g_persist_config);
@@ -162,9 +166,12 @@ void loop() {
   // This must happen AFTER st_logic_engine_loop() to push results to registers
   gpio_mapping_write_after_st_logic();
 
-  // Heartbeat/watchdog
+  // Heartbeat LED
   heartbeat_loop();
 
-  // Small delay to prevent watchdog timeout
+  // CRITICAL: Feed watchdog (must be called < 30s interval)
+  watchdog_feed();
+
+  // Small delay to prevent tight loop
   delay(1);
 }

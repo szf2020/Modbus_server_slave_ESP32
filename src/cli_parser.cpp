@@ -140,6 +140,7 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
   if (!strcmp(s, "DEBUG") || !strcmp(s, "debug")) return "DEBUG";
+  if (!strcmp(s, "WATCHDOG") || !strcmp(s, "watchdog")) return "WATCHDOG";
 
   // Logic subcommands
   if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
@@ -159,6 +160,10 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "WIFI") || !strcmp(s, "wifi")) return "WIFI";
   if (!strcmp(s, "ENABLE") || !strcmp(s, "enable")) return "ENABLE";
   if (!strcmp(s, "DISABLE") || !strcmp(s, "disable")) return "DISABLE";
+  if (!strcmp(s, "PERSIST") || !strcmp(s, "persist")) return "PERSIST";
+  if (!strcmp(s, "GROUP") || !strcmp(s, "group")) return "GROUP";
+  if (!strcmp(s, "ADD") || !strcmp(s, "add")) return "ADD";
+  if (!strcmp(s, "REMOVE") || !strcmp(s, "remove")) return "REMOVE";
 
   // Logic Mode subcommands
   if (!strcmp(s, "UPLOAD") || !strcmp(s, "upload")) return "UPLOAD";
@@ -190,6 +195,8 @@ static void print_show_help(void) {
   debug_println("  show inputs          - Vis input registers");
   debug_println("  show coils           - Vis coils");
   debug_println("  show debug           - Vis debug flags");
+  debug_println("  show persist         - Vis persistence groups (v4.0+)");
+  debug_println("  show watchdog        - Vis watchdog monitor status (v4.0+)");
   debug_println("  show version         - Vis firmware version");
   debug_println("  show echo            - Vis echo status");
   debug_println("");
@@ -208,6 +215,7 @@ static void print_set_help(void) {
   debug_println("  set timer ?             - Vis timer kommandoer");
   debug_println("  set gpio ?              - Vis GPIO kommandoer");
   debug_println("  set debug ?             - Vis debug kommandoer");
+  debug_println("  set persist ?           - Vis persistence kommandoer (v4.0+)");
   debug_println("  set echo <on|off>       - Sæt remote echo");
   debug_println("");
 }
@@ -326,6 +334,30 @@ static void print_debug_help(void) {
   debug_println("");
 }
 
+static void print_persist_help(void) {
+  debug_println("");
+  debug_println("Available 'set persist' commands (v4.0+):");
+  debug_println("  set persist group <name> add <reg1> [reg2] ...  - Tilføj registre til gruppe");
+  debug_println("  set persist group <name> remove <reg>           - Fjern register fra gruppe");
+  debug_println("  set persist group <name> delete                 - Slet gruppe");
+  debug_println("  set persist enable on|off                       - Aktivér/deaktivér system");
+  debug_println("");
+  debug_println("Save & Restore:");
+  debug_println("  save registers all             - Gem alle grupper til NVS");
+  debug_println("  save registers group <name>    - Gem specifik gruppe til NVS");
+  debug_println("  show persist                   - Vis alle persistence groups");
+  debug_println("");
+  debug_println("ST Logic Integration:");
+  debug_println("  SAVE()   - Gem alle grupper fra ST program (rate limited)");
+  debug_println("  LOAD()   - Gendan alle grupper fra ST program");
+  debug_println("");
+  debug_println("Eksempel:");
+  debug_println("  set persist group \"sensors\" add 100 101 102");
+  debug_println("  save registers group \"sensors\"");
+  debug_println("  show persist");
+  debug_println("");
+}
+
 static void print_logic_help(void) {
   debug_println("");
   debug_println("Available 'show logic' commands:");
@@ -425,6 +457,12 @@ bool cli_parser_execute(char* line) {
       return true;
     } else if (!strcmp(what, "DEBUG")) {
       cli_cmd_show_debug();
+      return true;
+    } else if (!strcmp(what, "PERSIST")) {
+      cli_cmd_show_persist();
+      return true;
+    } else if (!strcmp(what, "WATCHDOG")) {
+      cli_cmd_show_watchdog();
       return true;
     } else if (!strcmp(what, "REG")) {
       // show reg - Display register configuration
@@ -671,6 +709,43 @@ bool cli_parser_execute(char* line) {
       }
       cli_cmd_set_wifi(argc - 2, argv + 2);
       return true;
+    } else if (!strcmp(what, "PERSIST")) {
+      // Check for help
+      if (argc >= 3) {
+        const char* subwhat_check = normalize_alias(argv[2]);
+        if (!strcmp(subwhat_check, "HELP") || !strcmp(subwhat_check, "?")) {
+          print_persist_help();
+          return true;
+        }
+      }
+
+      // set persist group <name> add|remove|delete [regs...]
+      // set persist enable on|off
+      if (argc < 3) {
+        print_persist_help();
+        return false;
+      }
+
+      const char* subwhat = normalize_alias(argv[2]);
+
+      if (!strcmp(subwhat, "GROUP")) {
+        // set persist group ...
+        cli_cmd_set_persist_group(argc - 3, argv + 3);
+        return true;
+      } else if (!strcmp(subwhat, "ENABLE")) {
+        // set persist enable on|off
+        if (argc < 4) {
+          debug_println("SET PERSIST ENABLE: missing value (on|off)");
+          return false;
+        }
+        const char* onoff = normalize_alias(argv[3]);
+        bool enabled = (!strcmp(onoff, "ON") || !strcmp(onoff, "1") || !strcmp(onoff, "TRUE"));
+        cli_cmd_set_persist_enable(enabled);
+        return true;
+      } else {
+        debug_println("SET PERSIST: unknown argument (expected group or enable)");
+        return false;
+      }
     } else if (!strcmp(what, "LOGIC")) {
       // set logic debug:true|false  (global debug flag - no program ID needed)
       if (argc >= 3) {
@@ -836,8 +911,16 @@ bool cli_parser_execute(char* line) {
     }
 
   } else if (!strcmp(cmd, "SAVE")) {
-    cli_cmd_save();
-    return true;
+    // save  OR  save registers all  OR  save registers group <name>
+    if (argc >= 2 && !strcmp(normalize_alias(argv[1]), "REGISTERS")) {
+      // save registers all|group <name>
+      cli_cmd_save_registers(argc - 2, argv + 2);
+      return true;
+    } else {
+      // save (traditional - save config only)
+      cli_cmd_save();
+      return true;
+    }
 
   } else if (!strcmp(cmd, "LOAD")) {
     cli_cmd_load();
@@ -1123,16 +1206,24 @@ void cli_parser_print_help(void) {
   debug_println("  set echo <on|off>        - Enable/disable remote echo");
   debug_println("");
   debug_println("Persistence (NVS - Non-Volatile Storage):");
-  debug_println("  save                - Save all configs to NVS (persistent across reboot)");
-  debug_println("  load                - Load configs from NVS");
-  debug_println("  defaults            - Reset to factory defaults");
-  debug_println("  reboot              - Restart ESP32");
+  debug_println("  save                     - Save all configs to NVS (persistent across reboot)");
+  debug_println("  load                     - Load configs from NVS");
+  debug_println("  defaults                 - Reset to factory defaults");
+  debug_println("  reboot                   - Restart ESP32");
+  debug_println("");
+  debug_println("Persistent Registers (v4.0+):");
+  debug_println("  set persist group <name> add <reg1> [reg2] ...  - Create/extend group");
+  debug_println("  save registers all                              - Save all groups to NVS");
+  debug_println("  save registers group <name>                     - Save specific group");
+  debug_println("  show persist                                    - Show all groups");
+  debug_println("  set persist ?                                   - Show detailed help");
   debug_println("");
   debug_println("Persistence features:");
   debug_println("  - All timers, counters, GPIO mappings saved");
-  debug_println("  - Schema versioning (v2 with v1 migration)");
+  debug_println("  - Persistent register groups (8 groups × 16 registers)");
+  debug_println("  - ST Logic SAVE()/LOAD() built-in functions");
+  debug_println("  - Schema versioning (v8 with v7 migration)");
   debug_println("  - CRC16 validation for data integrity");
-  debug_println("  - Auto-save after counter/timer configuration");
   debug_println("");
   debug_println("Quick examples:");
   debug_println("  show config              - View all settings");

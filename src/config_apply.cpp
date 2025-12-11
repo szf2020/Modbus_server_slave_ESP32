@@ -12,6 +12,7 @@
 #include "gpio_driver.h"
 #include "config_struct.h"
 #include "registers.h"
+#include "registers_persist.h"
 #include "heartbeat.h"
 #include "cli_shell.h"
 #include "debug.h"
@@ -156,6 +157,16 @@ bool config_apply(const PersistConfig* cfg) {
       debug_println(" enabled - configured");
       timer_engine_configure(i + 1, &cfg->timers[i]);
     }
+  }
+
+  // Apply persistent register groups (v4.0+)
+  if (cfg->persist_regs.enabled && cfg->persist_regs.group_count > 0) {
+    debug_print("  Persistent registers: ");
+    debug_print_uint(cfg->persist_regs.group_count);
+    debug_println(" groups");
+
+    // Restore all group register values
+    registers_persist_restore_all_groups();
   }
 
   debug_println("CONFIG APPLY: Done");

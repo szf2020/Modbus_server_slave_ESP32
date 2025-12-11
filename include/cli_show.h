@@ -103,6 +103,16 @@ void cli_cmd_show_wifi(void);
 void cli_cmd_show_debug(void);
 
 /**
+ * @brief Handle "show persist" command (Persistent register groups status)
+ */
+void cli_cmd_show_persist(void);
+
+/**
+ * @brief Handle "show watchdog" command (Watchdog monitor status)
+ */
+void cli_cmd_show_watchdog(void);
+
+/**
  * @brief Handle "read reg <id> <antal>" command
  * @param argc Argument count (must be 2)
  * @param argv Argument array (argv[0] = start addr, argv[1] = count)

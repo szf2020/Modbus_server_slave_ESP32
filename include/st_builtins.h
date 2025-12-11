@@ -51,6 +51,10 @@ typedef enum {
   // ST_BUILTIN_LEN,          // LEN(s) → length
   // ST_BUILTIN_CONCAT,       // CONCAT(s1, s2) → concatenation
 
+  // Persistence (v4.0+)
+  ST_BUILTIN_PERSIST_SAVE,  // SAVE() → save all persistent register groups to NVS
+  ST_BUILTIN_PERSIST_LOAD,  // LOAD() → restore all groups from NVS
+
   ST_BUILTIN_COUNT          // Total number of built-ins
 } st_builtin_func_t;
 

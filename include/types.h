@@ -228,6 +228,43 @@ typedef struct __attribute__((packed)) {
 } VariableMapping;
 
 /* ============================================================================
+ * PERSISTENT REGISTER GROUPS (v4.0+)
+ * ============================================================================ */
+
+#define PERSIST_GROUP_MAX_REGS  16   // Max registers per group
+#define PERSIST_MAX_GROUPS      8    // Max persistence groups
+
+typedef struct __attribute__((packed)) {
+  char name[16];                     // Group name (null-terminated)
+  uint8_t reg_count;                 // Number of registers (0-16)
+  uint16_t reg_addresses[PERSIST_GROUP_MAX_REGS];  // Register addresses
+  uint16_t reg_values[PERSIST_GROUP_MAX_REGS];     // Saved values
+  uint32_t last_save_ms;             // Timestamp of last save
+  uint8_t reserved[3];               // Alignment
+} PersistGroup;
+
+typedef struct __attribute__((packed)) {
+  uint8_t enabled;                   // Persistence system enabled
+  uint8_t group_count;               // Number of active groups (0-8)
+  PersistGroup groups[PERSIST_MAX_GROUPS];  // Persistence groups
+  uint8_t reserved[8];               // Future use
+} PersistentRegisterData;
+
+/* ============================================================================
+ * WATCHDOG MONITOR STATE (v4.0+)
+ * ============================================================================ */
+
+typedef struct __attribute__((packed)) {
+  uint8_t enabled;                   // Watchdog enabled
+  uint32_t timeout_ms;               // Timeout (default 30000 = 30s)
+  uint32_t reboot_counter;           // Persistent reboot count
+  uint32_t last_reset_reason;        // ESP_RST_REASON enum
+  char last_error[128];              // Last error message
+  uint32_t last_reboot_uptime_ms;    // Uptime before last reboot
+  uint8_t reserved[8];
+} WatchdogState;
+
+/* ============================================================================
  * NETWORK CONFIGURATION (v3.0+)
  * ============================================================================ */
 
@@ -302,6 +339,9 @@ typedef struct __attribute__((packed)) {
 
   // GPIO2 configuration (heartbeat control)
   uint8_t gpio2_user_mode;  // 0 = heartbeat mode (default), 1 = user mode (GPIO2 available)
+
+  // Persistent register groups (v4.0+)
+  PersistentRegisterData persist_regs;
 
   // Reserved for future features
   uint8_t reserved[8];  // Reserved space for future use

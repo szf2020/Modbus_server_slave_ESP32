@@ -6,6 +6,7 @@
  */
 
 #include "st_builtins.h"
+#include "st_builtin_persist.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -179,6 +180,15 @@ st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_
       result = st_builtin_int_to_dword(arg1);
       break;
 
+    // Persistence (v4.0+)
+    case ST_BUILTIN_PERSIST_SAVE:
+      result = st_builtin_persist_save();
+      break;
+
+    case ST_BUILTIN_PERSIST_LOAD:
+      result = st_builtin_persist_load();
+      break;
+
     default:
       // Unknown function - return zero
       break;
@@ -208,6 +218,8 @@ const char *st_builtin_name(st_builtin_func_t func_id) {
     case ST_BUILTIN_INT_TO_BOOL:   return "INT_TO_BOOL";
     case ST_BUILTIN_DWORD_TO_INT:  return "DWORD_TO_INT";
     case ST_BUILTIN_INT_TO_DWORD:  return "INT_TO_DWORD";
+    case ST_BUILTIN_PERSIST_SAVE:  return "SAVE";
+    case ST_BUILTIN_PERSIST_LOAD:  return "LOAD";
     default:                       return "UNKNOWN";
   }
 }
@@ -234,6 +246,11 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_MAX:
     case ST_BUILTIN_SUM:
       return 2;
+
+    // 0-argument functions (v4.0+)
+    case ST_BUILTIN_PERSIST_SAVE:
+    case ST_BUILTIN_PERSIST_LOAD:
+      return 0;
 
     default:
       return 0;
