@@ -1,8 +1,8 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v3.3.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.1.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
-En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering, Wi-Fi netværk, og telnet CLI interface.
+En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
 
 ---
 
@@ -108,8 +108,8 @@ Hver timer har **4 modes:**
 - **Status Readback:** current phase, running state, output state
 - **Persistent Configuration:** gemmes til NVS
 
-### ST Logic Programming (Structured Text)
-4 uafhængige logic programmer med IEC 61131-3 ST syntax:
+### ST Logic Programming (Structured Text) - v4.1.0
+4 uafhængige logic programmer med IEC 61131-3 ST syntax og **advanced performance monitoring**:
 
 **Language Features:**
 - **Variable Types:** INT, BOOL, REAL (16-bit, 1-bit, float)
@@ -123,12 +123,24 @@ Hver timer har **4 modes:**
 **Compiler & Runtime:**
 - **Bytecode Compilation:** Real-time compilation ved upload
 - **Zero Interpreter Overhead:** Direct bytecode execution
-- **Execution Rate:** Konfigurerbar (default: 10ms per program)
-- **Variable Binding:** ST variables ↔ Modbus holding registers
+- **Fixed Rate Scheduler:** Deterministic 10ms execution cycle (±1ms jitter)
+- **Dynamic Interval Control:** Adjust execution interval (10/20/25/50/75/100 ms)
+- **Variable Binding:** ST variables ↔ Modbus registers/coils (with type checking)
 - **Program Size:** Max 2KB source code per program
 - **Bytecode Size:** Max 1KB compiled bytecode per program
-- **Error Handling:** Compile errors with line numbers
-- **Runtime Statistics:** Execution count, error count, last execution time
+- **Error Handling:** Compile errors with line numbers, runtime timeout protection
+
+**Performance Monitoring (v4.1.0):**
+- **Execution Statistics:** Min/Max/Avg execution time (microsecond precision)
+- **Overrun Tracking:** Counts executions where time > target interval
+- **Global Cycle Stats:** Min/Max cycle time, total cycles executed
+- **Performance Ratings:** EXCELLENT/GOOD/ACCEPTABLE/POOR with auto recommendations
+- **CLI Commands:**
+  - `show logic stats` - Display all program performance statistics
+  - `show logic X timing` - Detailed analysis for specific program
+  - `set logic stats reset [all|cycle|1-4]` - Reset statistics
+  - `set logic interval:X` - Change execution interval dynamically
+- **Modbus Access:** Read statistics from IR 252-293, control interval via HR 236-237
 
 **Variable I/O Binding:**
 ```
@@ -140,13 +152,25 @@ ST Variable ↔ Discrete Input (read-only bit)
 
 **CLI Commands:**
 ```bash
-set logic <id> upload          # Upload ST source code
-set logic <id> enable on       # Enable program execution
-set logic <id> enable off      # Disable program
-set logic <id> delete          # Delete program
-show logic                     # Show all programs status
-show logic <id>                # Show specific program
-show logic <id> code           # Show compiled bytecode
+# Program Management
+set logic <id> upload            # Upload ST source code
+set logic <id> enabled:true      # Enable program execution
+set logic <id> enabled:false     # Disable program
+set logic <id> delete            # Delete program
+set logic <id> bind <var> reg:X  # Bind variable to register
+
+# Performance Monitoring (v4.1.0)
+show logic stats                 # All programs performance stats
+show logic <id> timing           # Detailed timing analysis
+show logic <id>                  # Specific program details
+set logic stats reset all        # Reset all statistics
+set logic stats reset cycle      # Reset global cycle stats
+set logic stats reset <1-4>      # Reset specific program stats
+
+# Execution Control (v4.1.0)
+set logic interval:10            # Set execution interval (10/20/25/50/75/100 ms)
+set logic debug:true             # Enable debug output
+set logic debug:false            # Disable debug output
 ```
 
 ### Networking Features (v3.0+)
@@ -1443,34 +1467,52 @@ if client.connect():
 
 ## 📝 Version History
 
+- **v4.1.0** (2025-12-12) - ⭐ ST Logic Performance Monitoring & Modbus Integration
+  - **Performance monitoring system:** Min/Max/Avg execution time tracking (µs precision)
+  - **CLI commands:** `show logic stats`, `show logic X timing`, `set logic stats reset`
+  - **Modbus statistics:** IR 252-293 (42 new registers for statistics)
+  - **Dynamic interval control:** `set logic interval:X` (10/20/25/50/75/100 ms)
+  - **Modbus interval control:** HR 236-237 (32-bit read-write)
+  - **Fixed 7 bugs:** BUG-001 to BUG-007 (all CRITICAL-MEDIUM severity)
+  - **Documentation:** MODBUS_REGISTER_MAP.md, ST_MONITORING.md, TIMING_ANALYSIS.md, BUGS.md
+  - Fixed rate scheduler with deterministic 10ms timing
+  - Performance ratings with automatic tuning recommendations
+
+- **v4.0.2** (2025-12-11) - Telnet Auth Fix
+  - Fixed password validation failure due to whitespace
+  - Added `trim_string()` helper for input sanitization
+
+- **v4.0.1** (2025-12-11) - CLI Persist Enable Fix
+  - Fixed `set persist enable` command error
+
+- **v4.0.0** (2025-12-10) - Persistent Registers & Watchdog Monitor
+  - Persistent register groups (save/restore to NVS)
+  - ST Logic SAVE()/LOAD() functions
+  - Watchdog monitor with auto-restart
+  - Reboot counter and diagnostics
+
 - **v3.2.0** (2025-12-09) - CLI Commands Complete + Persistent Settings
   - `show counter <id>` and `show timer <id>` detailed views
   - `set hostname` now persistent (saved to NVS)
   - `set echo` now persistent (saved to NVS)
   - Schema v7 with automatic migration
-  - Fixed `show debug` command normalization
-  - Removed duplicate hostname display bug
 
 - **v3.1.1** (2025-12-08) - Telnet Insert Mode & ST Upload Copy/Paste
   - Telnet cursor position editing (insert mode)
   - Fixed multi-line ST Logic copy/paste into telnet
-  - Improved telnet line editing UX
 
 - **v3.1.0** (2025-12-05) - Wi-Fi Display & Telnet Auth Improvements
   - Enhanced `show config` with Wi-Fi section
   - `show wifi` displays actual IP (DHCP/static)
-  - Telnet status correctly reads from config
   - Wi-Fi connection validation with error messages
-  - Debug flags for Wi-Fi troubleshooting
 
 - **v3.0.0** (2025-12-02) - Telnet Server & Console Layer
   - Telnet CLI on port 23
   - Console abstraction (Serial/Telnet unified)
   - Remote authentication (username/password)
   - Arrow key command history
-  - `exit` command for graceful disconnect
 
-See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+See [CHANGELOG.md](CHANGELOG.md) for complete version history with all details.
 
 ---
 
@@ -1553,18 +1595,50 @@ Please describe:
 ---
 
 **Maintained by:** Jan Green Larsen
-**Last Updated:** 2025-12-09
+**Last Updated:** 2025-12-12
 **Repository:** https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32
 
 ---
 
 ## 📚 Additional Documentation
 
-For more detailed information, see:
+### Core Documentation (Root)
+- **[MODBUS_REGISTER_MAP.md](MODBUS_REGISTER_MAP.md)** - ⭐ **COMPLETE Modbus register reference**
+  - All registers: Fixed (ST Logic) + Dynamic (Counters/Timers/GPIO)
+  - IR 200-293: ST Logic status & performance statistics
+  - HR 200-237: ST Logic control & interval
+  - Address collision avoidance guide
+  - Python pymodbus examples
+
+- **[ST_MONITORING.md](ST_MONITORING.md)** - ⭐ **ST Logic performance tuning guide**
+  - CLI commands: show logic stats, show logic X timing
+  - Performance monitoring workflow
+  - Optimization strategies
+  - Modbus register access examples
+  - Common issues & solutions
+
+- **[TIMING_ANALYSIS.md](TIMING_ANALYSIS.md)** - ST Logic timing deep dive
+  - Fixed rate scheduler analysis
+  - Execution interval control
+  - Jitter analysis and recommendations
+
+- **[BUGS.md](BUGS.md)** - Bug tracking system
+  - 7 bugs (all FIXED in v4.1.0)
+  - Test plans and function references
+
+- **[CHANGELOG.md](CHANGELOG.md)** - Complete version history
+  - v4.1.0: Performance monitoring & Modbus integration
+  - v4.0.0-v4.0.2: Persistent registers & watchdog
+  - v3.0.0-v3.3.0: Telnet & Wi-Fi features
+
+- **[CLAUDE.md](CLAUDE.md)** - Developer guidelines (Danish)
+  - Architecture overview
+  - Coding standards
+  - Version control workflow
+
+### Feature Guides (docs/)
 - **[docs/README_ST_LOGIC.md](docs/README_ST_LOGIC.md)** - ST Logic programming guide
 - **[docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md)** - Feature-by-feature documentation
-- **[docs/ESP32_Module_Architecture.md](docs/ESP32_Module_Architecture.md)** - Deep-dive architecture
+- **[docs/ESP32_Module_Architecture.md](docs/ESP32_Module_Architecture.md)** - Architecture deep-dive
 - **[docs/GPIO_MAPPING_GUIDE.md](docs/GPIO_MAPPING_GUIDE.md)** - GPIO configuration guide
 - **[docs/COUNTER_COMPARE_REFERENCE.md](docs/COUNTER_COMPARE_REFERENCE.md)** - Counter compare feature
-- **[CHANGELOG.md](CHANGELOG.md)** - Complete version history
-- **[CLAUDE.md](CLAUDE.md)** - Developer guidelines (Danish)
