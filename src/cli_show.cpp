@@ -80,7 +80,7 @@ void cli_cmd_show_config(void) {
       any_counter = true;
       debug_print("  counter ");
       debug_print_uint(id);
-      debug_print(" ENABLED");
+      debug_print(": enabled");
 
       // edge mode
       const char* edge_str = "rising";
@@ -167,7 +167,7 @@ void cli_cmd_show_config(void) {
     }
   }
   if (!any_counter) {
-    debug_println("counters (none enabled)");
+    debug_println("  (none configured)");
   }
 
   // Counter control block (if any enabled)
@@ -187,7 +187,7 @@ void cli_cmd_show_config(void) {
       if (counter_config_get(id, &cfg) && cfg.enabled) {
         debug_print("  counter");
         debug_print_uint(id);
-        debug_print(" reset-on-read DISABLE auto-start DISABLE");
+        debug_print(" reset-on-read disabled auto-start disabled");
         debug_println("");
       }
     }
@@ -260,24 +260,23 @@ void cli_cmd_show_config(void) {
     }
   }
   if (!any_timer) {
-    debug_println("timers (none enabled)");
+    debug_println("  (none configured)");
   }
   debug_println("");
 
   // GPIO Mappings section
-  debug_println("=== GPIO MAPPINGS ===\n");
+  debug_println("gpio");
 
   // GPIO2 status (heartbeat control)
-  debug_print("GPIO 2 Status: ");
+  debug_print("  gpio2: ");
   if (g_persist_config.gpio2_user_mode == 0) {
-    debug_println("HEARTBEAT (LED blink aktiv)");
+    debug_println("heartbeat (led blink)");
   } else {
-    debug_println("USER MODE (frigivet til bruger)");
+    debug_println("user mode");
   }
-  debug_println("  Kommandoer: 'set gpio 2 enable' / 'set gpio 2 disable'");
   debug_println("");
 
-  debug_println("Hardware (fixed):");
+  debug_println("hardware (fixed):");
   debug_println("  GPIO 4  - UART1 RX (Modbus)");
   debug_println("  GPIO 5  - UART1 TX (Modbus)");
   debug_println("  GPIO 15 - RS485 DIR");
@@ -303,45 +302,42 @@ void cli_cmd_show_config(void) {
 
   // Show GPIO mappings
   if (gpio_count > 0) {
-    debug_print("GPIO Mappings (");
+    debug_print("mappings (");
     debug_print_uint(gpio_count);
     debug_println("):");
     for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
       const VariableMapping* map = &g_persist_config.var_maps[i];
       if (map->source_type != MAPPING_SOURCE_GPIO) continue;
 
-      debug_print("  GPIO ");
+      debug_print("  gpio");
       debug_print_uint(map->gpio_pin);
-      debug_print(" - ");
+      debug_print(" -> ");
       if (map->is_input) {
-        debug_print("INPUT:");
+        debug_print("input:");
         debug_print_uint(map->input_reg);
       } else {
-        debug_print("COIL:");
+        debug_print("coil:");
         debug_print_uint(map->coil_reg);
       }
       if (map->associated_counter != 0xff) {
-        debug_print(" (Counter ");
+        debug_print(" (counter");
         debug_print_uint(map->associated_counter);
         debug_print(")");
       }
       if (map->associated_timer != 0xff) {
-        debug_print(" (Timer ");
+        debug_print(" (timer");
         debug_print_uint(map->associated_timer);
         debug_print(")");
       }
-      debug_print("  [remove: 'no set gpio ");
-      debug_print_uint(map->gpio_pin);
-      debug_print("']");
       debug_println("");
     }
   } else {
-    debug_println("GPIO Mappings: (none)");
+    debug_println("mappings: (none)");
   }
 
   // Show ST Logic variable bindings
   if (st_count > 0) {
-    debug_print("ST Logic Bindings (");
+    debug_print("bindings (");
     debug_print_uint(st_count);
     debug_println("):");
 
@@ -351,146 +347,197 @@ void cli_cmd_show_config(void) {
       const VariableMapping* map = &g_persist_config.var_maps[i];
       if (map->source_type != MAPPING_SOURCE_ST_VAR) continue;
 
-      debug_print("  Logic");
+      debug_print("  logic");
       debug_print_uint(map->st_program_id + 1);
-      debug_print(" var[");
+      debug_print(".");
 
       // Lookup variable name from bytecode
       st_logic_program_config_t *prog = st_logic_get_program(st_state, map->st_program_id);
       if (prog && prog->compiled && map->st_var_index < prog->bytecode.var_count) {
         debug_print(prog->bytecode.var_names[map->st_var_index]);
       } else {
-        debug_print_uint(map->st_var_index);  // Fallback if name not available
+        debug_print("var");
+        debug_print_uint(map->st_var_index);
       }
 
-      debug_print("] ");
+      debug_print(" ");
 
       if (map->is_input) {
         // INPUT mode: check if it's a Holding Register or Discrete Input
         debug_print("<- ");
         if (map->input_type == 1) {
-          debug_print("INPUT:");  // Discrete Input
+          debug_print("input:");  // Discrete Input
         } else {
-          debug_print("REG:");    // Holding Register input
+          debug_print("reg:");    // Holding Register input
         }
         debug_print_uint(map->input_reg);
-        debug_print(" (input)");
       } else {
         // OUTPUT mode: check if it's a Coil or Holding Register
         debug_print("-> ");
         if (map->output_type == 1) {
-          debug_print("COIL:");  // Coil output
+          debug_print("coil:");  // Coil output
         } else {
-          debug_print("REG:");   // Holding Register output
+          debug_print("reg:");   // Holding Register output
         }
         debug_print_uint(map->coil_reg);
-        debug_print(" (output)");
       }
       debug_println("");
     }
   } else {
-    debug_println("ST Logic Bindings: (none)");
+    debug_println("bindings: (none)");
   }
   debug_println("");
 
-  // ST Logic Programs section
-  debug_println("=== ST LOGIC PROGRAMS ===\n");
-
+  // ST Logic section moved to later (after persistence) for better grouping
   st_logic_engine_state_t *st_state = st_logic_get_state();
-  bool any_program = false;
 
-  for (uint8_t id = 0; id < 4; id++) {
-    st_logic_program_config_t *prog = st_logic_get_program(st_state, id);
-    if (prog && prog->source_size > 0) {
-      any_program = true;
-      debug_print("  Logic");
-      debug_print_uint(id + 1);
-      debug_print(" - ");
+  // =========================================================================
+  // WIFI/NETWORK (v3.0+)
+  // =========================================================================
+  debug_println("wifi");
+  debug_print("  status: ");
+  debug_println(g_persist_config.network.enabled ? "enabled" : "disabled");
 
-      // Status indicator
-      if (!prog->compiled) {
-        debug_print("[NOT COMPILED] ");
-      } else if (!prog->enabled) {
-        debug_print("[DISABLED] ");
-      } else {
-        debug_print("[ENABLED] ");
-      }
+  debug_print("  ssid: ");
+  debug_println(g_persist_config.network.ssid[0] ? g_persist_config.network.ssid : "(not set)");
 
-      // Source code size
-      debug_print("Source: ");
-      debug_print_uint(prog->source_size);
-      debug_print(" bytes");
+  debug_print("  password: ");
+  debug_println(g_persist_config.network.password[0] ? "********" : "(not set)");
 
-      // Execution stats
-      debug_print(" | Executions: ");
-      debug_print_uint(prog->execution_count);
-
-      if (prog->error_count > 0) {
-        debug_print(" | Errors: ");
-        debug_print_uint(prog->error_count);
-        if (prog->last_error[0] != '\0') {
-          debug_print(" (Last: ");
-          debug_print(prog->last_error);
-          debug_print(")");
-        }
-      }
-
-      debug_println("");
-    }
-  }
-
-  if (!any_program) {
-    debug_println("  (No ST Logic programs configured)");
-    debug_println("  Use: 'set logic <1-4> upload' to upload a program");
-  }
-  debug_println("");
-
-  // WiFi/Network configuration section (v3.0+)
-  debug_println("\nINTERFACE WIFI");
-  debug_print("  ENABLE STATUS: ");
-  debug_println(g_persist_config.network.enabled ? "ENABLE" : "DISABLE");
-
-  debug_print("  SSID: ");
-  debug_println(g_persist_config.network.ssid[0] ? g_persist_config.network.ssid : "(NOT SET)");
-
-  debug_print("  PSK PASSWORD: ");
-  debug_println(g_persist_config.network.password[0] ? g_persist_config.network.password : "(NOT SET)");
-
-  debug_print("  DHCP STATUS: ");
-  debug_println(g_persist_config.network.dhcp_enabled ? "ENABLE" : "DISABLE");
+  debug_print("  dhcp: ");
+  debug_println(g_persist_config.network.dhcp_enabled ? "enabled" : "disabled");
 
   if (!g_persist_config.network.dhcp_enabled) {
     char ip_str[16];
-    debug_print("  STATIC IP: ");
+    debug_print("  static ip: ");
     network_config_ip_to_str(g_persist_config.network.static_ip, ip_str);
     debug_println(ip_str);
 
-    debug_print("  STATIC GATEWAY: ");
+    debug_print("  gateway: ");
     network_config_ip_to_str(g_persist_config.network.static_gateway, ip_str);
     debug_println(ip_str);
 
-    debug_print("  STATIC SUBNET: ");
+    debug_print("  netmask: ");
     network_config_ip_to_str(g_persist_config.network.static_netmask, ip_str);
     debug_println(ip_str);
 
-    debug_print("  STATIC DNS: ");
+    debug_print("  dns: ");
     network_config_ip_to_str(g_persist_config.network.static_dns, ip_str);
     debug_println(ip_str);
   }
 
-  debug_print("  TELNET STATUS: ");
-  debug_println(g_persist_config.network.telnet_enabled ? "ENABLE" : "DISABLE");
+  debug_println("telnet");
+  debug_print("  status: ");
+  debug_println(g_persist_config.network.telnet_enabled ? "enabled" : "disabled");
 
-  debug_print("  TELNET PORT: ");
+  debug_print("  port: ");
   debug_print_uint(g_persist_config.network.telnet_port);
   debug_println("");
 
-  debug_print("  TELNET USER: ");
-  debug_println(g_persist_config.network.telnet_username[0] ? g_persist_config.network.telnet_username : "(NOT SET)");
+  debug_print("  username: ");
+  debug_println(g_persist_config.network.telnet_username[0] ? g_persist_config.network.telnet_username : "(not set)");
 
-  debug_print("  TELNET PASS: ");
-  // debug_println(g_persist_config.network.telnet_password[0] ? "(SET)" : "(NOT SET)");
-  debug_println(g_persist_config.network.telnet_password[0] ? g_persist_config.network.telnet_password : "(NOT SET)");
+  debug_print("  password: ");
+  debug_println(g_persist_config.network.telnet_password[0] ? "********" : "(not set)");
+
+  // =========================================================================
+  // PERSISTENCE (v4.0+)
+  // =========================================================================
+  debug_println("persistence");
+  debug_print("  status: ");
+  debug_println(g_persist_config.persist_regs.enabled ? "enabled" : "disabled");
+
+  debug_print("  groups: ");
+  debug_print_uint(g_persist_config.persist_regs.group_count);
+  debug_print(" / ");
+  debug_print_uint(PERSIST_MAX_GROUPS);
+  debug_println("");
+
+  if (g_persist_config.persist_regs.group_count > 0) {
+    for (uint8_t i = 0; i < g_persist_config.persist_regs.group_count; i++) {
+      PersistGroup* grp = &g_persist_config.persist_regs.groups[i];
+      debug_print("  grp");
+      debug_print_uint(i + 1);  // Group number (1-indexed for ST Logic)
+      debug_print(" \"");
+      debug_print(grp->name);
+      debug_print("\" (");
+      debug_print_uint(grp->reg_count);
+      debug_print(" regs): ");
+
+      // Show register addresses
+      for (uint8_t j = 0; j < grp->reg_count; j++) {
+        if (j > 0) debug_print(", ");
+        debug_print_uint(grp->reg_addresses[j]);
+      }
+      debug_println("");
+    }
+  } else {
+    debug_println("  (none configured)");
+  }
+
+  // =========================================================================
+  // ST LOGIC (v3.0+)
+  // =========================================================================
+  // st_state already declared earlier in this function (line 397)
+
+  debug_println("st-logic");
+  debug_print("  status: ");
+  debug_println(st_state->enabled ? "enabled" : "disabled");
+
+  debug_print("  debug: ");
+  debug_println(st_state->debug ? "enabled" : "disabled");
+
+  debug_print("  interval: ");
+  debug_print_uint(st_state->execution_interval_ms);
+  debug_println(" ms");
+
+  debug_print("  cycles: ");
+  debug_print_uint(st_state->total_cycles);
+  debug_println("");
+
+  // Show individual programs (all 4 slots, even if empty)
+  for (uint8_t i = 0; i < 4; i++) {
+    st_logic_program_config_t* prog = &st_state->programs[i];
+
+    debug_print("  logic");
+    debug_print_uint(i + 1);
+    debug_print(": ");
+
+    if (prog->source_size == 0 && !prog->compiled) {
+      // Empty slot - show (none configured) and binding count if any
+      debug_print("(none configured)");
+      if (prog->binding_count > 0) {
+        debug_print(", register bindings=");
+        debug_print_uint(prog->binding_count);
+      }
+    } else if (!prog->compiled) {
+      debug_print("not compiled");
+      if (prog->binding_count > 0) {
+        debug_print(", register bindings=");
+        debug_print_uint(prog->binding_count);
+      }
+    } else if (!prog->enabled) {
+      // Disabled but compiled
+      debug_print("disabled");
+      if (prog->binding_count > 0) {
+        debug_print(", register bindings=");
+        debug_print_uint(prog->binding_count);
+      }
+    } else {
+      // Enabled and compiled
+      debug_print("enabled");
+      debug_print(", register bindings=");
+      debug_print_uint(prog->binding_count);
+      debug_print(", exec=");
+      debug_print_uint(prog->execution_count);
+
+      if (prog->error_count > 0) {
+        debug_print(", errors=");
+        debug_print_uint(prog->error_count);
+      }
+    }
+    debug_println("");
+  }
 }
 
 /* ============================================================================
