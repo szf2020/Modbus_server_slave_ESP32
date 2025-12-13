@@ -168,11 +168,13 @@ int cli_cmd_set_logic_debug(st_logic_engine_state_t *logic_state, bool debug) {
  *
  * Set global execution interval for all ST Logic programs
  *
- * Allowed values: 10, 20, 25, 50, 75, 100 ms
+ * Allowed values: 2, 5, 10, 20, 25, 50, 75, 100 ms
  *
  * Example:
- *   set logic interval:10
- *   set logic interval:50
+ *   set logic interval:2     # 2ms (very fast, may cause performance issues)
+ *   set logic interval:5     # 5ms (fast)
+ *   set logic interval:10    # 10ms (default)
+ *   set logic interval:50    # 50ms (slow)
  *
  * @param logic_state Logic engine state
  * @param interval_ms Execution interval in milliseconds
@@ -185,11 +187,17 @@ int cli_cmd_set_logic_interval(st_logic_engine_state_t *logic_state, uint32_t in
   }
 
   // Validate interval (only allow specific values)
-  if (interval_ms != 10 && interval_ms != 20 && interval_ms != 25 &&
-      interval_ms != 50 && interval_ms != 75 && interval_ms != 100) {
-    debug_printf("ERROR: Invalid interval %ums (allowed: 10, 20, 25, 50, 75, 100)\n",
+  if (interval_ms != 2 && interval_ms != 5 && interval_ms != 10 && interval_ms != 20 &&
+      interval_ms != 25 && interval_ms != 50 && interval_ms != 75 && interval_ms != 100) {
+    debug_printf("ERROR: Invalid interval %ums (allowed: 2, 5, 10, 20, 25, 50, 75, 100)\n",
                  (unsigned int)interval_ms);
     return -1;
+  }
+
+  // Warn if very fast interval (may impact other system functions)
+  if (interval_ms < 10) {
+    debug_printf("⚠️  WARNING: Very fast interval (%ums) may impact other system operations\n",
+                 (unsigned int)interval_ms);
   }
 
   logic_state->execution_interval_ms = interval_ms;
