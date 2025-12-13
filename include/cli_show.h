@@ -138,5 +138,12 @@ void cli_cmd_read_coil(uint8_t argc, char* argv[]);
  */
 void cli_cmd_read_input(uint8_t argc, char* argv[]);
 
+/**
+ * @brief Handle "read input-reg <start> <count>" command
+ * @param argc Argument count (must be 2)
+ * @param argv Argument array (argv[0] = start addr, argv[1] = count)
+ */
+void cli_cmd_read_input_reg(uint8_t argc, char* argv[]);
+
 #endif // CLI_SHOW_H
 

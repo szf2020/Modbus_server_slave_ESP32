@@ -136,6 +136,7 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "COILS") || !strcmp(s, "coils")) return "COILS";
   if (!strcmp(s, "INPUTS") || !strcmp(s, "inputs")) return "INPUTS";
   if (!strcmp(s, "INPUT") || !strcmp(s, "input")) return "INPUT";
+  if (!strcmp(s, "INPUT-REG") || !strcmp(s, "input-reg") || !strcmp(s, "INPUT_REG") || !strcmp(s, "input_reg")) return "INPUT-REG";
   if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
@@ -145,7 +146,7 @@ static const char* normalize_alias(const char* s) {
   // Logic subcommands
   if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
   if (!strcmp(s, "PROGRAMS") || !strcmp(s, "programs")) return "PROGRAM";
-  if (!strcmp(s, "STATS") || !strcmp(s, "stats")) return "STATS";
+  if (!strcmp(s, "STATS") || !strcmp(s, "stats") || !strcmp(s, "ST-STATS") || !strcmp(s, "st-stats")) return "ST-STATS";
   if (!strcmp(s, "ERRORS") || !strcmp(s, "errors")) return "ERRORS";
   if (!strcmp(s, "ALL") || !strcmp(s, "all")) return "ALL";
   if (!strcmp(s, "CODE") || !strcmp(s, "code")) return "CODE";
@@ -1021,8 +1022,11 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "INPUT")) {
       cli_cmd_read_input(argc - 2, argv + 2);
       return true;
+    } else if (!strcmp(what, "INPUT-REG")) {
+      cli_cmd_read_input_reg(argc - 2, argv + 2);
+      return true;
     } else {
-      debug_println("READ: ukendt argument (brug: reg, coil, input)");
+      debug_println("READ: ukendt argument (brug: reg, coil, input, input-reg)");
       return false;
     }
 
@@ -1105,6 +1109,7 @@ void cli_parser_print_help(void) {
   debug_println("  read reg <id> <antal>              - Read holding registers");
   debug_println("  read coil <id> <antal>             - Read coils");
   debug_println("  read input <id> <antal>            - Read discrete inputs");
+  debug_println("  read input-reg <id> <antal>        - Read input registers (IR 0-1023)");
   debug_println("  write reg <id> value <0..65535>    - Write holding register");
   debug_println("  write coil <id> value <on|off>     - Write coil");
   debug_println("");

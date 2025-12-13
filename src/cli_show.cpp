@@ -1570,6 +1570,69 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
 }
 
 /* ============================================================================
+ * READ INPUT REGISTERS (from Modbus IR, including stats IR 252-293)
+ * ============================================================================ */
+
+void cli_cmd_read_input_reg(uint8_t argc, char* argv[]) {
+  // read input-reg <start> <count> - Read Input Registers (0-1023)
+  if (argc < 2) {
+    debug_println("READ INPUT-REG: manglende parametre");
+    debug_println("  Brug: read input-reg <start> <count>");
+    debug_println("  Eksempel: read input-reg 252 8   (ST Logic stats)");
+    return;
+  }
+
+  uint16_t start_addr = atoi(argv[0]);
+  uint16_t count = atoi(argv[1]);
+  uint16_t *input_regs = registers_get_input_regs();
+
+  // Validate parameters (input registers can be larger than holding regs)
+  if (start_addr >= 1024) {  // Modbus limit
+    debug_println("READ INPUT-REG: startadresse udenfor område (max 1023)");
+    return;
+  }
+
+  if (count == 0) {
+    debug_println("READ INPUT-REG: antal skal være større end 0");
+    return;
+  }
+
+  // Adjust count if it exceeds available input registers
+  if (start_addr + count > 1024) {
+    count = 1024 - start_addr;
+    debug_print("READ INPUT-REG: justeret antal til ");
+    debug_print_uint(count);
+    debug_println(" registre");
+  }
+
+  // Read and display input registers
+  debug_println("\n=== LÆSNING AF INPUT REGISTERS ===");
+  debug_print("Adresse ");
+  debug_print_uint(start_addr);
+  debug_print(" til ");
+  debug_print_uint(start_addr + count - 1);
+  debug_println(":\n");
+
+  for (uint16_t i = 0; i < count; i++) {
+    uint16_t addr = start_addr + i;
+    uint16_t value = input_regs[addr];
+
+    debug_print("IR[");
+    debug_print_uint(addr);
+    debug_print("]: ");
+    debug_print_uint(value);
+
+    // Special info for ST Logic stats registers
+    if (addr >= 252 && addr <= 293) {
+      debug_print(" [ST Logic stats]");
+    }
+
+    debug_println("");
+  }
+  debug_println("");
+}
+
+/* ============================================================================
  * READ COIL
  * ============================================================================ */
 
