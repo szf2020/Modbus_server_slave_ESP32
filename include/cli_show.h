@@ -78,6 +78,11 @@ void cli_cmd_show_coils(void);
 void cli_cmd_show_inputs(void);
 
 /**
+ * @brief Handle "show st-stats" command (ST Logic performance stats from Modbus IR 252-293)
+ */
+void cli_cmd_show_st_logic_stats_modbus(void);
+
+/**
  * @brief Handle "show version" command
  */
 void cli_cmd_show_version(void);

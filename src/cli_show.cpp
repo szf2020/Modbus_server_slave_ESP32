@@ -1255,6 +1255,65 @@ void cli_cmd_show_inputs(void) {
 }
 
 /* ============================================================================
+ * SHOW ST LOGIC STATS (from Modbus Input Registers 252-293)
+ * ============================================================================ */
+
+void cli_cmd_show_st_logic_stats_modbus(void) {
+  debug_println("\n=== ST Logic Performance Statistics (Modbus IR 252-293) ===\n");
+
+  uint16_t *input_regs = registers_get_input_regs();
+
+  // Helper to read 32-bit value from 2x input registers
+  auto read_32bit = [&](uint16_t addr) -> uint32_t {
+    uint32_t high = input_regs[addr];
+    uint32_t low = input_regs[addr + 1];
+    return (high << 16) | low;
+  };
+
+  debug_println("Per-Program Min Execution Time (µs):");
+  for (uint8_t i = 0; i < 4; i++) {
+    uint32_t min_us = read_32bit(252 + (i * 2));
+    debug_printf("  Logic%d: %u µs (%.3f ms)\n", i + 1, (unsigned int)min_us, min_us / 1000.0);
+  }
+
+  debug_println("\nPer-Program Max Execution Time (µs):");
+  for (uint8_t i = 0; i < 4; i++) {
+    uint32_t max_us = read_32bit(260 + (i * 2));
+    debug_printf("  Logic%d: %u µs (%.3f ms)\n", i + 1, (unsigned int)max_us, max_us / 1000.0);
+  }
+
+  debug_println("\nPer-Program Avg Execution Time (µs):");
+  for (uint8_t i = 0; i < 4; i++) {
+    uint32_t avg_us = read_32bit(268 + (i * 2));
+    debug_printf("  Logic%d: %u µs (%.3f ms)\n", i + 1, (unsigned int)avg_us, avg_us / 1000.0);
+  }
+
+  debug_println("\nPer-Program Overrun Count:");
+  for (uint8_t i = 0; i < 4; i++) {
+    uint32_t overruns = read_32bit(276 + (i * 2));
+    debug_printf("  Logic%d: %u\n", i + 1, (unsigned int)overruns);
+  }
+
+  debug_println("\nGlobal Cycle Statistics:");
+  uint32_t cycle_min = read_32bit(284);
+  uint32_t cycle_max = read_32bit(286);
+  uint32_t cycle_overruns = read_32bit(288);
+  uint32_t total_cycles = read_32bit(290);
+  uint32_t interval = read_32bit(292);
+
+  debug_printf("  Cycle Min: %u ms\n", (unsigned int)cycle_min);
+  debug_printf("  Cycle Max: %u ms\n", (unsigned int)cycle_max);
+  debug_printf("  Cycle Overruns: %u", (unsigned int)cycle_overruns);
+  if (total_cycles > 0) {
+    float overrun_pct = (float)cycle_overruns / total_cycles * 100.0f;
+    debug_printf(" (%.1f%%)", overrun_pct);
+  }
+  debug_println("");
+  debug_printf("  Total Cycles: %u\n", (unsigned int)total_cycles);
+  debug_printf("  Execution Interval: %u ms\n\n", (unsigned int)interval);
+}
+
+/* ============================================================================
  * SHOW VERSION
  * ============================================================================ */
 

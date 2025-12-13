@@ -199,6 +199,7 @@ static void print_show_help(void) {
   debug_println("  show gpio            - Vis GPIO mappings");
   debug_println("  show registers       - Vis holding registers");
   debug_println("  show inputs          - Vis input registers");
+  debug_println("  show st-stats        - Vis ST Logic stats (Modbus IR 252-293)");
   debug_println("  show coils           - Vis coils");
   debug_println("  show debug           - Vis debug flags");
   debug_println("  show persist         - Vis persistence groups (v4.0+)");
@@ -351,11 +352,21 @@ static void print_persist_help(void) {
   debug_println("Save & Restore:");
   debug_println("  save registers all             - Gem alle grupper til NVS");
   debug_println("  save registers group <name>    - Gem specifik gruppe til NVS");
+  debug_println("  load registers all             - Gendan alle grupper fra NVS");
+  debug_println("  load registers group <name>    - Gendan specifik gruppe fra NVS");
   debug_println("  show persist                   - Vis alle persistence groups");
   debug_println("");
   debug_println("ST Logic Integration:");
-  debug_println("  SAVE()   - Gem alle grupper fra ST program (rate limited)");
-  debug_println("  LOAD()   - Gendan alle grupper fra ST program");
+  debug_println("  SAVE()          - Gem alle grupper fra ST program (rate limited)");
+  debug_println("  LOAD()          - Gendan alle grupper fra ST program");
+  debug_println("  SAVE_GRP1()     - Gem gruppe 1 (index 0)");
+  debug_println("  SAVE_GRP2()     - Gem gruppe 2 (index 1)");
+  debug_println("  SAVE_GRP3()     - Gem gruppe 3 (index 2)");
+  debug_println("  SAVE_GRP4()     - Gem gruppe 4 (index 3)");
+  debug_println("  LOAD_GRP1()     - Gendan gruppe 1 (index 0)");
+  debug_println("  LOAD_GRP2()     - Gendan gruppe 2 (index 1)");
+  debug_println("  LOAD_GRP3()     - Gendan gruppe 3 (index 2)");
+  debug_println("  LOAD_GRP4()     - Gendan gruppe 4 (index 3)");
   debug_println("");
   debug_println("Eksempel:");
   debug_println("  set persist group \"sensors\" add 100 101 102");
@@ -448,6 +459,10 @@ bool cli_parser_execute(char* line) {
       return true;
     } else if (!strcmp(what, "INPUTS")) {
       cli_cmd_show_inputs();
+      return true;
+    } else if (!strcmp(what, "ST-STATS") || !strcmp(what, "STATS")) {
+      // show st-stats or show stats - ST Logic performance stats from Modbus IR 252-293
+      cli_cmd_show_st_logic_stats_modbus();
       return true;
     } else if (!strcmp(what, "VERSION")) {
       cli_cmd_show_version();
@@ -938,8 +953,16 @@ bool cli_parser_execute(char* line) {
     }
 
   } else if (!strcmp(cmd, "LOAD")) {
-    cli_cmd_load();
-    return true;
+    // load  OR  load registers all  OR  load registers group <name>
+    if (argc >= 2 && !strcmp(normalize_alias(argv[1]), "REGISTERS")) {
+      // load registers all|group <name>
+      cli_cmd_load_registers(argc - 2, argv + 2);
+      return true;
+    } else {
+      // load (traditional - load entire config)
+      cli_cmd_load();
+      return true;
+    }
 
   } else if (!strcmp(cmd, "DEFAULTS")) {
     cli_cmd_defaults();
@@ -1071,6 +1094,7 @@ void cli_parser_print_help(void) {
   debug_println("  show registers [start] [count]");
   debug_println("  show coils          - Display coil states");
   debug_println("  show inputs         - Display discrete inputs");
+  debug_println("  show st-stats       - Display ST Logic stats (Modbus IR 252-293)");
   debug_println("  show version        - Display firmware version");
   debug_println("  show gpio           - Display GPIO mappings");
   debug_println("  show echo           - Display remote echo status");
@@ -1230,6 +1254,8 @@ void cli_parser_print_help(void) {
   debug_println("  set persist group <name> add <reg1> [reg2] ...  - Create/extend group");
   debug_println("  save registers all                              - Save all groups to NVS");
   debug_println("  save registers group <name>                     - Save specific group");
+  debug_println("  load registers all                              - Load all groups from NVS");
+  debug_println("  load registers group <name>                     - Load specific group");
   debug_println("  show persist                                    - Show all groups");
   debug_println("  set persist ?                                   - Show detailed help");
   debug_println("");
