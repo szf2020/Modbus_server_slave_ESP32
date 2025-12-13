@@ -1,18 +1,19 @@
 # ST Logic Monitoring & Performance Tuning Guide
 
-**Version:** v4.1.0
-**Dato:** 2025-12-12
+**Version:** v4.1.1
+**Dato:** 2025-12-13
 
 ---
 
 ## 📊 Overview
 
-ST Logic i v4.1.0 inkluderer omfattende performance monitoring værktøjer til at analysere og tune dine Structured Text programmer. Denne guide viser hvordan du bruger disse værktøjer til at optimere performance.
+ST Logic i v4.1.1 inkluderer omfattende performance monitoring værktøjer til at analysere og tune dine Structured Text programmer. Denne guide viser hvordan du bruger disse værktøjer til at optimere performance.
 
 **Ny funktionalitet:**
 - ✅ CLI kommandoer til performance statistik
 - ✅ **Modbus register tilgang til alle statistikker** (Input Registers 252-293)
-- ✅ **Dynamisk interval justering via CLI og Modbus** (10/20/25/50/75/100 ms)
+- ✅ **Dynamisk interval justering via CLI og Modbus** (2, 5, 10, 20, 25, 50, 75, 100 ms) - **NYT i v4.1.1: 2ms og 5ms support tilføjet**
+- ✅ **Persistent interval storage** - Interval nulstilles ikke efter reboot (v4.1.1)
 
 ---
 
@@ -136,11 +137,13 @@ set logic stats reset 1        # Nulstil kun Logic1
 ### 4. `set logic interval:X`
 Juster global execution interval dynamisk.
 
-**Tilladte værdier:** 10, 20, 25, 50, 75, 100 ms
+**Tilladte værdier:** 2, 5, 10, 20, 25, 50, 75, 100 ms **(2ms og 5ms NYT i v4.1.1)**
 
 **Eksempler:**
 ```bash
-set logic interval:10   # Hurtigste (10ms mellem hver cycle)
+set logic interval:2    # Ekstrem hurtig (2ms) - VARNING: kan påvirke andre operationer!
+set logic interval:5    # Meget hurtig (5ms) - VARNING: monitor performance
+set logic interval:10   # Standard hurtig (10ms) - ANBEFALET som default
 set logic interval:50   # Medium hastighed (50ms mellem cycles)
 set logic interval:100  # Langsomste (100ms mellem cycles)
 ```
@@ -151,20 +154,32 @@ set logic interval:100  # Langsomste (100ms mellem cycles)
 Note: Use 'save' command to persist to NVS
 ```
 
+**Output for hurtige intervaller (< 10ms):**
+```
+⚠️  WARNING: Very fast interval (2ms) may impact other system operations
+[OK] ST Logic execution interval set to 2ms
+Note: Use 'save' command to persist to NVS
+```
+
 **Vigtigt:**
-- Ændringer træder i kraft ØJEBLIKKELIGT
-- Skal gemmes med `save` kommando for at overleve reboot
-- Kan også kontrolleres via Modbus (HR 236-237)
+- ✅ Ændringer træder i kraft ØJEBLIKKELIGT
+- ✅ Skal gemmes med `save` kommando for at overleve reboot **(NYT i v4.1.1: persistent)**
+- ✅ Kan også kontrolleres via Modbus (HR 236-237)
+- ⚠️ **Intervaller < 10ms:** Monitor system performance! Kan påvirke Modbus RTU, Wi-Fi, og andre funktioner
 
 **Hvornår skal du ændre interval?**
-- **Reducer interval (10ms):** Når du har simple programmer og behøver hurtigere respons
-- **Øg interval (50-100ms):** Når overruns > 5% eller cycle time > target
+- **2-5ms:** Kun for kritiske real-time applikationer (PID control, sikkerhedssystemer)
+  - Monitor med `show logic stats` - check for overruns
+  - Test grundigt for bivirkninger på Modbus latency
+- **10ms (default):** Balanced mellem performance og system stability
+- **20-50ms:** Når programmer er komplekse og har høj execution time
+- **75-100ms:** Når du har mange programmer eller kan tolerere længere delays
 
 ---
 
-## 📡 Modbus Register Adgang (v4.1.0)
+## 📡 Modbus Register Adgang (v4.1.1)
 
-Alle performance statistikker er tilgængelige via Modbus Input Registers (read-only) og Holding Registers (control).
+Alle performance statistikker er tilgængelige via Modbus Input Registers (read-only) og Holding Registers (control). Execution interval kan også styres via Modbus (HR 236-237), og understøtter alle værdier 2-100ms.
 
 ### Input Registers (Read-Only Status)
 
@@ -205,10 +220,11 @@ Alle performance statistikker er tilgængelige via Modbus Input Registers (read-
 |----------|-------------|------|--------|
 | **236-237** | Execution Interval Control | 32-bit | Read-Write |
 
-**Interval Control (HR 236-237):**
-- Skriv ny interval værdi (10, 20, 25, 50, 75, 100)
+**Interval Control (HR 236-237):** (NYT i v4.1.1: Persistent)
+- Skriv ny interval værdi (2, 5, 10, 20, 25, 50, 75, 100) - **2ms og 5ms NYT i v4.1.1**
 - Validering sker automatisk
 - Ugyldige værdier afvises (register nulstilles til nuværende værdi)
+- **Ændring gemmes automatisk til NVS ved `save` command** (v4.1.1)
 
 **Eksempel (Python med pymodbus):**
 ```python

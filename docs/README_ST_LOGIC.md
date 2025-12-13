@@ -1,6 +1,6 @@
 # 🚀 ST Logic Mode - Complete System Guide
 
-**ESP32 Modbus RTU Server v2.1.0** - Structured Text Programming Engine
+**ESP32 Modbus RTU Server v4.1.1** - Structured Text Programming Engine
 
 ---
 
@@ -28,7 +28,7 @@ ST Logic Mode allows you to upload and execute **Structured Text (ST) programs**
 - ✅ **4 Independent Logic Programs** (Logic1-Logic4)
 - ✅ **IEC 61131-3 Structured Text** (ST-Light Profile)
 - ✅ **Bytecode Compilation** (<100ms per program)
-- ✅ **Non-Blocking Execution** (10ms cycle time, 100 Hz)
+- ✅ **Non-Blocking Execution** (2-100ms cycle time, configurable via `set logic interval:X`)
 - ✅ **Modbus Integration** - Direct register/coil access
 - ✅ **GPIO Control** - UP to 34 GPIO pins via variable binding
 - ✅ **Persistent Storage** - Programs and bindings saved to NVS
@@ -70,7 +70,7 @@ ST Logic Mode allows you to upload and execute **Structured Text (ST) programs**
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 3-Phase Execution Model (Every 10ms)
+### 3-Phase Execution Model (Every execution_interval_ms: 2-100ms, default 10ms)
 
 ```
 Phase 1: SYNC INPUTS (read all inputs)
@@ -123,18 +123,24 @@ set logic 1 upload "VAR counter: INT; led: BOOL; END_VAR IF counter > 50 THEN le
 ### 3. Bind Variables to Modbus
 
 ```bash
-# Bind counter to read from Holding Register #100
+# Bind counter to Holding Register #100 (reads from register, outputs to register)
 set logic 1 bind counter reg:100
 
-# Bind led to write to Coil #0 (GPIO2)
+# Bind led to Coil #0 (GPIO2) (writes to coil)
 set logic 1 bind led coil:0
 ```
 
-**Output:**
+**Output (v4.1.1: Default output mode):**
 ```
-[OK] Logic1: var[0] (counter) ← Modbus HR#100 (input)
-[OK] Logic1: var[1] (led) → Modbus Coil#0 (output)
+[OK] Logic1: var[0] (counter) -> Modbus HR#100
+[OK] Logic1: var[1] (led) -> Modbus Coil#0
 ```
+
+**Note:**
+- `reg:` bindings default to **output** mode (ST var → Modbus register)
+- `coil:` bindings default to **output** mode (ST var → Modbus coil)
+- `input-dis:` bindings use **input** mode only (Modbus discrete input → ST var)
+- v4.1.1 simplified binding model: removed confusing "both" mode duplicates
 
 ### 4. Enable Program
 

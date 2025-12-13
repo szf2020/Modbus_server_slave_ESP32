@@ -4,6 +4,33 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [4.1.1] - 2025-12-13 🔧 (ST Logic Bindings & Persistent Configuration)
+
+### ADDED
+- **Ultra-Fast ST Logic Execution Intervals:** 2ms og 5ms support
+  - `set logic interval:2` for demanding real-time applications
+  - `set logic interval:5` for fast updates
+  - ⚠️ WARNING shown for intervals < 10ms (may impact other operations)
+  - All intervals 2, 5, 10, 20, 25, 50, 75, 100 ms now supported
+
+### FIXED
+- **BUG-012 (HIGH):** ST Logic binding "both" mode creates duplicate output
+  - Fixed: `reg:` and `coil:` bindings now default to "output" mode (not "both")
+  - Result: 6 bindings from 6 commands (was 11 bindings showing both input+output)
+  - Impact: Cleaner binding visualization, reduced memory usage
+
+- **BUG-014 (HIGH):** ST Logic execution_interval_ms not persisted across reboot
+  - Added `st_logic_interval_ms` field to PersistConfig struct
+  - Interval now saved/loaded via normal config persistence
+  - `set logic interval:2` + `save` now survives reboot
+  - Impact: Settings persist correctly, no reset after power cycle
+
+### CHANGED
+- ST Logic binding display now shows "register bindings=X" for all states
+  - More consistent terminology across enabled/disabled/empty slots
+
+---
+
 ## [4.1.0] - 2025-12-12 🎯 (ST Logic Bugfixes, Fixed Rate Scheduler & Performance Monitoring)
 
 ### ADDED
