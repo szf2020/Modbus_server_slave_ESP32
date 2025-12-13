@@ -21,6 +21,9 @@ PersistConfig* config_struct_create_default(void) {
   g_persist_config.hostname[31] = '\0';
   g_persist_config.remote_echo = 1;  // Default: echo ON
 
+  // ST Logic configuration (v4.1+)
+  g_persist_config.st_logic_interval_ms = 10;  // Default: 10ms execution interval
+
   // Initialize all var_maps as unused (important for CRC stability)
   for (uint8_t i = 0; i < 64; i++) {
     g_persist_config.var_maps[i].input_reg = 65535;

@@ -343,6 +343,9 @@ typedef struct __attribute__((packed)) {
   // Persistent register groups (v4.0+)
   PersistentRegisterData persist_regs;
 
+  // ST Logic configuration (v4.1+)
+  uint32_t st_logic_interval_ms;  // Execution interval for all ST Logic programs (default: 10ms)
+
   // Reserved for future features
   uint8_t reserved[8];  // Reserved space for future use
 

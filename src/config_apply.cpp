@@ -15,6 +15,7 @@
 #include "registers_persist.h"
 #include "heartbeat.h"
 #include "cli_shell.h"
+#include "st_logic_config.h"
 #include "debug.h"
 #include <cstddef>
 
@@ -156,6 +157,18 @@ bool config_apply(const PersistConfig* cfg) {
       debug_print_uint(i + 1);
       debug_println(" enabled - configured");
       timer_engine_configure(i + 1, &cfg->timers[i]);
+    }
+  }
+
+  // Apply ST Logic configuration (v4.1+)
+  // BUG-014 FIX: Load execution interval from persistent config
+  debug_print("  ST Logic execution interval: ");
+  debug_print_uint(cfg->st_logic_interval_ms);
+  debug_println("ms");
+  if (cfg->st_logic_interval_ms >= 2 && cfg->st_logic_interval_ms <= 100) {
+    st_logic_engine_state_t *st_state = st_logic_get_state();
+    if (st_state) {
+      st_state->execution_interval_ms = cfg->st_logic_interval_ms;
     }
   }
 

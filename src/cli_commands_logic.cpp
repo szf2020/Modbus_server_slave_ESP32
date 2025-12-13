@@ -201,6 +201,11 @@ int cli_cmd_set_logic_interval(st_logic_engine_state_t *logic_state, uint32_t in
   }
 
   logic_state->execution_interval_ms = interval_ms;
+
+  // BUG-014 FIX: Also update persistent config so interval survives reboot
+  extern PersistConfig g_persist_config;
+  g_persist_config.st_logic_interval_ms = interval_ms;
+
   debug_printf("[OK] ST Logic execution interval set to %ums\n", (unsigned int)interval_ms);
   debug_println("Note: Use 'save' command to persist to NVS");
   return 0;

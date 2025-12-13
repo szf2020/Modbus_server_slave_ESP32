@@ -38,6 +38,9 @@ static void config_init_defaults(PersistConfig* cfg) {
   cfg->persist_regs.enabled = 0;  // Disabled by default
   cfg->persist_regs.group_count = 0;
 
+  // ST Logic configuration (v4.1+)
+  cfg->st_logic_interval_ms = 10;  // Default: 10ms execution interval
+
   // Initialize network config with defaults (v3.0+)
   network_config_init_defaults(&cfg->network);
 
