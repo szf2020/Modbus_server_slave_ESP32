@@ -272,6 +272,45 @@ void counter_engine_handle_control(uint8_t id) {
     registers_set_holding_register(cfg.ctrl_reg, ctrl_val & ~0x0004);
   }
 
+  // BUG-016 FIX: Bit 7: Running flag (persistent state - doesn't auto-clear)
+  // When bit 7 is set, counter should be actively counting
+  // When bit 7 is cleared, counter should be stopped
+  // This provides a persistent "running" state unlike bit 1/2 which are command bits
+  if (ctrl_val & 0x0080) {
+    // Running bit is SET - ensure counter is started
+    switch (cfg.hw_mode) {
+      case COUNTER_HW_SW:
+        counter_sw_start(id);
+        break;
+      case COUNTER_HW_SW_ISR:
+        if (cfg.interrupt_pin > 0) {
+          counter_sw_isr_attach(id, cfg.interrupt_pin);
+        }
+        break;
+      case COUNTER_HW_PCNT:
+        // BUG-015 FIX: Validate GPIO is configured before starting PCNT
+        if (cfg.hw_gpio > 0) {
+          counter_hw_start(id);
+        } else {
+          debug_println("WARNING: Cannot start HW counter - GPIO not configured");
+        }
+        break;
+    }
+  } else {
+    // Running bit is CLEARED - ensure counter is stopped
+    switch (cfg.hw_mode) {
+      case COUNTER_HW_SW:
+        counter_sw_stop(id);
+        break;
+      case COUNTER_HW_SW_ISR:
+        counter_sw_isr_detach(id);
+        break;
+      case COUNTER_HW_PCNT:
+        counter_hw_stop(id);
+        break;
+    }
+  }
+
   // Bit 3: Reset-on-read (sticky bit, remains set until cleared by user)
   // This is handled at Modbus FC level, not here
 }

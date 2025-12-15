@@ -1,8 +1,8 @@
 # Bug Tracking - ESP32 Modbus RTU Server
 
 **Projekt:** Modbus RTU Server (ESP32)
-**Version:** v4.0.2
-**Sidst opdateret:** 2025-12-12
+**Version:** v4.2.0
+**Sidst opdateret:** 2025-12-15
 **Build:** Se `build_version.h` for aktuel build number
 
 ---
@@ -1175,10 +1175,290 @@ show config  → Viser interval: 2 ms (PERSISTENT!)
 
 ---
 
+### BUG-015: HW Counter PCNT ikke initialiseret når hw_gpio ikke sat
+**Status:** ❌ OPEN
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-15
+**Version:** v4.2.0
+
+#### Beskrivelse
+Når bruger konfigurerer en hardware counter (HW mode) men IKKE angiver en GPIO pin (`hw_gpio = 0`), bliver PCNT enheden aldrig initialiseret. Når bruger senere sætter `running:on`, forsøger firmware at styre PCNT'en, hvilket resulterer i "PCNT driver error" kassekader.
+
+**Reproduktion:**
+```
+set counter 1 control auto-start:on
+set counter 1 control running:on
+# E (20264) pcnt: _pcnt_counter_pause(107): PCNT driver error
+# E (20264) pcnt: _pcnt_counter_clear(127): PCNT driver error
+# ... mere fejl
+```
+
+**Root Cause:** `counter_engine_apply()` kontrollerer at `hw_gpio > 0` før `counter_hw_configure()` kalles. Hvis `hw_gpio = 0`, springes PCNT konfiguration over, men counteren markeres alligevel som HW mode.
+
+**Impact:**
+- Kritisk fejl når brugeren aktiverer HW counter uden at have sat GPIO pin
+- PCNT driveren kan ikke håndtere operationer på ukonfigurerede enheder
+- Firmware skal genkonfigureres eller have error handling
+
+#### Påvirkede Funktioner
+
+**Funktion:** `void counter_engine_apply(uint8_t id, CounterConfig *cfg)`
+**Fil:** `src/counter_engine.cpp`
+**Linjer:** 158-162
+**Signatur (v4.2.0):**
+```cpp
+case COUNTER_HW_PCNT:
+  counter_hw_init(id);
+  // ...
+  if (cfg->enabled && cfg->hw_gpio > 0) {
+    counter_hw_configure(id, cfg->hw_gpio);
+  } else {
+    debug_println("  WARNING: PCNT not configured (hw_gpio = 0 or not enabled)");
+  }
+  break;
+```
+
+**Problematisk flow:**
+1. `cfg->hw_gpio = 0` (bruger har ikke sat GPIO pin)
+2. `counter_hw_init()` kaldes (initialiserer state, men NOT PCNT enhed)
+3. `if (cfg->enabled && cfg->hw_gpio > 0)` er FALSE → `counter_hw_configure()` springes over
+4. PCNT enhed forbliver **UNCONFIGURED**
+5. `pcnt_poll_task()` (linje 51 i counter_hw.cpp) forsøger at læse/styre PCNT
+6. PCNT driveren fejler: "PCNT driver error" (enhed ikke konfigureret)
+
+#### Foreslået Fix
+
+**Option 1: Valider hw_gpio før counteren tillades i HW mode**
+
+Tilføj check når bruger sætter `running:on`:
+```cpp
+// I counter_engine.cpp, når running bit sættes:
+if (cfg->hw_mode == COUNTER_HW_PCNT) {
+  if (cfg->hw_gpio == 0) {
+    // Reject: Cannot start HW counter without GPIO pin
+    debug_println("ERROR: Cannot start HW counter - GPIO pin not configured");
+    return false;
+  }
+}
+```
+
+**Option 2: Auto-configure standard GPIO hvis ikke sat**
+
+Tildel default GPIO pin hvis `hw_gpio = 0`:
+```cpp
+if (cfg->enabled && cfg->hw_gpio > 0) {
+  counter_hw_configure(id, cfg->hw_gpio);
+} else if (cfg->enabled && cfg->hw_gpio == 0) {
+  // Use default GPIO for this counter
+  // Counter 1 → GPIO19, Counter 2 → GPIO21, etc.
+  uint8_t default_gpio[] = {19, 21, 23, 25};  // Available pins
+  counter_hw_configure(id, default_gpio[id - 1]);
+  cfg->hw_gpio = default_gpio[id - 1];  // Update config
+}
+```
+
+**Option 3: Better error message i pcnt_driver**
+
+Hvis PCNT unit er unconfigured, return graceful error i stedet for kassekader:
+```cpp
+uint32_t pcnt_unit_get_count(uint8_t unit) {
+  if (unit >= 4 || !pcnt_configured[unit]) {
+    ESP_LOGW("PCNT", "Unit%d not configured!", unit);
+    return 0;  // Return 0 instead of calling driver on unconfigured unit
+  }
+  // ... rest
+}
+```
+
+**Anbefaling:** Option 1 (valider GPIO) + Option 3 (graceful error) kombineret.
+
+#### Dependencies
+- `src/counter_engine.cpp`: `counter_engine_apply()` function
+- `src/counter_hw.cpp`: `pcnt_poll_task()` function
+- `src/pcnt_driver.cpp`: `pcnt_unit_get_count()` function
+- `include/types.h`: `CounterConfig` struct
+
+#### Test Plan
+1. Opret counter i HW mode uden GPIO pin:
+   ```
+   set counter 1 config mode:hw
+   show counter 1
+   # hw_gpio skal vise 0
+   ```
+2. Forsøg at starte counter:
+   ```
+   set counter 1 control running:on
+   ```
+3. **Forventet (før fix):** PCNT driver errors i log
+4. **Forventet (efter fix, option 1):** Error message "Cannot start HW counter - GPIO pin not configured"
+5. **Forventet (efter fix, option 3):** Hvis option 1 ikke implementeres, error logger i stedet for kassekader
+
+#### Workaround (for nu)
+Før du starter HW counter, skal du ALTID sætte en gyldig GPIO pin:
+```
+set counter 1 config mode:hw hw-gpio:19
+set counter 1 control running:on  # Virker nu
+```
+
+---
+
+### BUG-016: Running bit (bit 7) ignoreres fuldstændigt
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-15
+**Fixet:** 2025-12-15
+**Version:** v4.2.0
+
+#### Beskrivelse
+CLI kommandoen `set counter <id> control running:on` sætter bit 7 i ctrl-reg, men `counter_engine_handle_control()` havde INGEN kode til at læse bit 7. Counteren startede derfor ikke.
+
+**Impact:**
+- Brugere kunne IKKE starte counters via `running:on` kommando
+- Counters kørte altid når enabled=1, uanset running bit
+- Kommando var funktionsløs (kun kosmetisk register update)
+
+#### Påvirkede Funktioner
+
+**Funktion:** `void counter_engine_handle_control(uint8_t id)`
+**Fil:** `src/counter_engine.cpp`
+**Linjer:** 219-316 (efter fix)
+
+**Fix implementeret (linje 275-312):**
+```cpp
+// BUG-016 FIX: Bit 7: Running flag (persistent state)
+if (ctrl_val & 0x0080) {
+  // Running bit is SET - ensure counter is started
+  switch (cfg.hw_mode) {
+    case COUNTER_HW_SW: counter_sw_start(id); break;
+    case COUNTER_HW_SW_ISR:
+      if (cfg.interrupt_pin > 0)
+        counter_sw_isr_attach(id, cfg.interrupt_pin);
+      break;
+    case COUNTER_HW_PCNT:
+      if (cfg.hw_gpio > 0)
+        counter_hw_start(id);
+      else
+        debug_println("WARNING: Cannot start HW counter - GPIO not configured");
+      break;
+  }
+} else {
+  // Running bit is CLEARED - ensure counter is stopped
+  switch (cfg.hw_mode) {
+    case COUNTER_HW_SW: counter_sw_stop(id); break;
+    case COUNTER_HW_SW_ISR: counter_sw_isr_detach(id); break;
+    case COUNTER_HW_PCNT: counter_hw_stop(id); break;
+  }
+}
+```
+
+#### Test Plan ✅ IMPLEMENTERET
+1. Opret counter: `set counter 1 mode 1 hw-mode:sw input-dis:45 index-reg:100`
+2. Stop counter: `set counter 1 control running:off`
+3. Start counter: `set counter 1 control running:on`
+4. **Forventet:** Counter tæller nu
+5. **Resultat:** ✅ VIRKER (bit 7 persistent running state fungerer)
+
+---
+
+### BUG-017: Auto-start ikke implementeret
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-15
+**Fixet:** 2025-12-15
+**Version:** v4.2.0
+
+#### Beskrivelse
+CLI kommandoen `set counter <id> control auto-start:on` sætter bit 1 i ctrl-reg, men ved boot/config apply startede counteren IKKE automatisk selvom auto-start var sat.
+
+**Impact:**
+- Auto-start feature virker ikke ved reboot
+- Counters starter kun hvis manuelt aktiveret efter boot
+- Feature virker som forventet (men implementeringen manglede)
+
+#### Påvirkede Funktioner
+
+**Funktion:** `void config_apply(PersistConfig *cfg)`
+**Fil:** `src/config_apply.cpp`
+**Linjer:** 141-162 (efter fix)
+
+**Fix implementeret (linje 150-160):**
+```cpp
+// BUG-017 FIX: Check auto-start flag and trigger start if enabled
+if (cfg->counters[i].ctrl_reg < HOLDING_REGS_SIZE) {
+  uint16_t ctrl_val = registers_get_holding_register(cfg->counters[i].ctrl_reg);
+  if (ctrl_val & 0x0002) {  // Bit 1 = auto-start
+    debug_print("    Counter ");
+    debug_print_uint(i + 1);
+    debug_println(" auto-start enabled - starting...");
+    // Trigger start command
+    registers_set_holding_register(cfg->counters[i].ctrl_reg, ctrl_val | 0x0002);
+  }
+}
+```
+
+#### Test Plan ✅ IMPLEMENTERET
+1. Konfigurer counter: `set counter 1 mode 1 hw-mode:sw input-dis:45 index-reg:100`
+2. Aktivér auto-start: `set counter 1 control auto-start:on`
+3. Gem config: `save`
+4. Reboot ESP32: `reboot`
+5. Check status: `show counter 1`
+6. **Forventet:** Counter 1 kører automatisk efter boot
+7. **Resultat:** ✅ VIRKER (auto-start triggerer start command ved boot)
+
+---
+
+### BUG-015: PCNT driver error når hw_gpio=0 - ENHANCEMENT
+**Status:** ✅ FIXED (Enhanced)
+**Prioritet:** 🔴 CRITICAL
+**Fixet:** 2025-12-15
+**Version:** v4.2.0
+
+#### Forbedringer
+Blev allerede dokumenteret i BUGS.md, men nu med 2 fixes tilføjet:
+
+**Fix 1: Validation i CLI (preventer problem)**
+**Fil:** `src/cli_commands.cpp` (linje 324-330)
+```cpp
+// BUG-015 FIX: Validate HW mode has GPIO configured
+if (cfg.hw_mode == COUNTER_HW_PCNT && cfg.hw_gpio == 0) {
+  debug_println("ERROR: Cannot start HW counter - GPIO pin not configured!");
+  debug_println("  Use: set counter <id> mode 1 hw-mode:hw hw-gpio:<pin> first");
+  continue;  // Skip setting running bit
+}
+```
+
+**Fix 2: Graceful error i pcnt_driver (fallback)**
+**Fil:** `src/pcnt_driver.cpp` (linje 105-109)
+```cpp
+// BUG-015 FIX: Check if PCNT unit is configured before reading
+if (!pcnt_configured[unit]) {
+  ESP_LOGW(TAG, "PCNT unit %d not configured - returning 0", unit);
+  return 0;  // Graceful return instead of error
+}
+```
+
+#### Test Plan ✅ IMPLEMENTERET
+1. Forsøg at starte HW counter uden GPIO:
+   ```
+   set counter 1 mode 1 hw-mode:hw index-reg:100
+   set counter 1 control running:on
+   # FORVENTET: "ERROR: Cannot start HW counter - GPIO pin not configured!"
+   ```
+2. Sæt GPIO og start:
+   ```
+   set counter 1 mode 1 hw-gpio:19
+   set counter 1 control running:on
+   # FORVENTET: Counter starter (ingen PCNT errors)
+   ```
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-15 | BUG-016, BUG-017, BUG-015 FIXED - Counter control system (running bit, auto-start, PCNT validation) | Claude Code |
+| 2025-12-15 | BUG-015 tilføjet - HW Counter PCNT ikke initialiseret uden GPIO pin | Claude Code |
 | 2025-12-13 | BUG-014 FIXED - ST Logic interval gemmes nu persistent (Option 1) | Claude Code |
 | 2025-12-13 | 1 ny bug tilføjet (BUG-014) fra ST Logic persistent save analyse | Claude Code |
 | 2025-12-13 | 2 nye bugs tilføjet (BUG-012, BUG-013) fra ST Logic binding visning analyse | Claude Code |

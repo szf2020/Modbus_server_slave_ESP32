@@ -102,6 +102,12 @@ void pcnt_unit_configure(uint8_t unit, uint8_t gpio_pin,
 uint32_t pcnt_unit_get_count(uint8_t unit) {
   if (unit >= 4) return 0;
 
+  // BUG-015 FIX: Check if PCNT unit is configured before reading
+  if (!pcnt_configured[unit]) {
+    ESP_LOGW(TAG, "PCNT unit %d not configured - returning 0", unit);
+    return 0;  // Graceful return instead of error
+  }
+
   // Read hardware PCNT counter value
   int16_t count = 0;
   pcnt_get_counter_value((pcnt_unit_t)unit, &count);

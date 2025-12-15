@@ -323,6 +323,12 @@ void cli_cmd_set_counter_control(uint8_t argc, char* argv[]) {
       }
     } else if (!strcmp(key, "running")) {
       if (!strcmp(value, "on") || !strcmp(value, "ON")) {
+        // BUG-015 FIX: Validate HW mode has GPIO configured
+        if (cfg.hw_mode == COUNTER_HW_PCNT && cfg.hw_gpio == 0) {
+          debug_println("ERROR: Cannot start HW counter - GPIO pin not configured!");
+          debug_println("  Use: set counter <id> mode 1 hw-mode:hw hw-gpio:<pin> first");
+          continue;  // Skip setting running bit
+        }
         ctrl_value |= 0x80;  // Set bit 7
       } else if (!strcmp(value, "off") || !strcmp(value, "OFF")) {
         ctrl_value &= ~0x80; // Clear bit 7
@@ -1001,6 +1007,86 @@ void cli_cmd_save_registers(uint8_t argc, char* argv[]) {
     debug_print(argv[0]);
     debug_println("'");
     debug_println("Usage: save registers all | save registers group <name>");
+  }
+}
+
+void cli_cmd_load_registers(uint8_t argc, char* argv[]) {
+  // Syntax:
+  //   load registers all
+  //   load registers group <name>
+
+  if (argc == 0) {
+    debug_println("ERROR: Missing argument");
+    debug_println("Usage: load registers all | load registers group <name>");
+    return;
+  }
+
+  if (strcmp(argv[0], "all") == 0) {
+    // Load all groups from NVS
+    debug_println("Loading all persistent register groups from NVS...");
+
+    if (!registers_persist_is_enabled()) {
+      debug_println("ERROR: Persistence system disabled");
+      debug_println("Hint: Use 'set persist enable on' first");
+      return;
+    }
+
+    // Load config from NVS
+    PersistConfig temp_config;
+    bool success = config_load_from_nvs(&temp_config);
+    if (!success) {
+      debug_println("ERROR: Failed to load from NVS");
+      return;
+    }
+
+    // Copy persist_regs to global config
+    g_persist_config.persist_regs = temp_config.persist_regs;
+
+    // Restore all groups
+    success = registers_persist_restore_all_groups();
+
+    if (success) {
+      debug_print("✓ Loaded ");
+      debug_print_uint(g_persist_config.persist_regs.group_count);
+      debug_println(" groups from NVS");
+    } else {
+      debug_println("ERROR: Failed to restore groups");
+    }
+
+  } else if (strcmp(argv[0], "group") == 0) {
+    if (argc < 2) {
+      debug_println("ERROR: Missing group name");
+      debug_println("Usage: load registers group <name>");
+      return;
+    }
+
+    const char* group_name = argv[1];
+
+    // Load config from NVS
+    PersistConfig temp_config;
+    bool success = config_load_from_nvs(&temp_config);
+    if (!success) {
+      debug_println("ERROR: Failed to load from NVS");
+      return;
+    }
+
+    // Copy persist_regs to global config
+    g_persist_config.persist_regs = temp_config.persist_regs;
+
+    // Restore specific group
+    if (!registers_persist_group_restore(group_name)) {
+      return;  // Error already printed
+    }
+
+    debug_print("✓ Loaded group '");
+    debug_print(group_name);
+    debug_println("' from NVS");
+
+  } else {
+    debug_print("ERROR: Unknown argument '");
+    debug_print(argv[0]);
+    debug_println("'");
+    debug_println("Usage: load registers all | load registers group <name>");
   }
 }
 
