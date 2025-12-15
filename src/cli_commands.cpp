@@ -91,16 +91,34 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       else if (!strcmp(value, "both")) cfg.edge_type = COUNTER_EDGE_BOTH;
     } else if (!strcmp(key, "prescaler")) {
       cfg.prescaler = atoi(value);
+    // BUG-020 FIX: Disable manual register configuration (v4.2.0)
+    // Registers are now ALWAYS auto-assigned by smart defaults
+    // Counter 1 → 100-104, Counter 2 → 110-114, etc.
     } else if (!strcmp(key, "index-reg") || !strcmp(key, "reg")) {
-      cfg.index_reg = atoi(value);
+      debug_println("ERROR: Manual register configuration is disabled!");
+      debug_println("  Registers are AUTO-ASSIGNED by smart defaults:");
+      debug_println("  Counter 1 → HR100-104");
+      debug_println("  Counter 2 → HR110-114");
+      debug_println("  Counter 3 → HR120-124");
+      debug_println("  Counter 4 → HR130-134");
+      debug_println("  Cannot override register addresses.");
+      continue;
     } else if (!strcmp(key, "raw-reg")) {
-      cfg.raw_reg = atoi(value);
+      debug_println("ERROR: Manual register configuration is disabled!");
+      debug_println("  Use smart defaults instead (no manual raw-reg allowed)");
+      continue;
     } else if (!strcmp(key, "freq-reg")) {
-      cfg.freq_reg = atoi(value);
+      debug_println("ERROR: Manual register configuration is disabled!");
+      debug_println("  Use smart defaults instead (no manual freq-reg allowed)");
+      continue;
     } else if (!strcmp(key, "ctrl-reg")) {
-      cfg.ctrl_reg = atoi(value);
+      debug_println("ERROR: Manual register configuration is disabled!");
+      debug_println("  Use smart defaults instead (no manual ctrl-reg allowed)");
+      continue;
     } else if (!strcmp(key, "overload-reg")) {
-      cfg.overload_reg = atoi(value);
+      debug_println("ERROR: Manual register configuration is disabled!");
+      debug_println("  Use smart defaults instead (no manual overload-reg allowed)");
+      continue;
     } else if (!strcmp(key, "start-value")) {
       cfg.start_value = atol(value);
     } else if (!strcmp(key, "scale")) {
