@@ -62,6 +62,13 @@ void cli_cmd_set_timer(uint8_t argc, char* argv[]);
 void cli_cmd_reset_counter(uint8_t argc, char* argv[]);
 
 /**
+ * @brief Handle "delete counter" command (disable and reset)
+ * @param argc Argument count
+ * @param argv Argument array
+ */
+void cli_cmd_delete_counter(uint8_t argc, char* argv[]);
+
+/**
  * @brief Handle "clear counters" command
  */
 void cli_cmd_clear_counters(void);
@@ -144,6 +151,16 @@ void cli_cmd_set_persist_group(uint8_t argc, char* argv[]);
  *   save registers group <name>
  */
 void cli_cmd_save_registers(uint8_t argc, char* argv[]);
+
+/**
+ * @brief Handle "load registers all" or "load registers group <name>" command
+ *
+ * Loads persistent register groups from NVS.
+ * Syntax:
+ *   load registers all              - Load all groups
+ *   load registers group <name>     - Load specific group
+ */
+void cli_cmd_load_registers(uint8_t argc, char* argv[]);
 
 /**
  * @brief Handle "set persist enable" command

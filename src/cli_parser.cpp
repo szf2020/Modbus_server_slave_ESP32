@@ -266,6 +266,8 @@ static void print_counter_help(void) {
   debug_println("  compare-value:<value>      - Compare threshold");
   debug_println("  compare-mode:<0|1|2>       - 0:≥, 1:>, 2:exact");
   debug_println("  reset-on-read:<on|off>     - Reset counter on read");
+  debug_println("  enable:<on|off>            - Enable/disable counter");
+  debug_println("  disable:<on|off>           - Disable counter (opposite of enable)");
   debug_println("");
   debug_println("NOTE: Register addresses are AUTO-ASSIGNED (v4.2.0+):");
   debug_println("  Counter 1 → HR100-104 (index, raw, freq, overload, ctrl)");
@@ -275,7 +277,8 @@ static void print_counter_help(void) {
   debug_println("  Manual register configuration is DISABLED for safety.");
   debug_println("");
   debug_println("Control commands:");
-  debug_println("  reset counter <id>         - Nulstil counter");
+  debug_println("  reset counter <id>         - Nulstil counter værdi");
+  debug_println("  delete counter <id>        - Slet counter (disable)");
   debug_println("  clear counters             - Nulstil alle counters");
   debug_println("");
   debug_println("Example:");
@@ -923,6 +926,23 @@ bool cli_parser_execute(char* line) {
       return true;
     } else {
       debug_println("RESET: unknown argument");
+      return false;
+    }
+
+  } else if (!strcmp(cmd, "DELETE")) {
+    // delete counter <id>
+    if (argc < 2) {
+      debug_println("DELETE: missing argument");
+      return false;
+    }
+
+    const char* what = normalize_alias(argv[1]);
+
+    if (!strcmp(what, "COUNTER")) {
+      cli_cmd_delete_counter(argc - 2, argv + 2);
+      return true;
+    } else {
+      debug_println("DELETE: unknown argument");
       return false;
     }
 

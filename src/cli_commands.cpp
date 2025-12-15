@@ -169,10 +169,21 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       cfg.compare_mode = atoi(value);  // 0=≥, 1=>, 2===
     } else if (!strcmp(key, "reset-on-read")) {
       cfg.reset_on_read = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
+    } else if (!strcmp(key, "enable")) {
+      cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
+    } else if (!strcmp(key, "disable")) {
+      cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 0 : 1;
     }
   }
 
-  cfg.enabled = 1;  // Implicit enable
+  // BUG-021 FIX: Allow explicit disable via "enable:off" or "disable:on" (v4.2.0)
+  // Default: if user didn't explicitly set enable/disable, assume enabled=1
+  // But if they DID set it, respect their choice
+  if (cfg.enabled == 0) {
+    // User explicitly disabled
+  } else {
+    cfg.enabled = 1;  // Default: enable when configuring
+  }
 
   // DEBUG: Print final config before applying
   debug_print("Counter ");
@@ -280,6 +291,29 @@ void cli_cmd_reset_counter(uint8_t argc, char* argv[]) {
   debug_print("Counter ");
   debug_print_uint(id);
   debug_println(" reset");
+}
+
+// BUG-021 FIX: Add delete counter command (v4.2.0)
+void cli_cmd_delete_counter(uint8_t argc, char* argv[]) {
+  if (argc < 1) {
+    debug_println("DELETE COUNTER: missing counter ID");
+    return;
+  }
+
+  uint8_t id = atoi(argv[0]);
+  if (id < 1 || id > 4) {
+    debug_println("DELETE COUNTER: invalid counter ID");
+    return;
+  }
+
+  // Disable counter by setting enabled=0
+  CounterConfig cfg = counter_config_defaults(id);
+  cfg.enabled = 0;  // DISABLE counter
+  counter_engine_configure(id, &cfg);
+
+  debug_print("Counter ");
+  debug_print_uint(id);
+  debug_println(" deleted (disabled)");
 }
 
 void cli_cmd_clear_counters(void) {
