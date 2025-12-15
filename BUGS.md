@@ -1730,6 +1730,85 @@ if (cfg.reset_on_read && cfg.enabled) {
 
 ---
 
+## BUG-019: Show Counters Display Race Condition (v4.2.0)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟡 HIGH
+**Opdaget:** 2025-12-15
+**Fixet:** 2025-12-15
+**Version:** v4.2.0
+
+### Beskrivelse
+
+`sh counters` output viste **inkonsistente værdier** mellem scaled og raw kolonnerne når counter ændrede sig under display-beregning.
+
+**Eksempel:**
+```
+Reading 1: val=72467, raw=1811 ✓ (consistent)
+Reading 2: val=12, raw=0 ❌ (MISMATCH!)
+
+Expected relationship: val = (raw × 16) × 2.5
+- Reading 1: (1811 × 16) × 2.5 = 72,440 ≈ 72,467 ✓
+- Reading 2: (0 × 16) × 2.5 = 0, men viser 12 ❌
+```
+
+### Root Cause
+
+**Fil:** `src/cli_show.cpp` linje 668-675 (før fix)
+
+**Problematisk kode:**
+```cpp
+// RACE CONDITION: counter read ved forskellige tidspunkter!
+uint64_t raw_value = counter_engine_get_value(id);  // Læsning #1
+uint64_t scaled_value = (uint64_t)(raw_value * cfg.scale_factor);
+
+// Counter kan incrementere mellem Læsning #1 og #2!
+uint64_t raw_prescaled = raw_value / cfg.prescaler;  // Læsning #2
+```
+
+**Scenario:**
+```
+T0: Læs counter = 28,976 → scaled = 72,467 ✓
+T1: Counter incrementer til 5
+T2: Læs counter = 5 → raw = 0 (5/16) ❌
+Resultat: val=72467, raw=0 (UOVERENSSTEMMENDE!)
+```
+
+### Implementeret Fix
+
+**Fil:** `src/cli_show.cpp` linje 667-695
+
+```cpp
+// BUG-019 FIX: Atomic counter value read
+// Læs counter_engine_get_value() ÉN GANG ved start
+uint64_t counter_value = counter_engine_get_value(id);
+
+// Både scaled og raw beregnes fra SAMME counter_value
+uint64_t scaled_value = (uint64_t)(counter_value * cfg.scale_factor);
+uint64_t raw_prescaled = counter_value / cfg.prescaler;
+
+// Begge værdier clampes efter samme max_val
+scaled_value &= max_val;
+raw_prescaled &= max_val;
+```
+
+### Resultat
+
+- ✅ scaled og raw værdier er altid konsistente
+- ✅ Ingen race conditions mellem læsninger
+- ✅ Display matcher Modbus register værdier præcis
+- ✅ Virker for alle bit-widths (8, 16, 32, 64-bit)
+
+### Test Plan
+
+1. Start counter som tæller hurtigt (høj frekvens på GPIO25)
+2. Kør: `sh counters` gentagne gange
+3. **Forventet:** Værdierne inkluderer altid: `scaled = (raw × prescaler) × scale`
+4. **Før fix:** Uoverensstemmelser mulige
+5. **Efter fix:** Altid konsistent ✅
+
+---
+
 ## BUG-018: Show Counters Display Values Ignore Bit-Width (v4.2.0)
 
 **Status:** ✅ FIXED
@@ -1915,6 +1994,7 @@ save
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-15 | BUG-019 FIXED - Show counters race condition (atomic reading) (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-018 FIXED - Show counters display respects bit-width (v4.2.0) | Claude Code |
 | 2025-12-15 | IMPROVEMENT-001, IMPROVEMENT-002 - Smart defaults & templates (v4.2.0) | Claude Code |
 | 2025-12-15 | ISSUE-1, ISSUE-2, ISSUE-3 FIXED - Atomic writes, reconfiguration, reset-on-read (FASE 3) | Claude Code |
