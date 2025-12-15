@@ -26,6 +26,7 @@
 /* Config & Mapping includes */
 #include "config_struct.h"
 #include "constants.h"
+#include "register_allocator.h"  // BUG-025: Register overlap checking
 
 /* Forward declarations - from existing CLI infrastructure */
 extern void debug_println(const char *msg);
@@ -406,6 +407,35 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
   if (g_persist_config.var_map_count + mappings_needed > 64) {
     debug_printf("ERROR: Maximum variable mappings (64) would be exceeded (need %d more)\n", mappings_needed);
     return -1;
+  }
+
+  // BUG-025 FIX: Check register overlap before creating binding
+  // Only check if this is a holding register binding (input_type=0 or output_type=0)
+  if ((is_input && input_type == 0) || (is_output && output_type == 0)) {
+    // Check if register is in protected ST Logic range (200-293)
+    if (modbus_reg >= 200 && modbus_reg <= 293) {
+      debug_printf("ERROR: Register HR%d already allocated!\n", modbus_reg);
+      debug_printf("  Owner: ST Logic Fixed (status/control)\n");
+      debug_printf("  Suggestion: Try HR0-99 or HR105-159\n");
+      return -1;
+    }
+
+    // Check if register is allocated by other subsystems (0-99)
+    if (modbus_reg < 100) {
+      RegisterOwner owner;
+      if (!register_allocator_check(modbus_reg, &owner)) {
+        // Register is already allocated
+        debug_printf("ERROR: Register HR%d already allocated!\n", modbus_reg);
+        debug_printf("  Owner: %s\n", owner.description);
+
+        // Suggest free registers in range
+        uint16_t suggested = register_allocator_find_free(0, 99);
+        if (suggested != 0xFFFF) {
+          debug_printf("  Suggestion: Try HR%d or higher\n", suggested);
+        }
+        return -1;
+      }
+    }
   }
 
   // Step 3: Create new mapping(s)

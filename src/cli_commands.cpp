@@ -32,6 +32,7 @@
 #include "debug_flags.h"
 #include "network_manager.h"
 #include "network_config.h"
+#include "register_allocator.h"  // BUG-025: Register overlap checking
 #include <Arduino.h>
 #include <esp_system.h>
 #include <string.h>
@@ -236,6 +237,30 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       debug_println("!");
       debug_println("  This will cause register conflicts!");
       debug_println("  Please use different register addresses for each counter.");
+    }
+  }
+
+  // BUG-025 FIX: Check register overlap with other subsystems (Timer, ST Logic)
+  // Check all 5 counter registers: index, raw, freq, overload, ctrl
+  uint16_t counter_regs[5] = {cfg.index_reg, cfg.raw_reg, cfg.freq_reg, cfg.overload_reg, cfg.ctrl_reg};
+  const char* counter_reg_names[5] = {"index-reg", "raw-reg", "freq-reg", "overload-reg", "ctrl-reg"};
+
+  for (int i = 0; i < 5; i++) {
+    if (counter_regs[i] > 0 && counter_regs[i] < HOLDING_REGS_SIZE) {
+      RegisterOwner owner;
+      if (!register_allocator_check(counter_regs[i], &owner)) {
+        // This register is allocated to something else
+        debug_print("ERROR: Counter ");
+        debug_print_uint(id);
+        debug_print(" ");
+        debug_print(counter_reg_names[i]);
+        debug_print("=HR");
+        debug_print_uint(counter_regs[i]);
+        debug_println(" already allocated!");
+        debug_print("  Owner: ");
+        debug_println(owner.description);
+        return;  // Abort configuration
+      }
     }
   }
 
@@ -550,6 +575,22 @@ void cli_cmd_set_timer(uint8_t argc, char* argv[]) {
       cfg.ctrl_reg = atoi(value);
     } else if (!strcmp(key, "enabled")) {
       cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
+    }
+  }
+
+  // BUG-025 FIX: Check register overlap if ctrl-reg is set
+  if (cfg.ctrl_reg > 0 && cfg.ctrl_reg < HOLDING_REGS_SIZE) {
+    RegisterOwner owner;
+    if (!register_allocator_check(cfg.ctrl_reg, &owner)) {
+      // This register is allocated to something else
+      debug_print("ERROR: Timer ");
+      debug_print_uint(id);
+      debug_print(" ctrl-reg=HR");
+      debug_print_uint(cfg.ctrl_reg);
+      debug_println(" already allocated!");
+      debug_print("  Owner: ");
+      debug_println(owner.description);
+      return;  // Abort configuration
     }
   }
 

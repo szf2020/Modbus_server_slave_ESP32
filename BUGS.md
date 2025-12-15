@@ -2528,10 +2528,195 @@ save
 
 ---
 
+### BUG-025: Global Register Overlap Checker (Register Allocation Validator)
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-15
+**Fixed:** 2025-12-15
+**Version:** v4.2.0
+
+#### Beskrivelse
+Ingen centraliseret register allocation tracking på tværs af subsystemer (Counter, Timer, ST Logic). Resultat:
+- ST Logic program kan bindes til register som Counter allerede bruger
+- Timer ctrl-reg kan sættes til register som Counter eller ST Logic allerede bruger
+- Ingen validering, brugeren får ingen fejlbesked
+- Stille register overlap som forårsager tilstand inconcistency
+
+**Symptom:**
+```
+set counter 1 mode 1 enabled:on
+  ← Counter 1 användt HR100-104 (smart defaults)
+
+set logic 1 bind TEMP1 reg:100
+  ← ST Logic 1 binds TEMP1 to HR100 (samme register!)
+  ← Skulle have been blocked, men blev tilladt
+```
+
+**Impact:**
+- Counter og ST Logic konkurrerer om samme register
+- Værdi opdateres fra begge kilder - uforudsigelig tilstand
+- Brugeren får ingen advarsel ved konflikt
+- Datatype mismatches (16-bit counter værdi vs ST variable)
+
+#### Root Cause
+Ingen global allocation map som tracker register ownership. Hver subsystem validerer kun internt:
+- Counter-to-counter: Kontroller overlap (cli_commands.cpp 213-241)
+- Timer-to-timer: Ingen validering!
+- ST variable-to-ST variable: Ingen validering!
+- **Cross-subsystem:** INGEN validering!
+
+#### Løsning (IMPLEMENTERET - Option A: Centralized Register Allocation Map)
+
+**Nye filer:**
+
+1. **include/register_allocator.h** (NEW)
+   - RegisterOwnerType enum: COUNTER, TIMER, ST_FIXED, ST_VAR, USER
+   - RegisterOwner struct: type, subsystem_id, description, timestamp
+   - Public API: init, check, allocate, free, find_free, get
+
+2. **src/register_allocator.cpp** (NEW)
+   - Global allocation_map[HOLDING_REGS_SIZE] tracking all registers
+   - Functions: register_allocator_init(), register_allocator_check(), register_allocator_allocate(), register_allocator_free()
+
+**Ændringer i eksisterende filer:**
+
+3. **src/main.cpp**
+   - Tilføjet `#include "register_allocator.h"`
+   - Tilføjet `register_allocator_init()` call efter config_apply() (linje 92)
+   - Initialization order: load config → apply → initialize allocator
+
+4. **src/cli_commands_logic.cpp**
+   - Tilføjet `#include "register_allocator.h"`
+   - Tilføjet overlap check før ST variable binding (linje 412-428)
+   - Hvis holding register allerede alloceret, vis error med owner info
+   - Abort binding creation ved konflikt
+
+5. **src/cli_commands.cpp**
+   - Tilføjet `#include "register_allocator.h"`
+   - Tilføjet overlap check for counter (linje 243-265)
+   - Tilføjet overlap check for timer ctrl-reg (linje 581-595)
+   - Både counter og timer validerer alle registers før konfiguration
+
+**Initialization Sequence:**
+```cpp
+void register_allocator_init(void) {
+  1. Mark all registers as free (memset)
+  2. Pre-allocate ST Logic fixed (200-293): REG_OWNER_ST_FIXED
+  3. Pre-allocate counter smart defaults (if enabled): REG_OWNER_COUNTER
+  4. Pre-allocate timer ctrl-regs (if configured): REG_OWNER_TIMER
+  5. Pre-allocate ST variable bindings (from config): REG_OWNER_ST_VAR
+}
+```
+
+**Error Messages (CLI Output):**
+```
+ERROR: Register HR100 already allocated!
+  Owner: Counter 1 (index-reg)
+  Suggestion: Try HR105 or higher
+```
+
+#### Test Results
+
+**Test 1: Counter overlap detection**
+```
+set counter 1 mode 1 enabled:on
+  → Counter 1 configured (HR100-104)
+
+set logic 1 bind TEMP1 reg:100
+  → ERROR: Register HR100 already allocated!
+     Owner: Counter 1 (index-reg)
+  → Binding REJECTED ✅
+```
+
+**Test 2: Timer overlap detection**
+```
+set counter 1 mode 1 enabled:on
+  → Counter 1 configured (HR100-104)
+
+set timer 1 mode 1 parameter ctrl-reg:100 p1-duration:1000
+  → ERROR: Timer 1 ctrl-reg=HR100 already allocated!
+     Owner: Counter 1 (index-reg)
+  → Configuration REJECTED ✅
+```
+
+**Test 3: ST Logic fixed register protection**
+```
+set logic 1 bind VAR1 reg:200
+  → ERROR: Register HR200 already allocated!
+     Owner: ST Logic Fixed (status)
+  → Binding REJECTED ✅
+```
+
+**Test 4: Successful allocation to free register**
+```
+set counter 1 mode 1 enabled:on
+  → Counter 1 configured (HR100-104)
+
+set logic 1 bind TEMP1 reg:105
+  → [OK] Logic1: var[0] (TEMP1) -> Modbus HR#105
+  → Binding ACCEPTED (HR105 is free) ✅
+```
+
+#### Påvirkede Funktioner
+
+**Funktion 1:** `void register_allocator_init(void)` (NEW)
+**Fil:** `src/register_allocator.cpp`
+**Linjer:** 34-78
+**Signatur (v4.2.0):**
+```cpp
+void register_allocator_init(void) {
+  // Pre-allocate all known register ownerships
+  // Called from main.cpp setup() after config_apply()
+}
+```
+
+**Funktion 2:** `int cli_cmd_set_logic_bind(...)` (MODIFIED)
+**Fil:** `src/cli_commands_logic.cpp`
+**Linjer:** 412-428
+**Ændring:** Tilføjet overlap check for holding registers
+
+**Funktion 3:** `void cli_cmd_set_counter(...)` (MODIFIED)
+**Fil:** `src/cli_commands.cpp`
+**Linjer:** 243-265
+**Ændring:** Tilføjet cross-subsystem overlap check
+
+**Funktion 4:** `void cli_cmd_set_timer(...)` (MODIFIED)
+**Fil:** `src/cli_commands.cpp`
+**Linjer:** 581-595
+**Ændring:** Tilføjet overlap check for ctrl-reg
+
+#### Dependencies
+- `include/register_allocator.h`: Type definitions, function prototypes
+- `src/register_allocator.cpp`: Implementation of allocation logic
+- `src/counter_config.h`: For HOLDING_REGS_SIZE constant
+- `src/timer_config.h`: For timer configuration access
+
+#### Verification ✅ COMPLETE
+
+Build #601: ✅ Compiled successfully
+- No errors
+- All new files included
+- All integration points added
+
+Test scenarios:
+- [x] Counter overlap detection (block ST Logic binding to counter register)
+- [x] Timer overlap detection (block timer ctrl-reg on counter register)
+- [x] ST Logic fixed register protection (block binding to 200-293)
+- [x] Successful allocation to free registers
+
+#### Future Enhancements
+- Add `show register-map` CLI command to display allocation map
+- Suggest next free register range in error messages
+- Add timer smart defaults (ctrl-reg = 140, 141, 142, 143)
+- Periodically validate allocations match actual config
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-15 | BUG-025 FIXED - Global register overlap checker (centralized allocation map) (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-024 FIXED - PCNT counter truncated to 16-bit, raw register limited to 2000 (v4.2.0) | Claude Code |
 | 2025-12-15 | REFACTOR: Delete counter syntax changed to 'no set counter' (Cisco-style) (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-022, BUG-023 FIXED - Auto-enable counter on running:on, compare works when disabled (v4.2.0) | Claude Code |

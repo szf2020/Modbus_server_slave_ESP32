@@ -30,6 +30,7 @@
 #include "st_logic_engine.h"
 #include "network_manager.h"
 #include "watchdog_monitor.h"
+#include "register_allocator.h"
 
 // ============================================================================
 // GLOBAL CONSOLE
@@ -85,6 +86,10 @@ void setup() {
 
   // Apply loaded configuration (MUST be after subsystem init to override defaults)
   config_apply(&g_persist_config);
+
+  // Initialize global register allocator (BUG-025 fix for v4.2.0)
+  // This must be AFTER config_apply() so all subsystems are configured
+  register_allocator_init();
 
   Serial.println("\nSetup complete.");
   Serial.println("Modbus RTU Server ready on UART1 (GPIO4/5, 9600 baud)");
