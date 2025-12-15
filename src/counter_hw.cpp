@@ -65,17 +65,21 @@ static void pcnt_poll_task(void* pvParameters) {
       uint8_t pcnt_unit = counter_to_pcnt[id - 1];
       uint32_t hw_count = pcnt_unit_get_count(pcnt_unit);
 
-      // Calculate delta with wrap handling (same logic as counter_hw_loop)
+      // BUG-024 FIX: Use full 32-bit wrap handling, not 16-bit
+      // Previously cast to int16_t truncated counter to 16-bit, limiting max value to ~32K
+      // Now use proper 32-bit wrap detection to support full counter range
       if (hw_count != state->last_count) {
-        int16_t signed_current = (int16_t)hw_count;
-        int16_t signed_last = (int16_t)state->last_count;
-        int32_t delta = (int32_t)signed_current - (int32_t)signed_last;
-
-        // Handle wrap
-        if (delta < -32768) {
-          delta += 65536;
-        } else if (delta > 32768) {
-          delta -= 65536;
+        // Calculate delta with 32-bit wrap handling
+        int64_t delta;
+        if (hw_count >= state->last_count) {
+          // Normal case: counter increased
+          delta = (int64_t)hw_count - (int64_t)state->last_count;
+        } else {
+          // Wrap case: counter wrapped around at 2^32
+          // delta = (hw_count + 2^32) - last_count = (hw_count - last_count) + 2^32
+          delta = (int64_t)hw_count - (int64_t)state->last_count;
+          // delta is negative, add 2^32 to get positive wrap delta
+          delta += (int64_t)0x100000000ULL;  // 2^32
         }
 
         // Apply direction
@@ -96,8 +100,9 @@ static void pcnt_poll_task(void* pvParameters) {
         static uint32_t last_log[COUNTER_COUNT] = {0};
         uint32_t now = millis();
         if (now - last_log[id - 1] >= 5000 && state->pcnt_value > 0) {
-          ESP_LOGI("CNTR_HW", "C%d PCNT: hw_count=%d delta=%ld pcnt_value=%llu edge=%d",
-                   id, (int16_t)hw_count, delta, state->pcnt_value, cfg.edge_type);
+          // BUG-024: Use full 32-bit hw_count in log (was truncated to int16_t)
+          ESP_LOGI("CNTR_HW", "C%d PCNT: hw_count=%lu delta=%lld pcnt_value=%llu edge=%d",
+                   id, hw_count, delta, state->pcnt_value, cfg.edge_type);
           last_log[id - 1] = now;
         }
       }
