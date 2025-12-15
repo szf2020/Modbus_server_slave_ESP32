@@ -1944,11 +1944,12 @@ void cli_cmd_delete_counter(uint8_t argc, char* argv[]);
 
 ### Resultat
 
-- ✅ `delete counter <id>` - Slet counter helt (disable)
+- ✅ `no set counter <id>` - Slet counter helt (disable) - Cisco-style syntax
 - ✅ `set counter <id> control enable:on|off` - Enable/disable uden reset
 - ✅ `set counter <id> control disable:on|off` - Inverse kontrol
 - ✅ Counter viser `en=0` efter delete i `sh counters`
 - ✅ Brugere kan helt fjerne counter uden at reboot
+- ✅ Følger project konventioner (samme som `no set gpio`)
 
 ### Bruger Oplevelse
 
@@ -1961,9 +1962,9 @@ Counter 1 reset
 Counter 1: en=1  ✓ STADIG AKTIVERET!
 ```
 
-**Efter (Med delete):**
+**Efter (Med delete - Cisco-style):**
 ```bash
-> delete counter 1
+> no set counter 1
 Counter 1 deleted (disabled)
 
 > show counter 1
@@ -1975,10 +1976,18 @@ Counter 1: en=0 ✓ DISABLED!
 1. Opret counter: `set counter 1 mode 1 hw-mode:hw hw-gpio:25 edge:rising prescaler:1`
 2. Start counter: `set counter 1 control running:on`
 3. Verificer aktivt: `show counter 1` (en=1)
-4. Delete counter: `delete counter 1`
+4. Delete counter: `no set counter 1`
 5. **Forventet:** `show counter 1` viser `en=0` ✓
 6. Prøv enable igen: `set counter 1 control enable:on`
 7. **Forventet:** `show counter 1` viser `en=1` ✓
+
+### Syntax Evolution (v4.2.0)
+
+**v4.2.0 Update:** Changed from `delete counter <id>` to `no set counter <id>` for consistency with project conventions.
+
+- Follows Cisco-style "no" command pattern
+- Consistent with existing `no set gpio` command
+- Better alignment with `set counter` command family
 
 ---
 
@@ -2403,6 +2412,7 @@ save
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-15 | REFACTOR: Delete counter syntax changed to 'no set counter' (Cisco-style) (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-022, BUG-023 FIXED - Auto-enable counter on running:on, compare works when disabled (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-021 FIXED - Add delete counter command and enable/disable parameters (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-020 FIXED - Disable manual register configuration (force smart defaults) (v4.2.0) | Claude Code |
