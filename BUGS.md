@@ -1833,6 +1833,126 @@ ERROR: Manual register configuration is disabled!
 
 ---
 
+## BUG-024: PCNT Counter Truncated to 16-bit - Raw Register Limited to ~2000 (v4.2.0)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-15
+**Fixet:** 2025-12-15
+**Version:** v4.2.0
+
+### Beskrivelse
+
+PCNT (Pulse Counter) hardware værdi blev truncated til 16-bit signed integer, limiting raw register værdi til omkring 2000 (after prescaler 16).
+
+**Problem eksempel:**
+```bash
+Counter 1 (prescaler=16, scale=2.5):
+  val=85482, raw=2137 → counter_value = 2137 × 16 = 34192 ✓
+
+  Expected: Counter can go up to 2^32 ≈ 4 billion
+  Actual: Counter limited by 16-bit truncation
+  Result: raw register capped at ~2000-2100 max
+```
+
+**Bruger observation:**
+- Counter tæller på GPIO25 med 1000+ Hz
+- Raw register værdi stoppet omkring 2137
+- Aldrig stiger over ~2200 selvom counter tæller
+- Scaled værdi fortsætter, raw værdi stoppet
+
+### Root Cause
+
+**Fil:** `src/counter_hw.cpp` linje 70-79 (før fix)
+
+```cpp
+uint32_t hw_count = pcnt_unit_get_count(pcnt_unit);  // Read full 32-bit
+
+// WRONG: Truncate 32-bit to 16-bit signed!
+int16_t signed_current = (int16_t)hw_count;  // ← LOSES high 16 bits!
+int16_t signed_last = (int16_t)state->last_count;
+int32_t delta = (int32_t)signed_current - (int32_t)signed_last;
+```
+
+**Problem:**
+- `hw_count` is uint32_t (0 to 2^32-1)
+- Cast to int16_t only preserves 16-bit range (-32768 to 32767)
+- Any bits above bit 15 are discarded
+- Delta calculation based on truncated values only
+
+**Impact:**
+- Counter values > 32767 wrapped around and lost
+- Raw register = counter / prescaler, limited by truncation
+- With prescaler 16: max raw = 2048 (32768/16)
+- User observed ~2000-2100 due to prescaler/scale combinations
+
+### Implementeret Fix
+
+**Fil:** `src/counter_hw.cpp` (linjer 72-83)
+
+```cpp
+// Use full 32-bit wrap handling, not 16-bit
+int64_t delta;
+if (hw_count >= state->last_count) {
+  // Normal case: counter increased
+  delta = (int64_t)hw_count - (int64_t)state->last_count;
+} else {
+  // Wrap case: counter wrapped around at 2^32
+  delta = (int64_t)hw_count - (int64_t)state->last_count;
+  delta += (int64_t)0x100000000ULL;  // 2^32
+}
+```
+
+**Workflow:**
+1. Read full 32-bit hw_count (no truncation)
+2. Calculate delta in 64-bit (preserves full range)
+3. Handle wrap at 2^32 boundary (not 16-bit!)
+4. Apply delta to pcnt_value (uint64_t - unlimited)
+
+### Resultat
+
+- ✅ PCNT counter now supports full 32-bit range (0 to 4.29 billion)
+- ✅ Raw register can display values >2000 without clamping
+- ✅ Proper wrap-around at 2^32 (not 16-bit)
+- ✅ No more mysterious "stuck at 2000" behavior
+- ✅ Backward compatible (same counter_value, just bigger range)
+
+### Bruger Oplevelse
+
+**Før (Truncated til 16-bit):**
+```bash
+> sh counters
+counter 1: ... raw=2137
+(raw værdi STOPPET omkring 2000-2100, stiger aldrig mere)
+```
+
+**Efter (Full 32-bit):**
+```bash
+> sh counters
+counter 1: ... raw=34192  (eller meget højere)
+(raw værdi fortsætter med at stige som counter tæller!)
+```
+
+### Test Plan
+
+1. Konfigurér counter: `set counter 1 mode 1 hw-mode:hw hw-gpio:25 edge:rising prescaler:1`
+2. Start counter: `set counter 1 control running:on`
+3. Apply 100+ MHz pulse train (generer >1 million pulses)
+4. Check raw register: `sh counters`
+5. **Forventet:** raw værdi > 1 million (ikke capped ved 2000!)
+6. **Før fix:** raw værdi ville være capped under ~2000
+7. **Efter fix:** raw værdi kan gå op til 2^32
+
+### Technical Notes
+
+- PCNT hardware counter er 32-bit
+- But old code only read bottom 16 bits (via int16_t cast)
+- This was a classic truncation bug from premature optimization
+- Impact: Any high-frequency use case affected
+- Severity: CRITICAL for production PCNT usage
+
+---
+
 ## BUG-021: No Delete Counter Command - Cannot Fully Disable Counters (v4.2.0)
 
 **Status:** ✅ FIXED
@@ -2412,6 +2532,7 @@ save
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-15 | BUG-024 FIXED - PCNT counter truncated to 16-bit, raw register limited to 2000 (v4.2.0) | Claude Code |
 | 2025-12-15 | REFACTOR: Delete counter syntax changed to 'no set counter' (Cisco-style) (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-022, BUG-023 FIXED - Auto-enable counter on running:on, compare works when disabled (v4.2.0) | Claude Code |
 | 2025-12-15 | BUG-021 FIXED - Add delete counter command and enable/disable parameters (v4.2.0) | Claude Code |
