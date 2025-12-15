@@ -546,15 +546,15 @@ void cli_cmd_show_config(void) {
 
 void cli_cmd_show_counters(void) {
   // Header med forkortelser (3 linjer)
-  debug_println("────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+  debug_println("───────────────────────────────────────────────────────────────────---------------─────────────────────────────────────────────────────────────────────────────────────────────────────────────");
   debug_println("co = count-on, sv = startValue, res = resolution, ps = prescaler, ir = index-reg, rr = raw-reg, fr = freq-reg");
   debug_println("or = overload-reg, cr = ctrl-reg, dir = direction, sf = scaleFloat, d = debounce, dt = debounce-ms");
   debug_println("hw = HW/SW mode (SW|ISR|HW), hz = measured freq (Hz), value = scaled value, raw = prescaled counter value");
   debug_println("cmp-en = compare enabled, cmp-mode = 0:≥ 1:> 2:exact, cmp-val = compare threshold, ror = reset-on-read");
-  debug_println("────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+  debug_println("─────────────────────────────────────────────────────────────---------------───────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
   // Kolonne headers
-  debug_println("counter | en | hw  | pin  | co      | sv    | res | ps | ir  | rr  | fr  | or  | cr  | dir | sf    | d   | dt | hz   | val    | raw   | cmp-en | cmp-md | cmp-val | ror");
+  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |    val    |   raw   | cmp-en | cmp-md | cmp-val | ror");
 
   // Data rækker for hver counter
   for (uint8_t id = 1; id <= 4; id++) {
@@ -667,17 +667,33 @@ void cli_cmd_show_counters(void) {
     // Scaled value (9 chars right-aligned)
     uint64_t raw_value = counter_engine_get_value(id);
     uint64_t scaled_value = (uint64_t)(raw_value * cfg.scale_factor);
-    p += snprintf(p, sizeof(line) - (p - line), "%9u ", (unsigned int)scaled_value);
+
+    // FIX: Clamp scaled_value to bit-width (8, 16, 32, 64-bit)
+    uint64_t max_val = 0;
+    switch (cfg.bit_width) {
+      case 8:  max_val = 0xFFULL; break;
+      case 16: max_val = 0xFFFFULL; break;
+      case 32: max_val = 0xFFFFFFFFULL; break;
+      case 64:
+      default: max_val = 0xFFFFFFFFFFFFFFFFULL; break;
+    }
+    scaled_value &= max_val;
+
+    p += snprintf(p, sizeof(line) - (p - line), "%9llu ", (unsigned long long)scaled_value);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // Raw value (prescaled, 7 chars right-aligned)
     uint64_t raw_prescaled = raw_value / cfg.prescaler;
-    p += snprintf(p, sizeof(line) - (p - line), "%7u ", (unsigned int)raw_prescaled);
+
+    // FIX: Clamp raw_prescaled to bit-width (8, 16, 32, 64-bit)
+    raw_prescaled &= max_val;
+
+    p += snprintf(p, sizeof(line) - (p - line), "%7llu ", (unsigned long long)raw_prescaled);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // COMPARE FEATURE COLUMNS
     // cmp-en (compare enabled, 3 chars left-aligned)
-    p += snprintf(p, sizeof(line) - (p - line), "%-3s ", cfg.compare_enabled ? "yes" : "no");
+    p += snprintf(p, sizeof(line) - (p - line), "%-6s ", cfg.compare_enabled ? "yes" : "no");
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // cmp-md (compare mode: 0=≥, 1=>, 2=exact, 1 char)
@@ -686,9 +702,9 @@ void cli_cmd_show_counters(void) {
       if (cfg.compare_mode == 0) cmp_mode_char = "≥";
       else if (cfg.compare_mode == 1) cmp_mode_char = ">";
       else if (cfg.compare_mode == 2) cmp_mode_char = "=";
-      p += snprintf(p, sizeof(line) - (p - line), "%-4s ", cmp_mode_char);
+      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", cmp_mode_char);
     } else {
-      p += snprintf(p, sizeof(line) - (p - line), "%-4s ", "—");
+      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", "—");
     }
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
@@ -696,7 +712,7 @@ void cli_cmd_show_counters(void) {
     if (cfg.compare_enabled) {
       p += snprintf(p, sizeof(line) - (p - line), "%8llu ", (unsigned long long)cfg.compare_value);
     } else {
-      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", "—");
+      p += snprintf(p, sizeof(line) - (p - line), "%-9s ", "—");
     }
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
