@@ -1,0 +1,420 @@
+# CLAUDE Architecture - Project Structure & File Reference
+
+**Read when:** You need to understand how components fit together, or find where code lives.
+
+---
+
+## 🏗️ Layered Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Layer 8: System (main.cpp, heartbeat, version, debug)  │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 7: CLI (parser, commands, show, history, shell)  │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 6: Persistence (config struct, load, save, apply)│
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 5: Feature Engines (Counters, Timers, ST Logic)  │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 4: Registers & Coils (storage, GPIO mapping)     │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 3: Modbus Server (RX, TX, state machine)         │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 2: FC Handlers (FC01-10, dispatch)               │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 1: Protocol Core (frame, parser, serializer)     │
+└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Layer 0: Hardware Drivers (GPIO, UART, PCNT, NVS)      │
+└─────────────────────────────────────────────────────────┘
+```
+
+Each layer has **ONE responsibility**. No circular dependencies.
+
+---
+
+## 📂 File Reference by Layer
+
+### Layer 0: Hardware Drivers
+
+| File | Purpose | Principle |
+|------|---------|-----------|
+| `gpio_driver.cpp/h` | GPIO init, read, write, interrupt | Only place that knows GPIO registers |
+| `uart_driver.cpp/h` | UART0/UART1 init, RX/TX, buffering | Only place that knows UART registers |
+| `pcnt_driver.cpp/h` | PCNT unit config, counting, ISR | Hardware pulse counter interface |
+| `nvs_driver.cpp/h` | Non-volatile storage read/write | Only place that knows ESP32 NVS HAL |
+
+**Key Principle:** These are the ONLY files that know ESP32 registers/HAL. Everything above uses these abstractions.
+
+---
+
+### Layer 1: Protocol Core (Modbus framing)
+
+| File | Purpose |
+|------|---------|
+| `modbus_frame.cpp/h` | ModbusFrame struct, CRC16 calculation |
+| `modbus_parser.cpp/h` | Parse raw bytes → ReadRequest/WriteRequest |
+| `modbus_serializer.cpp/h` | Build response frame from data |
+
+**Key Principle:** Pure functions, testable without full Modbus server running.
+
+---
+
+### Layer 2: Function Code Handlers
+
+| File | Purpose |
+|------|---------|
+| `modbus_fc_read.cpp/h` | FC01, FC02, FC03, FC04 implementations |
+| `modbus_fc_write.cpp/h` | FC05, FC06, FC0F, FC10 implementations |
+| `modbus_fc_dispatch.cpp/h` | Route FC code → handler |
+
+**Key Principle:** Each function code isolated. Adding new FC only requires one file change.
+
+---
+
+### Layer 3: Modbus Server Runtime
+
+| File | Purpose |
+|------|---------|
+| `modbus_rx.cpp/h` | Serial RX, frame detection, timeout, ISR |
+| `modbus_tx.cpp/h` | RS-485 DIR control, serial TX |
+| `modbus_server.cpp/h` | Main Modbus state machine |
+
+**Flow:** idle → RX (receive frame) → process (call FC handler) → TX (send response) → idle
+
+---
+
+### Layer 4: Register & Coil Storage
+
+| File | Purpose |
+|------|---------|
+| `registers.cpp/h` | Holding/input register array, access functions |
+| `coils.cpp/h` | Coil/discrete input bit arrays, access functions |
+| `gpio_mapping.cpp/h` | GPIO ↔ coil/discrete input bindings |
+| `register_allocator.cpp/h` | Global register allocation tracking (BUG-025) |
+
+**Key Principle:** All register access goes through these files. Can add validation here.
+
+---
+
+### Layer 5: Feature Engines
+
+#### Counter Engine
+```
+counter_config.cpp/h     ← Configuration struct
+  ↓
+counter_engine.cpp/h     ← Orchestration (main entry point)
+  ├→ counter_sw.cpp/h           (Software polling mode)
+  ├→ counter_sw_isr.cpp/h       (Hardware ISR mode)
+  ├→ counter_hw.cpp/h           (Hardware PCNT mode)
+  └→ counter_frequency.cpp/h    (Frequency measurement)
+```
+
+**Modes:**
+1. **SW** - Software polling (GPIO level read)
+2. **SW-ISR** - Software interrupt (GPIO interrupt, INT0-INT5)
+3. **HW** - Hardware PCNT (most robust)
+
+**Registers per counter (5 total):**
+- `index_reg` - Scaled value (full precision)
+- `raw_reg` - Prescaled value (register space savings)
+- `freq_reg` - Measured frequency (Hz)
+- `overload_reg` - Overflow flag
+- `ctrl_reg` - Control bits
+
+#### Timer Engine
+```
+timer_config.cpp/h       ← Configuration struct
+  ↓
+timer_engine.cpp/h       ← State machines (modes 1-4)
+```
+
+**Modes:**
+1. One-shot sequences (3-phase timing)
+2. Monostable (retriggerable pulse)
+3. Astable (blink/toggle)
+4. Input-triggered (responds to discrete inputs)
+
+#### ST Logic Engine
+```
+st_logic_config.cpp/h    ← Program config, persistence
+  ↓
+st_logic_engine.cpp/h    ← Execution loop, scheduler (MAIN)
+  ├→ st_compiler.cpp/h         (ST source → bytecode compiler)
+  ├→ st_parser.cpp/h           (ST syntax parser)
+  ├→ st_lexer.cpp/h            (ST tokenizer)
+  ├→ st_vm.cpp/h               (Virtual machine executor)
+  └→ cli_commands_logic.cpp    (CLI interface)
+
+gpio_mapping.cpp/h       ← Variable binding system (shared with GPIO)
+```
+
+**Key Features:**
+- Fixed rate scheduler: 10ms default (configurable)
+- Sequential execution: Logic1 → Logic2 → Logic3 → Logic4
+- 3-Phase I/O: Read inputs → Execute → Write outputs
+- Type-safe variable bindings (BOOL/INT/REAL)
+- Unified mapping system (ST vars ↔ Modbus registers/coils)
+
+**Registers:**
+- IR 200-203: Status (enabled, compiled, error)
+- IR 204-207: Execution count
+- IR 208-211: Error count
+- IR 212-215: Error code
+- IR 216-219: Variable binding count
+- IR 220-251: Variable values
+- HR 200-203: Control
+
+---
+
+### Layer 6: Persistence (Config Management)
+
+| File | Purpose |
+|------|---------|
+| `config_struct.cpp/h` | PersistConfig struct definition |
+| `config_load.cpp/h` | Load from NVS, schema migration, validation |
+| `config_save.cpp/h` | Save to NVS, CRC calculation |
+| `config_apply.cpp/h` | Apply config to engines (initialize) |
+
+**Principle:**
+- **Load:** Reading from storage (can fail gracefully)
+- **Save:** Persisting to storage (atomic with CRC)
+- **Apply:** Activating config in running system (idempotent)
+
+---
+
+### Layer 7: User Interface (CLI)
+
+| File | Purpose |
+|------|---------|
+| `cli_parser.cpp/h` | Tokenize input, dispatch to handler |
+| `cli_commands.cpp/h` | All `set` command implementations |
+| `cli_show.cpp/h` | All `show` command implementations |
+| `cli_history.cpp/h` | Command history, arrow key navigation |
+| `cli_shell.cpp/h` | Serial I/O, state machine, main CLI loop |
+
+**Key Principle:** One file per concern. Adding new command = one function, no cross-file changes.
+
+---
+
+### Layer 8: System
+
+| File | Purpose |
+|------|---------|
+| `main.cpp` | setup() and loop() only |
+| `heartbeat.cpp/h` | LED blink, watchdog timer |
+| `version.cpp/h` | Version string, changelog |
+| `debug.cpp/h` | Debug output helpers, printf wrappers |
+
+---
+
+### Headers (Single Source of Truth)
+
+| File | Purpose |
+|------|---------|
+| `constants.h` | ALL #define, enums, MAX values |
+| `types.h` | ALL struct definitions |
+| `config.h` | Build-time configuration |
+
+---
+
+## 🎯 Finding Code by Function
+
+### "Where is function X?"
+
+**Search pattern:**
+```bash
+# Find function definition
+grep -r "^[a-zA-Z_].*X\s*(" src/ include/
+
+# Find function calls
+grep -r "X(" src/ include/
+
+# Find in specific layer
+grep -r "X" src/layer*_*.cpp
+
+# Use file reference above to narrow search
+```
+
+### Common Locations:
+
+| What | File |
+|------|------|
+| Modbus register read/write | `src/registers.cpp` |
+| Modbus FC handler | `src/modbus_fc_*.cpp` |
+| Counter configuration | `src/counter_*.cpp` |
+| Timer logic | `src/timer_engine.cpp` |
+| ST Logic execution | `src/st_logic_engine.cpp` |
+| CLI command | `src/cli_commands.cpp` or `src/cli_commands_logic.cpp` |
+| Constants | `include/constants.h` |
+| Structs | `include/types.h` |
+
+---
+
+## 🔀 Data Flow Example: "Read Holding Register"
+
+```
+User (via Modbus)
+  ↓
+Modbus Server (Layer 3)
+  └→ modbus_server.cpp - Receive frame
+    ↓
+FC Handler (Layer 2)
+  └→ modbus_fc_read.cpp - FC03 handler
+    ↓
+Register Storage (Layer 4)
+  └→ registers.cpp - Get holding register value
+    ↓
+Return frame
+  └→ modbus_serializer.cpp - Build response
+    ↓
+Modbus TX (Layer 3)
+  └→ modbus_tx.cpp - Send frame
+    ↓
+User receives response
+```
+
+---
+
+## 🔄 Data Flow Example: "Execute ST Logic Program"
+
+```
+Timer interrupt (10ms)
+  ↓
+Main loop() - Layer 8
+  ↓
+ST Logic Engine (Layer 5)
+  └→ st_logic_engine.cpp - Main scheduler
+    ↓
+3-Phase Execution:
+  ├─ Phase 1: Read inputs
+  │   └→ gpio_mapping.cpp - Read Modbus input registers/coils
+  │
+  ├─ Phase 2: Execute each program
+  │   ├→ st_lexer.cpp - Tokenize bytecode
+  │   ├→ st_parser.cpp - Parse tokens
+  │   └→ st_vm.cpp - Execute bytecode
+  │
+  └─ Phase 3: Write outputs
+      └→ gpio_mapping.cpp - Write Modbus output registers/coils
+
+Timing check (Layer 5)
+  └→ If cycle > interval, extend interval automatically
+```
+
+---
+
+## 🚀 Adding New Feature: Step-by-Step
+
+### Example: Add new counter mode (Mode 4: PWM)
+
+1. **Define struct** in `include/types.h`:
+   ```c
+   // Add to CounterConfig
+   uint8_t mode_4_frequency;
+   uint8_t mode_4_duty;
+   ```
+
+2. **Create implementation** in `src/counter_mode4.cpp`:
+   ```cpp
+   void counter_mode4_init(uint8_t id) { ... }
+   void counter_mode4_update() { ... }
+   ```
+
+3. **Update orchestration** in `src/counter_engine.cpp`:
+   ```cpp
+   if (mode == 4) counter_mode4_update();
+   ```
+
+4. **Update CLI** in `src/cli_commands.cpp`:
+   ```cpp
+   // set counter 1 mode 4 frequency:50 duty:75
+   ```
+
+5. **Update validation** in `src/counter_config.cpp`:
+   ```cpp
+   if (mode == 4) { validate_mode4(); }
+   ```
+
+**Result:** 5 files changed, isolated, no cross-file side effects.
+
+---
+
+## 📊 Build System
+
+**Tool:** PlatformIO (pio)
+
+**Board:** ESP32 DOIT DevKit V1
+
+**Commands:**
+```bash
+pio run              # Build
+pio run -t upload    # Upload to device
+pio device monitor   # Serial monitor
+pio clean && pio run # Clean rebuild
+```
+
+**Configuration:** `platformio.ini`
+
+**Build artifacts:** `.pio/build/esp32/firmware.bin`
+
+---
+
+## 📈 Code Statistics
+
+- **Total files:** 30+ .cpp/.h files
+- **Total lines:** ~10,000 lines of code
+- **File size:** 100-250 lines per file (modular)
+- **Dependency depth:** 8 layers (clear hierarchy)
+- **Circular deps:** 0 (by design)
+
+**Memory Usage (ESP32):**
+- RAM: 520 KB available → 37% used (~123 KB)
+- Flash: 4 MB available → 66% used (~2.7 MB)
+
+---
+
+## 🔗 Related Documentation
+
+- **BUGS_INDEX.md** - Known bugs by priority
+- **BUGS.md** - Detailed bug analysis
+- **TIMING_ANALYSIS.md** - ST Logic timing deep dive
+- **MODBUS_REGISTER_MAP.md** - Complete register reference
+- **CHANGELOG.md** - Version history
+
+---
+
+## ✅ Architecture Principles
+
+1. **Layered Design:** Each layer has single responsibility
+2. **No Circular Dependencies:** Prevents spaghetti code
+3. **Testable:** Layers can be mocked for unit testing
+4. **Modular:** Adding features = adding files, not modifying core
+5. **Hardware Abstraction:** Layer 0 isolated from application logic
+6. **Single Responsibility:** One file = one concern
+7. **Configuration Separated:** Load ≠ Save ≠ Apply
+
+---
+
+## 🎯 Quick Navigation by Task
+
+| Task | Start Here | Then Read |
+|------|-----------|-----------|
+| Fix counter bug | `BUGS_INDEX.md` | `src/counter_*.cpp` |
+| Add timer mode | This file | `src/timer_engine.cpp` |
+| Fix Modbus issue | This file | `src/modbus_*.cpp` |
+| Understand flow | This file (Data Flow section) | Specific layer files |
+| Find function X | File reference table | Use grep |
+
+---
+
+**Last Updated:** 2025-12-16
+**Version:** v4.2.1
+**Status:** ✅ Active & Complete
