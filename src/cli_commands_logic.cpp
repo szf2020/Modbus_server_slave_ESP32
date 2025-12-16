@@ -27,6 +27,7 @@
 #include "config_struct.h"
 #include "constants.h"
 #include "register_allocator.h"  // BUG-025: Register overlap checking
+#include "counter_config.h"      // For counter_config_get/set (persistent cleanup)
 
 /* Forward declarations - from existing CLI infrastructure */
 extern void debug_println(const char *msg);
@@ -334,6 +335,63 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
   return cli_cmd_set_logic_bind(logic_state, program_id, var_index, register_addr, direction, input_type, output_type);
 }
 
+/* ============================================================================
+ * HELPER: Persistent Counter Cleanup on ST Logic Binding Change (BUG-026 FIX)
+ * ============================================================================ */
+
+/**
+ * @brief Disable and persist removal of any counters using registers in range
+ *
+ * When ST Logic binding changes to use a register (e.g., HR100), we must:
+ * 1. Free the register from RAM allocator (done in main bind function)
+ * 2. Disable persistent counters that use same register (this function)
+ *
+ * Without step 2: On next boot, register_allocator_init() will pre-allocate
+ * the register to the counter from persistent config, causing conflicts again.
+ *
+ * @param old_reg The old register used by ST Logic binding (being freed)
+ */
+static void cleanup_counters_using_register(uint16_t old_reg) {
+  // Only need to cleanup if it's in the tracked range (0-99)
+  if (old_reg >= 100) {
+    return;
+  }
+
+  // Check all counters
+  for (uint8_t counter_id = 1; counter_id <= 4; counter_id++) {
+    CounterConfig cfg;
+    if (!counter_config_get(counter_id, &cfg)) {
+      continue;  // Counter not configured
+    }
+
+    if (!cfg.enabled) {
+      continue;  // Counter not enabled
+    }
+
+    // Check if this counter uses the register we're freeing
+    // Each counter uses 5 registers: index_reg, raw_reg, freq_reg, overload_reg, ctrl_reg
+    bool uses_register = (
+      cfg.index_reg == old_reg ||
+      cfg.raw_reg == old_reg ||
+      cfg.freq_reg == old_reg ||
+      cfg.overload_reg == old_reg ||
+      cfg.ctrl_reg == old_reg
+    );
+
+    if (uses_register) {
+      debug_printf("[CLEANUP] Disabling Counter %d (used HR%d which is now taken by ST Logic)\n",
+                   counter_id, old_reg);
+
+      // Disable the counter
+      cfg.enabled = false;
+      counter_config_set(counter_id, &cfg);
+
+      // Note: The counter will be saved to persistent config by config_save_to_nvs()
+      // called at the end of the bind function
+    }
+  }
+}
+
 /**
  * @brief set logic <id> bind <var_idx> <register> [input|output|both]
  *
@@ -397,9 +455,13 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
       // (Only for holding registers in the tracked range 0-99)
       if (map->is_input && map->input_type == 0 && map->input_reg < 100) {
         register_allocator_free(map->input_reg);
+        // BUG-026 FIX: Also cleanup any counters using same register (persistent config)
+        cleanup_counters_using_register(map->input_reg);
       }
       if (!map->is_input && map->output_type == 0 && map->coil_reg < 100) {
         register_allocator_free(map->coil_reg);
+        // BUG-026 FIX: Also cleanup any counters using same register (persistent config)
+        cleanup_counters_using_register(map->coil_reg);
       }
 
       // Delete this mapping by shifting all subsequent mappings down
