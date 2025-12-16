@@ -1,0 +1,112 @@
+# BUGS Index - Quick Reference
+
+**Purpose:** Ultra-compact bug tracking for fast lookup. For detailed analysis, see BUGS.md sections.
+
+## Bug Status Summary
+
+| Bug ID | Title | Status | Priority | Version | Impact |
+|--------|-------|--------|----------|---------|--------|
+| BUG-001 | IR 220-251 ikke opdateret med ST Logic values | ✅ FIXED | 🔴 CRITICAL | v4.0.2 | ST Logic vars ikke synlig i Modbus |
+| BUG-002 | Manglende type checking på ST variable bindings | ✅ FIXED | 🔴 CRITICAL | v4.0.2 | Data corruption ved type mismatch |
+| BUG-003 | Manglende bounds checking på var index | ✅ FIXED | 🟡 HIGH | v4.0.2 | Buffer overflow risk |
+| BUG-004 | Control register reset bit cleares ikke | ✅ FIXED | 🟡 HIGH | v4.0.2 | Error state persists incorrectly |
+| BUG-005 | Inefficient variable binding count lookup | ✅ FIXED | 🟠 MEDIUM | v4.0.2 | Performance issue (O(n) lookup) |
+| BUG-006 | Execution/error counters truncated til 16-bit | ✅ FIXED | 🔵 LOW | v4.0.2 | Counter wraps at 65535 |
+| BUG-007 | Ingen timeout protection på program execution | ✅ FIXED | 🟠 MEDIUM | v4.0.2 | Runaway program can hang system |
+| BUG-008 | IR 220-251 opdateres 1 iteration senere (latency) | ✅ FIXED | 🟠 MEDIUM | v4.1.0 | Stale data in Modbus registers |
+| BUG-009 | Inkonsistent type handling (IR 220-251 vs gpio_mapping) | ❌ OPEN | 🔵 LOW | v4.1.0 | Confusing behavior, low priority |
+| BUG-010 | Forkert bounds check for INPUT bindings | ❌ OPEN | 🔵 LOW | v4.1.0 | Cosmetic validation issue |
+| BUG-011 | Variabelnavn `coil_reg` bruges til HR også (confusing) | ❌ OPEN | 🔵 LOW | v4.1.0 | Code clarity issue |
+| BUG-012 | "both" mode binding skaber dobbelt output i 'show logic' | ❌ OPEN | 🟡 HIGH | v4.1.0 | Confusing UI display |
+| BUG-013 | Binding visnings-rækkefølge matcher ikke var index | ✔️ NOT A BUG | 🔵 LOW | v4.1.0 | Design choice, not a bug |
+| BUG-014 | execution_interval_ms bliver ikke gemt persistent | ✅ FIXED | 🟡 HIGH | v4.1.0 | Settings lost on reboot |
+| BUG-015 | HW Counter PCNT ikke initialiseret uden hw_gpio | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | HW counter doesn't work |
+| BUG-016 | Running bit (bit 7) ignoreres | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | Counter control broken |
+| BUG-017 | Auto-start ikke implementeret | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | Startup behavior inconsistent |
+| BUG-018 | Show counters display respects bit-width | ✅ FIXED | 🟡 HIGH | v4.2.0 | Display truncation |
+| BUG-019 | Show counters race condition (atomic reading) | ✅ FIXED | 🟡 HIGH | v4.2.0 | Intermittent display corruption |
+| BUG-020 | Manual register configuration allowed (should be disabled) | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | User can break system with bad config |
+| BUG-021 | Delete counter command missing | ✅ FIXED | 🟡 HIGH | v4.2.0 | Can't reconfigure counters |
+| BUG-022 | Auto-enable counter on running:on not working | ✅ FIXED | 🟡 HIGH | v4.2.0 | Counter state inconsistent |
+| BUG-023 | Compare doesn't work when disabled | ✅ FIXED | 🟡 HIGH | v4.2.0 | Output stuck after disable |
+| BUG-024 | PCNT counter truncated to 16-bit (raw reg limited to 2000) | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | Counter value overflow |
+| BUG-025 | Global register overlap not checked (Counter/Timer/ST overlap) | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | Register conflicts possible |
+| BUG-026 | ST Logic binding register allocator not freed on change | ✅ FIXED | 🔴 CRITICAL | v4.2.1 | Stale allocation after binding change |
+
+## Quick Lookup by Category
+
+### ⚠️ CRITICAL Bugs (MUST FIX)
+- **BUG-001:** ST Logic vars not visible in Modbus (IR 220-251)
+- **BUG-002:** Type checking on variable bindings
+- **BUG-015:** HW Counter initialization
+- **BUG-016:** Running bit control
+- **BUG-017:** Auto-start feature
+- **BUG-020:** Manual register config disabled
+- **BUG-024:** Counter truncation fix
+- **BUG-025:** Register overlap checking
+- **BUG-026:** Binding allocator cleanup
+
+### 🟡 HIGH Priority (SHOULD FIX)
+- **BUG-003:** Bounds checking on var index
+- **BUG-004:** Reset bit in control register
+- **BUG-012:** "both" mode display
+- **BUG-014:** Persistent interval save
+- **BUG-018:** Show counters bit-width
+- **BUG-019:** Race condition in display
+- **BUG-021:** Delete counter command
+- **BUG-022:** Auto-enable counter
+- **BUG-023:** Compare after disable
+- **BUG-CLI-1:** Parameter keyword clarification
+- **BUG-CLI-2:** GPIO validation
+
+### 🟠 MEDIUM Priority (NICE TO HAVE)
+- **BUG-005:** Binding count lookup optimization
+- **BUG-007:** Execution timeout protection
+- **BUG-008:** IR update latency
+
+### 🔵 LOW Priority (COSMETIC)
+- **BUG-006:** Counter wrapping at 65535
+- **BUG-009:** Type handling inconsistency
+- **BUG-010:** Input bounds check messaging
+- **BUG-011:** Variable naming (`coil_reg`)
+
+### ✔️ NOT BUGS (DESIGN CHOICES)
+- **BUG-013:** Binding display order (intentional)
+
+## Status Legend
+
+| Symbol | Meaning |
+|--------|---------|
+| ✅ FIXED | Bug implemented and verified |
+| ❌ OPEN | Bug identified but not fixed |
+| ✔️ NOT A BUG | Determined to be design choice |
+| 🔴 CRITICAL | System breaks without fix |
+| 🟡 HIGH | Significant impact, should fix soon |
+| 🟠 MEDIUM | Noticeable impact, nice to fix |
+| 🔵 LOW | Minor issue, cosmetic only |
+
+## How Claude Should Use This
+
+**When working on code changes:**
+1. Check BUGS_INDEX.md first (this file) - ~10 seconds to skim
+2. Note which bugs might be affected by your changes
+3. If you need details, go to BUGS.md and search for specific BUG-ID
+4. Before committing: Update BUGS_INDEX.md status if you fixed a bug
+5. Update BUGS.md detailed section only if implementing significant fix
+
+**Example workflow:**
+```
+Task: Modify ST Logic binding logic
+1. Skim BUGS_INDEX.md → See BUG-002, BUG-005, BUG-012, BUG-026
+2. Check if your changes impact these areas
+3. If modifying binding code → might affect BUG-026
+4. Read BUGS.md § BUG-026 for implementation details
+5. After fix → Update BUGS_INDEX.md row for BUG-026
+```
+
+## File Organization
+
+- **BUGS_INDEX.md** (THIS FILE): Compact 1-liner summary of all bugs (tokens: ~500)
+- **BUGS.md**: Full detailed analysis with root causes, test results, code references (tokens: ~5000+)
+
+Use BUGS_INDEX.md for quick navigation, BUGS.md for deep dives.

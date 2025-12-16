@@ -1,9 +1,19 @@
 # Bug Tracking - ESP32 Modbus RTU Server
 
 **Projekt:** Modbus RTU Server (ESP32)
-**Version:** v4.2.0
-**Sidst opdateret:** 2025-12-15
+**Version:** v4.2.1
+**Sidst opdateret:** 2025-12-16
 **Build:** Se `build_version.h` for aktuel build number
+
+---
+
+## ⚡ QUICK START: Use BUGS_INDEX.md Instead!
+
+**This file is 2800+ lines.** For fast lookup:
+- **Read:** [`BUGS_INDEX.md`](BUGS_INDEX.md) - Compact 1-liner summary of ALL bugs (~500 tokens)
+- **Then:** Search BUGS.md by BUG-ID for deep dive if needed
+
+**Claude Code:** Always check BUGS_INDEX.md FIRST before reading this file!
 
 ---
 
