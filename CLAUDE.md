@@ -485,41 +485,66 @@ gcc -o test_frame src/modbus_frame.c test/test_frame.c -Iinclude
 
 ## Code Modification Guidelines
 
-### ⚠️ ALTID TJEK BUGS.MD FØR ÆNDRINGER
+### ⚠️ ALTID TJEK BUGS FØR ÆNDRINGER
 
-**KRITISK REGEL:** Før du opretter, modificerer eller refaktorerer NOGEN funktion i denne kodebase, skal du ALTID konsultere `BUGS.md` filen først!
+**KRITISK REGEL:** Før du opretter, modificerer eller refaktorerer NOGEN funktion i denne kodebase, skal du ALTID konsultere bug-systemet først!
 
-**Hvorfor:**
-- `BUGS.md` indeholder kendte bugs med præcise funktionsreferences, linjenumre og signaturer
-- Du kan utilsigtet introducere samme bug igen hvis du ikke kender den
-- Eksisterende bugs kan påvirke din implementeringsstrategi
-- Funktionssignaturer i BUGS.md viser den aktuelle version af funktioner
+**To-tier Bug Tracking System:**
+
+1. **START HERE:** [`BUGS_INDEX.md`](BUGS_INDEX.md) - **Ultra-compact reference** (~500 tokens)
+   - Table of all 26 bugs with 1-liner descriptions
+   - Status (✅ FIXED / ❌ OPEN / ✔️ NOT A BUG)
+   - Priority level (CRITICAL / HIGH / MEDIUM / LOW)
+   - Quick lookup by category (sorted by priority)
+   - **Read this FIRST - takes 10 seconds**
+
+2. **IF NEEDED:** `BUGS.md` - **Full detailed analysis** (5000+ tokens)
+   - Root cause analysis with code references
+   - Test results and verification steps
+   - Implementation details
+   - Only read if you need deep dive on specific BUG-ID
 
 **Workflow:**
-1. **FØR ændring:** Læs relevante sektioner i `BUGS.md`
-2. **Under ændring:** Følg fixes beskrevet i `BUGS.md` hvis du rører ved påvirkede funktioner
-3. **EFTER ændring:** Opdater `BUGS.md` hvis du har fixed en bug (marker som ✅ FIXED)
-4. **Ved ny bug:** Tilføj til `BUGS.md` med samme format som eksisterende entries
+1. **FØR ændring:**
+   - Åben [`BUGS_INDEX.md`](BUGS_INDEX.md) og skim for relevant bugs
+   - Note hvilke BUG-IDs der might påvirkes af din ændring
+   - If needed, søg BUGS.md for specifik BUG-ID: `grep "^### BUG-XXX:" BUGS.md`
+2. **Under ændring:** Følg fixes beskrevet i BUGS.md hvis du rører ved påvirkede funktioner
+3. **EFTER ændring:** Opdater [`BUGS_INDEX.md`](BUGS_INDEX.md) status tabel hvis du fixed en bug
+4. **Ved ny bug:** Tilføj til BUGS.md med samme format, så update BUGS_INDEX.md
 
-**Eksempel:**
+**Eksempel - Komplet Workflow:**
 ```
-Du skal modificere: registers_update_st_logic_status()
+Task: Ændre ST Logic binding logic
 
-STEP 1: Læs BUGS.md
-  → BUG-001: Denne funktion opdaterer IKKE IR 220-251 (kritisk!)
-  → BUG-003: Denne funktion mangler bounds checking
+STEP 1: Skim BUGS_INDEX.md (10 sekunder)
+  → Check "Quick Lookup by Category"
+  → Find BUG-001, BUG-002, BUG-005, BUG-012, BUG-026
+  → Se om nogen er relevant for din ændring
+  → BUG-026 affects binding code! Must read.
 
-STEP 2: Implementer fix for begge bugs samtidig
+STEP 2: Lav ændring i kode (med viden om BUG-026)
+  → Implementer fix for BUG-026
+  → Sikr registerkompensation ved binding ændring
 
-STEP 3: Opdater BUGS.md:
-  BUG-001: Status ❌ OPEN → ✅ FIXED (2025-12-12)
-  BUG-003: Status ❌ OPEN → ✅ FIXED (2025-12-12)
+STEP 3: Opdater BUGS_INDEX.md
+  → Ændrer BUG-026 fra ❌ OPEN → ✅ FIXED
+
+STEP 4: Hvis kompleks bug, opdater også BUGS.md
+  → Tilføj test results
+  → Dokumenter root cause
 ```
+
+**Token Usage Comparison:**
+- **Old workflow:** Read BUGS.md (5000+ tokens) EVERY time before any code change
+- **New workflow:** Read BUGS_INDEX.md (500 tokens) first, then BUGS.md only if needed
+- **Savings:** 90% token reduction for routine bug checks!
 
 **Husk:**
-- `BUGS.md` er single source of truth for kendte problemer
-- Ignorer ALDRIG BUGS.md når du arbejder med påvirkede filer
-- Ved version bump: Verificer at funktionssignaturer i BUGS.md stadig matcher koden
+- [`BUGS_INDEX.md`](BUGS_INDEX.md) er entry point - START HERE!
+- `BUGS.md` er single source of truth for kendte problemer - gå dertil for detaljer
+- Ignorer ALDRIG bug systemet når du arbejder med påvirkede funktioner
+- Ved version bump: Verificer at BUGS_INDEX.md og BUGS.md stadig matcher koden
 
 ---
 
