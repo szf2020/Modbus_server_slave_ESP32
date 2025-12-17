@@ -60,4 +60,18 @@ bool modbus_fc03_read_holding_registers(const ModbusFrame* request_frame, Modbus
  */
 bool modbus_fc04_read_input_registers(const ModbusFrame* request_frame, ModbusFrame* response_frame);
 
+/**
+ * @brief Handle reset-on-read for counter compare status and value registers
+ * @param starting_address First register address that was read
+ * @param quantity Number of registers that were read
+ *
+ * Checks if any counter has reset_on_read enabled and if the ctrl_reg/index_reg/raw_reg
+ * was in the read range. If so:
+ * - Clears bit 4 (compare status) in ctrl_reg
+ * - Resets counter value to start_value if index/raw reg was read
+ *
+ * Should be called after register read operations (Modbus FC03 or CLI read reg)
+ */
+void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity);
+
 #endif // modbus_fc_read_H

@@ -44,15 +44,17 @@ CounterConfig counter_config_defaults(uint8_t id) {
   cfg.bit_width = 32;
   cfg.scale_factor = 1.0f;
 
-  // IMPROVEMENT: Smart register defaults (v4.2.0)
-  // Assign logical spacing: Counter 1 → 100-104, Counter 2 → 110-114, etc.
-  // This ensures counters have sane defaults without explicit CLI configuration
-  uint16_t base = 100 + ((id - 1) * 10);
-  cfg.index_reg = base + 0;     // 100, 110, 120, 130
-  cfg.raw_reg = base + 1;       // 101, 111, 121, 131
-  cfg.freq_reg = base + 2;      // 102, 112, 122, 132
-  cfg.overload_reg = base + 3;  // 103, 113, 123, 133
-  cfg.ctrl_reg = base + 4;      // 104, 114, 124, 134
+  // IMPROVEMENT: Smart register defaults (v4.2.4 - BUG-030 fix)
+  // Assign 4-word spacing to support 64-bit counters (4 registers per value)
+  // Counter 1: 100-114, Counter 2: 120-134, Counter 3: 140-154, Counter 4: 160-174
+  // Each counter gets 20 registers total (enough for 64-bit index+raw+compare)
+  uint16_t base = 100 + ((id - 1) * 20);
+  cfg.index_reg = base + 0;          // 100, 120, 140, 160 (uses +0,+1,+2,+3 for 64-bit)
+  cfg.raw_reg = base + 4;            // 104, 124, 144, 164 (uses +4,+5,+6,+7 for 64-bit)
+  cfg.freq_reg = base + 8;           // 108, 128, 148, 168 (16-bit, uses 1 reg)
+  cfg.overload_reg = base + 9;       // 109, 129, 149, 169 (16-bit, uses 1 reg)
+  cfg.ctrl_reg = base + 10;          // 110, 130, 150, 170 (16-bit, uses 1 reg)
+  cfg.compare_value_reg = base + 11; // 111, 131, 151, 171 (uses +11,+12,+13,+14 for 64-bit)
 
   cfg.start_value = 0;
   cfg.debounce_enabled = 1;

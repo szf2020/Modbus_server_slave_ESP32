@@ -108,12 +108,18 @@ uint32_t pcnt_unit_get_count(uint8_t unit) {
     return 0;  // Graceful return instead of error
   }
 
-  // Read hardware PCNT counter value
+  // BUG-024 EXTENDED FIX: PCNT hardware is 16-bit signed (-32768 to 32767)
+  // ESP-IDF API uses int16_t, not uint32_t!
+  // We need to handle the 16-bit wrap at ±32768 in counter_hw.cpp
   int16_t count = 0;
   pcnt_get_counter_value((pcnt_unit_t)unit, &count);
 
-  // Return as unsigned (we handle wrap in counter_hw.cpp)
-  return (uint32_t)count;
+  // Convert signed 16-bit to unsigned 16-bit (0-65535 range)
+  // This ensures monotonic increase before wrap at 65536
+  uint16_t unsigned_count = (uint16_t)count;
+
+  // Return as uint32_t for compatibility (but only uses lower 16 bits)
+  return (uint32_t)unsigned_count;
 }
 
 void pcnt_unit_clear(uint8_t unit) {

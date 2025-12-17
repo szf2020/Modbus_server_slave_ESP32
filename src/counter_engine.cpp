@@ -468,6 +468,15 @@ void counter_engine_store_value_to_registers(uint8_t id) {
     registers_set_holding_register(cfg.overload_reg, overflow ? 1 : 0);
   }
 
+  // BUG-030: Write compare_value to register (for Modbus read/write)
+  if (cfg.compare_enabled && cfg.compare_value_reg < HOLDING_REGS_SIZE) {
+    uint8_t words = (bw <= 16) ? 1 : (bw == 32) ? 2 : 4;
+    for (uint8_t w = 0; w < words && cfg.compare_value_reg + w < HOLDING_REGS_SIZE; w++) {
+      uint16_t word = (uint16_t)((cfg.compare_value >> (16 * w)) & 0xFFFF);
+      registers_set_holding_register(cfg.compare_value_reg + w, word);
+    }
+  }
+
   // COMPARE CHECK (v2.3+)
   // Check if counter value meets compare criteria and update status bit
   counter_engine_check_compare(id, counter_value);
@@ -489,29 +498,46 @@ static void counter_engine_check_compare(uint8_t id, uint64_t counter_value) {
     return;  // Invalid control register
   }
 
+  // BUG-030: Read compare_value from Modbus register (allows runtime modification)
+  uint64_t compare_value = cfg.compare_value;  // Fallback to config value
+  if (cfg.compare_value_reg < HOLDING_REGS_SIZE) {
+    uint8_t words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
+    compare_value = 0;
+    for (uint8_t w = 0; w < words && cfg.compare_value_reg + w < HOLDING_REGS_SIZE; w++) {
+      uint16_t word = registers_get_holding_register(cfg.compare_value_reg + w);
+      compare_value |= ((uint64_t)word) << (16 * w);
+    }
+  }
+
   // Get runtime state for tracking previous value
   CounterCompareRuntime *runtime = &counter_compare_state[id - 1];
 
-  // Check compare condition based on mode
+  // BUG-029 FIX: All compare modes should use edge detection (rising edge trigger)
+  // Only set bit4 when crossing threshold, not on every iteration while above it
+  // This allows reset-on-read to work correctly - bit4 stays cleared until next crossing
   uint8_t compare_hit = 0;
 
   switch (cfg.compare_mode) {
-    case 0:  // ≥ (greater-or-equal) - DEFAULT
-      compare_hit = (counter_value >= cfg.compare_value) ? 1 : 0;
+    case 0:  // ≥ (greater-or-equal) - Rising edge detection
+      // Trigger when crossing from below to at-or-above threshold
+      compare_hit = (runtime->last_value < compare_value &&
+                     counter_value >= compare_value) ? 1 : 0;
       break;
 
-    case 1:  // > (greater-than)
-      compare_hit = (counter_value > cfg.compare_value) ? 1 : 0;
+    case 1:  // > (greater-than) - Rising edge detection
+      // Trigger when crossing from at-or-below to strictly above threshold
+      compare_hit = (runtime->last_value <= compare_value &&
+                     counter_value > compare_value) ? 1 : 0;
       break;
 
     case 2:  // === (exact match, only on rising edge transition)
       // Only trigger when crossing from below to at-or-above compare value
-      compare_hit = (runtime->last_value < cfg.compare_value &&
-                     counter_value >= cfg.compare_value) ? 1 : 0;
+      compare_hit = (runtime->last_value < compare_value &&
+                     counter_value >= compare_value) ? 1 : 0;
       break;
   }
 
-  // Update last value for next iteration (used by exact match mode)
+  // Update last value for next iteration (used by all modes for edge detection)
   runtime->last_value = counter_value;
 
   // If compare condition met, set bit 4 in control register

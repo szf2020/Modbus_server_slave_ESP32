@@ -98,7 +98,7 @@ Each layer has **ONE responsibility**. No circular dependencies.
 | `registers.cpp/h` | Holding/input register array, access functions |
 | `coils.cpp/h` | Coil/discrete input bit arrays, access functions |
 | `gpio_mapping.cpp/h` | GPIO ↔ coil/discrete input bindings |
-| `register_allocator.cpp/h` | Global register allocation tracking (BUG-025) |
+| `register_allocator.cpp/h` | Global register allocation tracking (BUG-025, BUG-026, BUG-028) |
 
 **Key Principle:** All register access goes through these files. Can add validation here.
 
@@ -122,12 +122,27 @@ counter_engine.cpp/h     ← Orchestration (main entry point)
 2. **SW-ISR** - Software interrupt (GPIO interrupt, INT0-INT5)
 3. **HW** - Hardware PCNT (most robust)
 
-**Registers per counter (5 total):**
-- `index_reg` - Scaled value (full precision)
-- `raw_reg` - Prescaled value (register space savings)
-- `freq_reg` - Measured frequency (Hz)
-- `overload_reg` - Overflow flag
-- `ctrl_reg` - Control bits
+**Registers per counter (v4.2.4 - 6 total, multi-word support):**
+- `index_reg` - Scaled value (1-4 words depending on bit_width)
+- `raw_reg` - Prescaled value (1-4 words)
+- `freq_reg` - Measured frequency (Hz, 1 word)
+- `overload_reg` - Overflow flag (1 word)
+- `ctrl_reg` - Control bits (bit4=compare-match, 1 word)
+- `compare_value_reg` - Compare threshold (1-4 words, runtime modifiable via Modbus)
+
+**Smart Register Defaults (v4.2.4 - BUG-028, BUG-030):**
+- Counter 1: HR100-114 (20 registers: index+raw+freq+overload+ctrl+compare, 5 reserved)
+- Counter 2: HR120-134
+- Counter 3: HR140-154
+- Counter 4: HR160-174
+
+**Example layout (Counter 1, 32-bit):**
+- HR100-101: Index (scaled, 2 words)
+- HR104-105: Raw (prescaled, 2 words)
+- HR108: Frequency
+- HR109: Overload
+- HR110: Control (bit7=running, bit4=compare-match)
+- HR111-112: Compare value (2 words, writable by SCADA)
 
 #### Timer Engine
 ```

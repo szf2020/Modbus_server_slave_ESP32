@@ -554,7 +554,7 @@ void cli_cmd_show_counters(void) {
   debug_println("─────────────────────────────────────────────────────────────---------------───────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
   // Kolonne headers
-  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |    val    |   raw   | cmp-en | cmp-md | cmp-val | ror");
+  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |     val     |    raw    | cmp-en | cmp-md | cmp-val | ror");
 
   // Data rækker for hver counter
   for (uint8_t id = 1; id <= 4; id++) {
@@ -678,20 +678,29 @@ void cli_cmd_show_counters(void) {
       default: max_val = 0xFFFFFFFFFFFFFFFFULL; break;
     }
 
-    // Scaled value (9 chars right-aligned)
+    // Clamp counter_value to bit-width FIRST to avoid overflow in scaling
+    uint64_t clamped_value = counter_value & max_val;
+
+    // Scaled value (10 chars right-aligned for 32-bit max: 4294967295)
     // CORRECT: scaled = counter × scale (not raw × scale!)
-    uint64_t scaled_value = (uint64_t)(counter_value * cfg.scale_factor);
+    double scaled_float = (double)clamped_value * cfg.scale_factor;
+
+    // Clamp scaled result to bit-width range
+    if (scaled_float < 0.0) scaled_float = 0.0;
+    if (scaled_float > (double)max_val) scaled_float = (double)max_val;
+
+    uint64_t scaled_value = (uint64_t)(scaled_float + 0.5);  // Round to nearest
     scaled_value &= max_val;
 
-    p += snprintf(p, sizeof(line) - (p - line), "%9llu ", (unsigned long long)scaled_value);
+    p += snprintf(p, sizeof(line) - (p - line), "%10llu ", (unsigned long long)scaled_value);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-    // Raw value (prescaled, 7 chars right-aligned)
-    // CORRECT: raw = counter / prescaler (same counter_value!)
-    uint64_t raw_prescaled = counter_value / cfg.prescaler;
+    // Raw value (prescaled, 9 chars right-aligned for 32-bit max: 268435455)
+    // CORRECT: raw = counter / prescaler (same clamped_value!)
+    uint64_t raw_prescaled = clamped_value / cfg.prescaler;
     raw_prescaled &= max_val;
 
-    p += snprintf(p, sizeof(line) - (p - line), "%7llu ", (unsigned long long)raw_prescaled);
+    p += snprintf(p, sizeof(line) - (p - line), "%9llu ", (unsigned long long)raw_prescaled);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // COMPARE FEATURE COLUMNS
@@ -730,15 +739,11 @@ void cli_cmd_show_counters(void) {
     debug_println(line);
   }
 
-  // COUNTER CONTROL STATUS (ny sektion - ctrl-register bits)
+  // COUNTER CONTROL STATUS (samme stil som counter status)
   debug_println("");
-  debug_println("════════════════════════════════════════════════════════════════════════════════════════");
-  debug_println("COUNTER CONTROL STATUS (Control Register Bits)");
-  debug_println("════════════════════════════════════════════════════════════════════════════════════════");
-  debug_println("bit0=reset, bit1=start, bit2=stop, bit3=reserved, bit4=compare-status (bits 5-15=reserved)");
-  debug_println("");
-  debug_println("counter | ctrl-reg | hex-value | bit0 | bit1 | bit2 | bit3 | bit4 | bits 5-15");
-  debug_println("────────┼──────────┼───────────┼──────┼──────┼──────┼──────┼──────┼──────────");
+  debug_println("Control register status (bit0=reset, bit1=start, bit2=stop, bit4=compare-match)");
+  debug_println("─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
+  debug_println("counter | ctrl-reg | raw-value | reset | start | stop | running | compare-match");
 
   for (uint8_t id = 1; id <= 4; id++) {
     CounterConfig cfg;
@@ -747,65 +752,58 @@ void cli_cmd_show_counters(void) {
     char line[256];
     char* p = line;
 
-    // Counter ID
+    // Counter ID (8 chars left-aligned)
     p += snprintf(p, sizeof(line) - (p - line), " %-7d", id);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-    // ctrl-reg address
+    // ctrl-reg address (10 chars)
     if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
-      p += snprintf(p, sizeof(line) - (p - line), "%-8u ", cfg.ctrl_reg);
+      p += snprintf(p, sizeof(line) - (p - line), "%-9u ", cfg.ctrl_reg);
     } else {
-      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", "n/a");
+      p += snprintf(p, sizeof(line) - (p - line), "%-10s ", "n/a");
     }
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-    // ctrl-reg value (hex)
     if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
       uint16_t ctrl_value = registers_get_holding_register(cfg.ctrl_reg);
+
+      // Raw value (hex, 10 chars)
       p += snprintf(p, sizeof(line) - (p - line), "0x%-7x ", ctrl_value);
-    } else {
-      p += snprintf(p, sizeof(line) - (p - line), "%-9s ", "—");
-    }
-    p += snprintf(p, sizeof(line) - (p - line), "| ");
+      p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-    if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
-      uint16_t ctrl_value = registers_get_holding_register(cfg.ctrl_reg);
-
-      // Bit 0
+      // Bit 0: reset (7 chars)
       uint8_t bit0 = (ctrl_value >> 0) & 1;
-      p += snprintf(p, sizeof(line) - (p - line), "%d    ", bit0);
+      p += snprintf(p, sizeof(line) - (p - line), "%-6s ", bit0 ? "yes" : "no");
       p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-      // Bit 1
+      // Bit 1: start (7 chars)
       uint8_t bit1 = (ctrl_value >> 1) & 1;
-      p += snprintf(p, sizeof(line) - (p - line), "%d    ", bit1);
+      p += snprintf(p, sizeof(line) - (p - line), "%-6s ", bit1 ? "yes" : "no");
       p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-      // Bit 2
+      // Bit 2: stop (6 chars)
       uint8_t bit2 = (ctrl_value >> 2) & 1;
-      p += snprintf(p, sizeof(line) - (p - line), "%d    ", bit2);
+      p += snprintf(p, sizeof(line) - (p - line), "%-5s ", bit2 ? "yes" : "no");
       p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-      // Bit 3
-      uint8_t bit3 = (ctrl_value >> 3) & 1;
-      p += snprintf(p, sizeof(line) - (p - line), "%d    ", bit3);
+      // Running status (derived from start/stop, 9 chars)
+      const char* running_status = "—";
+      if (bit1 && !bit2) running_status = "yes";
+      else if (!bit1 && bit2) running_status = "no";
+      else if (bit1 && bit2) running_status = "conflict";
+      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", running_status);
       p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-      // Bit 4
+      // Bit 4: compare-match (15 chars)
       uint8_t bit4 = (ctrl_value >> 4) & 1;
-      p += snprintf(p, sizeof(line) - (p - line), "%d    ", bit4);
-      p += snprintf(p, sizeof(line) - (p - line), "| ");
-
-      // Bits 5-15
-      uint16_t bits_5_15 = (ctrl_value >> 5) & 0x7FF;
-      p += snprintf(p, sizeof(line) - (p - line), "0x%-6x", bits_5_15);
+      p += snprintf(p, sizeof(line) - (p - line), "%-14s", bit4 ? "yes" : "no");
     } else {
-      p += snprintf(p, sizeof(line) - (p - line), "— | — | — | — | — | —");
+      p += snprintf(p, sizeof(line) - (p - line), "%-10s | %-6s | %-6s | %-5s | %-8s | %-14s",
+                   "—", "—", "—", "—", "—", "—");
     }
 
     debug_println(line);
   }
-  debug_println("════════════════════════════════════════════════════════════════════════════════════════\n");
 }
 
 /* ============================================================================
@@ -1586,6 +1584,11 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
     debug_println("");
   }
   debug_println("");
+
+  // Handle reset-on-read for counter compare status (same as Modbus FC03)
+  // Must be called AFTER reading registers so user sees current value
+  extern void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity);
+  modbus_handle_reset_on_read(start_addr, count);
 }
 
 /* ============================================================================

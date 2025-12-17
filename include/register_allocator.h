@@ -21,6 +21,15 @@
 #include <stdbool.h>
 
 /* ============================================================================
+ * CONSTANTS
+ * ============================================================================ */
+
+// Allocator tracks HR0-179 (ST vars, counters, timers)
+// BUG-026 FIX (v4.2.3): Expanded from 100 to 160 for counter defaults
+// BUG-028 FIX (v4.2.3): Expanded from 160 to 180 for 64-bit counter support (HR100-170)
+#define ALLOCATOR_SIZE 180
+
+/* ============================================================================
  * TYPES
  * ============================================================================ */
 
@@ -38,12 +47,14 @@ typedef enum {
 
 /**
  * @brief Register allocation metadata
+ * Memory optimized: 6 bytes per entry (was 22 bytes)
+ * Total for 160 regs: 960 bytes (was 3520 bytes) - saves 2560 bytes DRAM!
  */
 typedef struct {
-  RegisterOwnerType type;        // Who owns this register
-  uint8_t subsystem_id;          // Counter/Timer/Logic ID (1-4), or 0 for global
-  char description[16];          // Description: "C1 index-reg", "T1 ctrl" (shortened to save DRAM)
-  uint32_t timestamp;            // Allocation timestamp (for debugging)
+  uint8_t type;           // RegisterOwnerType (0-5)
+  uint8_t subsystem_id;   // Counter/Timer/Logic ID (1-4), or 0
+  char description[4];    // Short desc: "C1i", "T2c", "L1v" (4 chars max)
+  // Removed timestamp (not used in production)
 } RegisterOwner;
 
 /* ============================================================================
@@ -122,5 +133,10 @@ bool register_allocator_allocate_range(uint16_t start_addr, uint8_t count,
  * @param count Number of registers to free
  */
 void register_allocator_free_range(uint16_t start_addr, uint8_t count);
+
+/**
+ * @brief DEBUG: Print allocation map (all allocated registers)
+ */
+void register_allocator_debug_dump(void);
 
 #endif // REGISTER_ALLOCATOR_H

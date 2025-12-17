@@ -12,7 +12,9 @@
       "Bash(do mv \"$f\" TEST/)",
       "Bash(find:*)",
       "Bash(ls:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(python generate_build_info.py:*)",
+      "Bash(pio device monitor:*)"
     ],
     "deny": [],
     "ask": []

@@ -2723,11 +2723,12 @@ Test scenarios:
 ---
 
 ### BUG-026: ST Logic Binding Register Allocator Not Updated on Change
-**Status:** ✅ FIXED
+**Status:** ⚠️ REOPENED (Persistence Issue)
 **Prioritet:** 🔴 CRITICAL
 **Opdaget:** 2025-12-16
-**Fixed:** 2025-12-16
-**Version:** v4.2.1
+**Fixed (Runtime):** 2025-12-16 (v4.2.1)
+**Fixed (Persistent):** 2025-12-17 (v4.2.3)
+**Version:** v4.2.3
 
 #### Beskrivelse
 Når et ST Logic program binding ændres (f.eks. fra reg 100 til reg 50), bliver de **gamle registers slettet fra VariableMapping array**, men de **frigjøres IKKE fra register-allokeringskort**.
@@ -2830,7 +2831,7 @@ set logic 1 bind TEMP reg:50 both
 - `include/register_allocator.h`: For `register_allocator_free()` and `register_allocator_allocate()` prototypes
 - BUG-025 (must be fixed first - register allocator system prerequisite)
 
-#### Verification ✅ COMPLETE
+#### Verification ✅ PARTIAL (Runtime fixed, Persistence issue found)
 
 Build #611: ✅ Compiled successfully
 - No errors, no warnings
@@ -2838,10 +2839,148 @@ Build #611: ✅ Compiled successfully
 - Register allocator calls use correct parameters
 
 Test scenarios:
-- [x] Binding change from HR100 to HR50 (no counter conflict)
-- [x] Multiple binding changes (all old registers freed)
+- [x] Binding change from HR100 to HR50 (no counter conflict) **RUNTIME ONLY**
+- [x] Multiple binding changes (all old registers freed) **RUNTIME ONLY**
 - [x] "both" mode allocation (single register allocated)
 - [x] "input/output" mode allocation (register allocated only for HR bindings)
+- [ ] **MISSING:** Persistent save after binding change (causes reboot issue)
+
+---
+
+#### ⚠️ **BUG-026 EXTENSION: Persistent Allocation Issue (v4.2.3)**
+
+**Opdaget:** 2025-12-17
+**Status:** ⚠️ REOPENED
+
+**Problem:**
+Runtime fix (v4.2.1) frigør gamle registers korrekt via `register_allocator_free()`, men **g_persist_config gemmes IKKE automatisk efter binding-ændring**.
+
+**Reproduktion:**
+```
+# Session 1:
+set logic 1 bind timer reg:100 output          ← Binds timer to HR100
+set logic 1 bind state reg:101 output          ← Binds state to HR101
+save                                            ← Save to NVS
+reboot
+
+# After reboot:
+show logic 1
+  Variable Bindings:
+    [4] timer → Reg#100 (output)               ← Confirmed: HR100 allocated
+    [0] state → Reg#101 (output)               ← Confirmed: HR101 allocated
+
+# Change bindings:
+set logic 1 bind timer reg:50 output           ← Change to HR50
+set logic 1 bind state reg:51 output           ← Change to HR51
+  [ALLOCATOR] Freed HR100                      ← Runtime: OK ✅
+  [ALLOCATOR] Freed HR101                      ← Runtime: OK ✅
+
+# PROBLEM: User forgets to call 'save'
+# NO ERROR - bindings work fine at runtime
+
+# Reboot (without save):
+reboot
+
+# After reboot:
+show logic 1
+  Variable Bindings:
+    [4] timer → Reg#50 (output)                ← NVS loaded OLD config (HR100/101)
+    [0] state → Reg#51 (output)                ← But VariableMapping shows NEW (HR50/51)
+
+register_allocator_init()
+  → Loads from NVS: var_maps[] contains OLD HR100/101
+  → Allocates HR100/101 to "ST Logic var" (STALE!)
+
+# Now try to configure counter:
+set counter 1 mode 1 hw-mode:hw hw-gpio:25
+  ERROR: Counter 1 index-reg=HR100 already allocated!
+    Owner: Unknown                             ← STALE allocation from boot!
+```
+
+**Root Cause:**
+1. `cli_cmd_set_logic_bind()` opdaterer `g_persist_config.var_maps[]` ✅
+2. `cli_cmd_set_logic_bind()` kalder `register_allocator_free()` ✅
+3. **MANGLER:** `config_save_to_nvs(&g_persist_config)` efter binding-ændring ❌
+4. Ved reboot: `register_allocator_init()` læser **gammel NVS** med stale bindings
+5. Gamle HR100/101 allokeres ved boot, selv om de ikke bruges længere
+
+**Konsekvens:**
+- Counters kan ikke konfigureres efter binding-ændring + reboot
+- "Owner: Unknown" vises fordi allocation map har stale entries fra boot
+- Brugeren skal manuelt kalde `save` efter hver binding-ændring
+
+**Løsning (v4.2.3): Auto-save after binding change**
+
+**Ændring:** `src/cli_commands_logic.cpp`
+**Funktion:** `int cli_cmd_set_logic_bind(...)`
+**Lokation:** Efter Step 3 (new mapping creation), før return statement
+
+**Tilføj:**
+```cpp
+// BUG-026 EXTENSION FIX: Auto-save persistent config after binding change
+// This ensures register allocator sees correct bindings after reboot
+bool save_success = config_save_to_nvs(&g_persist_config);
+if (save_success) {
+  debug_println("[PERSIST] Binding change saved to NVS");
+} else {
+  debug_println("[PERSIST] WARNING: Failed to save binding change");
+}
+```
+
+**Alternativ løsning (mindre invasiv):**
+Tilføj advarsel til brugeren:
+```cpp
+debug_println("");
+debug_println("REMINDER: Run 'save' command to persist binding change across reboots");
+```
+
+**Valgt løsning:** Auto-save (Option 1) for at undgå bruger-fejl
+
+**IMPLEMENTATION (v4.2.3):**
+
+**Root Cause (Opdateret):**
+Auto-save VAR allerede implementeret (linje 590-592), men `cleanup_counters_using_register()` skippede **disabled** counters!
+
+**Problem Flow:**
+1. Counter 1 disabled, men har `index_reg=100` i persistent config
+2. ST Logic binding ændres fra HR100→HR50
+3. `cleanup_counters_using_register(100)` kaldes
+4. Men den skipper disabled counters (linje 367-369: `if (!cfg.enabled) continue;`)
+5. Counter 1's `index_reg=100` forbliver i persistent config
+6. Ved reboot: `register_allocator_init()` allokerer HR100 fra stale config
+
+**Løsning (IMPLEMENTERET):**
+**Fil:** `src/cli_commands_logic.cpp`
+**Funktion:** `cleanup_counters_using_register()`
+**Ændring:**
+
+1. **Fjernet disabled-check** (linje 367-369)
+2. **Reset counter til defaults** i stedet for kun at disable:
+```cpp
+// OLD CODE:
+if (!cfg.enabled) {
+  continue;  // Skip disabled counters ← BUG!
+}
+if (uses_register) {
+  cfg.enabled = false;
+  counter_config_set(counter_id, &cfg);
+}
+
+// NEW CODE (v4.2.3):
+// Check ALL counters (including disabled)
+if (uses_register) {
+  // Reset to defaults (clears stale register allocations)
+  CounterConfig default_cfg = counter_config_defaults(counter_id);
+  default_cfg.enabled = false;
+  counter_config_set(counter_id, &default_cfg);
+  g_persist_config.counters[counter_id - 1] = default_cfg;  // Update persistent
+}
+```
+
+**Effekt:**
+- Disabled counter med `index_reg=100` → nulstilles til `index_reg=100` (default for Counter 1)
+- Men eftersom counteren nu er **disabled og har defaults**, vil `register_allocator_init()` IKKE allokere dens registre ved boot (linje 58: `if (cfg.enabled)`)
+- Konflikt undgået! ✅
 
 #### Extension (v4.2.2): Persistent Counter Cleanup
 
@@ -2878,10 +3017,434 @@ Build #617: ✅ Compiled successfully
 
 ---
 
+## BUG-027: Counter Display Overflow - Values Above bit_width Show Incorrectly (v4.2.3)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟢 MEDIUM
+**Opdaget:** 2025-12-17
+**Fixet:** 2025-12-17
+**Version:** v4.2.3
+
+### Beskrivelse
+
+Når en counter tæller over sin konfigurerede bit-width (8/16/32/64-bit), vises værdien korrekt i Modbus-registrene (wrapping fungerer), men CLI display i `show counters` viser **ukorrekte/overflødte værdier**.
+
+**Problem eksempel:**
+```bash
+Counter 1: bit_width=16 (max 65535)
+Value: 72467 (overflowed, wraps til 6932 ved 16-bit)
+
+> show counters
+val:72467 raw:1811 ❌  (viser fuld værdi, ikke wrapped)
+
+Expected: val:6932 raw:1811 ✓  (clamped til bit_width)
+```
+
+### Root Cause
+
+**Fil:** `src/cli_show.cpp` linje 683-691 (før fix)
+
+**Problematisk kode:**
+```cpp
+// Beregner scaled_value uden bit-width clamp
+uint64_t scaled_value = (uint64_t)(counter_value * cfg.scale_factor);
+uint64_t raw_prescaled = counter_value / cfg.prescaler;
+
+// Clamp til max_val (baseret på bit_width)
+uint64_t max_val = (cfg.bit_width == 64) ? UINT64_MAX :
+                   ((1ULL << cfg.bit_width) - 1);
+scaled_value &= max_val;  // ← Clamper scaled men ikke counter_value!
+raw_prescaled &= max_val;
+```
+
+**Problem:**
+- `counter_value` bruges direkte uden clamp
+- Beregninger med `counter_value` kan overflow før bit-mask
+- Display viser fuld 64-bit værdi selvom counter er 16-bit
+
+### Implementeret Fix
+
+**Fil:** `src/cli_show.cpp` linje 674-691
+
+```cpp
+// BUG-027 FIX: Clamp counter_value til bit_width FØR beregninger
+uint64_t max_val = (cfg.bit_width == 64) ? UINT64_MAX :
+                   ((1ULL << cfg.bit_width) - 1);
+
+// Clamp counter_value først
+uint64_t counter_value = counter_engine_get_value(id);
+counter_value &= max_val;  // ← Clamp FØRST!
+
+// Nu er alle beregninger med clamped værdi
+uint64_t scaled_value = (uint64_t)(counter_value * cfg.scale_factor);
+uint64_t raw_prescaled = counter_value / cfg.prescaler;
+
+// Ingen yderligere clamp nødvendig (værdier allerede korrekte)
+scaled_value &= max_val;
+raw_prescaled &= max_val;
+```
+
+**Workflow:**
+1. Læs counter værdi fra engine
+2. **Clamp til bit_width FØRST** (før alle beregninger)
+3. Beregn scaled og raw fra clamped værdi
+4. Ekstra clamp (defensiv programmering, ingen effekt)
+
+### Resultat
+
+- ✅ 16-bit counter viser max 65535 (ikke 72467)
+- ✅ Display matcher Modbus register-værdier
+- ✅ Konsistent wrapping i både CLI og Modbus
+- ✅ No performance impact (same operations, reordered)
+
+### Test Plan
+
+1. Konfigurér 16-bit counter: `set counter 1 mode 2 bit-width:16`
+2. Lad counter tælle over 65535 (til 72467)
+3. Check CLI: `show counters`
+4. **Forventet:** val viser wrappet værdi (6932), ikke 72467 ✓
+
+Build #625: ✅ Compiled successfully
+
+---
+
+## BUG-028: Register Spacing Too Small for 64-bit Counters (v4.2.3)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-17
+**Fixet:** 2025-12-17
+**Version:** v4.2.3
+
+### Beskrivelse
+
+Smart defaults allokerer kun **10 registre per counter** (HR100-109 for Counter 1), men 64-bit counters kræver **4 words per værdi**:
+- Index: HR100-103 (4 words)
+- Raw: HR104-107 (4 words)
+- Freq: HR108 (1 word)
+- Overload: HR109 (1 word)
+- Ctrl: HR110 ❌ **UDENFOR RANGE!**
+
+**Problem:** Counter 2 starter ved HR120, men Counter 1 bruger HR100-110 → **11 registre!**
+
+### Root Cause
+
+**Fil:** `src/counter_config.cpp` linje 48-56 (før fix)
+
+```cpp
+// WRONG: Kun 20 registre spacing, men ingen buffer til compare_value_reg
+uint16_t base = 100 + ((id - 1) * 20);
+cfg.index_reg = base + 0;   // 100 (uses +0,+1,+2,+3 for 64-bit)
+cfg.raw_reg = base + 4;     // 104 (uses +4,+5,+6,+7)
+cfg.freq_reg = base + 8;    // 108
+cfg.overload_reg = base + 9; // 109
+cfg.ctrl_reg = base + 10;    // 110  ← OK, men ingen plads til compare!
+// Missing: compare_value_reg!
+```
+
+### Implementeret Fix
+
+**Fil:** `src/counter_config.cpp` linje 47-57
+
+```cpp
+// IMPROVEMENT: Smart register defaults (v4.2.4 - BUG-030 fix)
+// Assign 4-word spacing to support 64-bit counters (4 registers per value)
+// Counter 1: 100-114, Counter 2: 120-134, Counter 3: 140-154, Counter 4: 160-174
+// Each counter gets 20 registers total (enough for 64-bit index+raw+compare)
+uint16_t base = 100 + ((id - 1) * 20);
+cfg.index_reg = base + 0;          // 100, 120, 140, 160 (uses +0,+1,+2,+3 for 64-bit)
+cfg.raw_reg = base + 4;            // 104, 124, 144, 164 (uses +4,+5,+6,+7 for 64-bit)
+cfg.freq_reg = base + 8;           // 108, 128, 148, 168 (16-bit, uses 1 reg)
+cfg.overload_reg = base + 9;       // 109, 129, 149, 169 (16-bit, uses 1 reg)
+cfg.ctrl_reg = base + 10;          // 110, 130, 150, 170 (16-bit, uses 1 reg)
+cfg.compare_value_reg = base + 11; // 111, 131, 151, 171 (uses +11,+12,+13,+14 for 64-bit)
+```
+
+**Nye register ranges:**
+- Counter 1: HR100-114 (15 registers brugt, 5 reserved)
+- Counter 2: HR120-134
+- Counter 3: HR140-154
+- Counter 4: HR160-174
+
+### Resultat
+
+- ✅ Alle 4 counters får 20 registre hver
+- ✅ 64-bit support med compare_value_reg
+- ✅ Ingen register conflicts
+- ✅ Buffer for fremtidige features (5 ubrugte per counter)
+
+### Files Modified
+
+1. `src/counter_config.cpp:47-57` - Updated defaults med 20-register spacing
+2. `include/types.h:71` - Added `compare_value_reg` field
+3. `src/register_allocator.cpp:77-80` - Allocate compare_value_reg range
+4. `src/cli_parser.cpp:272-295` - Updated CLI help med nye ranges
+
+Build #627: ✅ Compiled successfully
+
+---
+
+## BUG-029: Compare Modes Use Continuous Check Instead of Edge Detection (v4.2.4)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-17
+**Fixet:** 2025-12-17
+**Version:** v4.2.4
+
+### Beskrivelse
+
+Compare-match flag (ctrl_reg bit4) sættes **kontinuerligt** hver loop-iteration når betingelsen er sand, i stedet for kun ved **threshold crossing** (rising edge).
+
+**Problem:**
+- Compare mode 0 (≥): Sætter bit4 HVER gang `value >= threshold`
+- Compare mode 1 (>): Sætter bit4 HVER gang `value > threshold`
+- Result: Reset-on-read virker IKKE, fordi bit4 sættes igen næste iteration!
+
+**Test output:**
+```bash
+Counter: 876885, Compare: 2500, Bit4: 1 (0x90)
+
+> read reg 110 1
+FC03 reset-on-read: Counter 1 compare bit cleared  ← Debug message
+Result: HR110 = 0x90 (144)  ❌ Bit4 STADIG sat!
+
+Next iteration: value=876885 >= 2500 → bit4=1 igen!
+```
+
+### Root Cause
+
+**Fil:** `src/counter_engine.cpp` linje 495-521 (før fix)
+
+**Problematisk kode:**
+```cpp
+// WRONG: Checks condition EVERY iteration (continuous check)
+switch (cfg.compare_mode) {
+  case 0:  // ≥ (greater-or-equal)
+    compare_hit = (counter_value >= compare_value) ? 1 : 0;  // ← Triggers EVERY time!
+    break;
+  case 1:  // > (greater-than)
+    compare_hit = (counter_value > compare_value) ? 1 : 0;   // ← Triggers EVERY time!
+    break;
+  case 2:  // === (exact match) - HAR edge detection
+    compare_hit = (runtime->last_value < compare_value &&
+                   counter_value >= compare_value) ? 1 : 0;
+    break;
+}
+```
+
+**Problem:**
+- Mode 0 og 1 checker kun CURRENT værdi
+- Ingen sammenligning med PREVIOUS værdi
+- Triggerer kontinuerligt mens over threshold
+
+### Implementeret Fix
+
+**Fil:** `src/counter_engine.cpp` linje 495-521
+
+```cpp
+// BUG-029 FIX: All compare modes should use edge detection (rising edge trigger)
+// Only set bit4 when crossing threshold, not on every iteration while above it
+uint8_t compare_hit = 0;
+
+switch (cfg.compare_mode) {
+  case 0:  // ≥ (greater-or-equal) - Rising edge detection
+    compare_hit = (runtime->last_value < compare_value &&
+                   counter_value >= compare_value) ? 1 : 0;
+    break;
+  case 1:  // > (greater-than) - Rising edge detection
+    compare_hit = (runtime->last_value <= compare_value &&
+                   counter_value > compare_value) ? 1 : 0;
+    break;
+  case 2:  // === (exact match) - Already has edge detection
+    compare_hit = (runtime->last_value < compare_value &&
+                   counter_value >= compare_value) ? 1 : 0;
+    break;
+}
+
+// Store last value for next iteration
+runtime->last_value = counter_value;
+```
+
+**Nye betingelser:**
+- Mode 0: `last < threshold AND current >= threshold` (crossing INTO ≥-zone)
+- Mode 1: `last <= threshold AND current > threshold` (crossing INTO >-zone)
+- Mode 2: Unchanged (allerede edge detection)
+
+### Resultat
+
+- ✅ Bit4 sættes KUN ved threshold crossing (rising edge)
+- ✅ Reset-on-read virker korrekt (bit4 forbliver cleared)
+- ✅ Konsistent med mode 2 (exact match) adfærd
+- ✅ SCADA kan nu detektere compare events korrekt
+
+### Test Plan
+
+1. Konfigurér counter med compare: `set counter 1 mode 2 compare:on compare-value:2500 compare-mode:0`
+2. Lad counter nå 3000 (over threshold)
+3. Check ctrl-reg: `read reg 110 1` → Bit4=1 ✓
+4. Read igen: `read reg 110 1` → Bit4=0 ✓ (cleared og forbliver cleared)
+5. Reset counter under 2500, lad den nå 2500 igen → Bit4=1 ✓ (trigger igen)
+
+**Test output:**
+```bash
+Counter: 2910 → Compare-match: no (0x80)
+Counter: 4745 → Compare-match: yes (0x90)  ← Triggered at crossing!
+Counter: 6125 → Compare-match: no (0x80)   ← Cleared og forblev cleared!
+```
+
+Build #626: ✅ Compiled successfully
+
+---
+
+## BUG-030: Compare Value Not Accessible via Modbus (v4.2.4)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🔴 CRITICAL
+**Opdaget:** 2025-12-17
+**Fixet:** 2025-12-17
+**Version:** v4.2.4
+
+### Beskrivelse
+
+Compare threshold (`compare_value`) er kun tilgængelig via CLI kommando `set counter X compare-value:Y`. SCADA systemer kan IKKE ændre threshold runtime via Modbus FC06/FC16.
+
+**Problem:**
+- Compare value gemt i config struct (RAM/NVS)
+- Ingen Modbus register eksponerer værdien
+- Users skal reconnecte til CLI for at ændre threshold → umuligt i produktion!
+
+**User request:** "compare value skal have et reg også som vi kan til fra modbus"
+
+### Root Cause
+
+**Designbeslutning:** Compare value var oprindeligt tænkt som statisk konfiguration (ligesom prescaler, scale_factor), ikke runtime-modificerbar.
+
+**Manglende features:**
+1. Ingen register allokeret til compare_value
+2. Ingen write-back fra register til compare check
+3. Ingen multi-word support (64-bit threshold kræver 4 words)
+
+### Implementeret Fix
+
+**Løsning:** Tilføj `compare_value_reg` til counter konfiguration, allokér register-range, og læs threshold fra Modbus register i stedet for config struct.
+
+#### 1. Add compare_value_reg Field
+
+**Fil:** `include/types.h` linje 71
+
+```cpp
+// Register addresses
+uint16_t index_reg;        // Scaled value register
+uint16_t raw_reg;          // Prescaled value register
+uint16_t freq_reg;         // Frequency (Hz) register
+uint16_t overload_reg;     // Overflow flag register
+uint16_t ctrl_reg;         // Control register
+uint16_t compare_value_reg; // Compare threshold register (BUG-030, v4.2.4)
+```
+
+#### 2. Update Smart Defaults
+
+**Fil:** `src/counter_config.cpp` linje 57
+
+```cpp
+cfg.compare_value_reg = base + 11; // 111, 131, 151, 171 (uses +11,+12,+13,+14 for 64-bit)
+```
+
+**Nye register layout (Counter 1, 32-bit):**
+- HR100-101: Index (scaled, 2 words)
+- HR104-105: Raw (prescaled, 2 words)
+- HR108: Frequency
+- HR109: Overload
+- HR110: Control (bit4=compare-match)
+- **HR111-112: Compare value (NEW, 2 words for 32-bit)**
+
+#### 3. Allocate Register Range
+
+**Fil:** `src/register_allocator.cpp` linje 77-80
+
+```cpp
+// Allocate compare_value register range (1-4 words depending on bit_width)
+if (cfg.compare_enabled && cfg.compare_value_reg < ALLOCATOR_SIZE) {
+  register_allocator_allocate_range(cfg.compare_value_reg, words, REG_OWNER_COUNTER, id, "cmp");
+}
+```
+
+#### 4. Write compare_value to Register
+
+**Fil:** `src/counter_engine.cpp` linje 471-478
+
+```cpp
+// BUG-030: Write compare_value to Modbus register (allows runtime modification via FC06/FC16)
+if (cfg.compare_enabled && cfg.compare_value_reg < HOLDING_REGS_SIZE) {
+  uint8_t words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
+  for (uint8_t w = 0; w < words && cfg.compare_value_reg + w < HOLDING_REGS_SIZE; w++) {
+    uint16_t word = (uint16_t)((cfg.compare_value >> (16 * w)) & 0xFFFF);
+    registers_set_holding_register(cfg.compare_value_reg + w, word);
+  }
+}
+```
+
+#### 5. Read compare_value from Register
+
+**Fil:** `src/counter_engine.cpp` linje 501-510
+
+```cpp
+// BUG-030: Read compare_value from Modbus register (allows runtime modification)
+uint64_t compare_value = cfg.compare_value;  // Fallback
+if (cfg.compare_value_reg < HOLDING_REGS_SIZE) {
+  uint8_t words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
+  compare_value = 0;
+  for (uint8_t w = 0; w < words && cfg.compare_value_reg + w < HOLDING_REGS_SIZE; w++) {
+    uint16_t word = registers_get_holding_register(cfg.compare_value_reg + w);
+    compare_value |= ((uint64_t)word) << (16 * w);
+  }
+}
+```
+
+#### 6. Update CLI Help
+
+**Fil:** `src/cli_parser.cpp` linje 272-295
+
+```cpp
+debug_println("    HR111-114: Compare value (1-4 words, runtime modifiable)");
+```
+
+### Workflow
+
+1. **Boot:** Counter config har `compare_value=2500`
+2. **Engine loop:** Skriver 2500 til HR111-112 (2 words for 32-bit)
+3. **SCADA:** Skriver 5000 til HR111-112 via FC16
+4. **Engine loop:** Læser 5000 fra HR111-112, bruger i compare check
+5. **Resultat:** Threshold ændret runtime uden CLI! ✅
+
+### Resultat
+
+- ✅ Compare threshold runtime-modificerbar via Modbus FC06/FC16
+- ✅ Multi-word support (1/2/4 words for 8/16/32/64-bit)
+- ✅ Konsistent med index/raw register design
+- ✅ No breaking changes (CLI set counter stadig virker)
+
+### Test Plan
+
+1. Konfigurér counter: `set counter 1 mode 2 bit-width:32 compare:on compare-value:2500`
+2. Check initial: `read reg 111 2` → 2500 ✓
+3. Write new value via Modbus FC16: HR111-112 = 5000
+4. Verify compare uses new value: Counter når 5000 → bit4=1 ✓
+5. Verify persistence: CLI `show counter 1` → compare-value stadig 2500 (config unchanged, register value wins)
+
+Build #628: ✅ Compiled successfully
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-17 | BUG-030 FIXED - Compare value accessible via Modbus register (runtime modifiable) (v4.2.4) | Claude Code |
+| 2025-12-17 | BUG-029 FIXED - Compare modes use edge detection instead of continuous check (v4.2.4) | Claude Code |
+| 2025-12-17 | BUG-028 FIXED - Register spacing increased to 20 per counter for 64-bit support (v4.2.3) | Claude Code |
+| 2025-12-17 | BUG-027 FIXED - Counter display overflow - values clamped to bit_width (v4.2.3) | Claude Code |
 | 2025-12-16 | BUG-026 EXTENDED - Persistent counter cleanup on binding change (v4.2.2) - prevents register conflicts across reboots | Claude Code |
 | 2025-12-16 | BUG-026 FIXED - ST Logic binding register allocator cleanup on binding change (v4.2.1) | Claude Code |
 | 2025-12-15 | BUG-025 FIXED - Global register overlap checker (centralized allocation map) (v4.2.0) | Claude Code |

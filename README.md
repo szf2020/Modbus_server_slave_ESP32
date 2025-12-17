@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.1.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.2.4 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
 
@@ -57,18 +57,27 @@ Hver counter har **3 hardware modes:**
 **Counter Features:**
 - **Prescaler:** 1-65535 (deler counter value før output)
 - **Scale Factor:** float multiplier (0.0001-10000.0)
-- **Bit Width:** 8, 16, 32, eller 64-bit output
+- **Bit Width:** 8, 16, 32, eller 64-bit output (multi-word support)
 - **Direction:** up eller down counting
 - **Frequency Measurement:** 0-20kHz med 1-sekund update rate
-- **Compare Feature:**
-  - Threshold detection (>=, >, ==)
-  - Auto-reset on read
+- **Compare Feature (v4.2.4):**
+  - Threshold detection med edge detection (≥, >, ==)
+  - Rising edge trigger (kun sæt ved threshold crossing)
+  - Runtime modificerbar threshold via Modbus
+  - Auto-reset on read (ctrl-reg eller index-reg)
   - Output til control register bit 4
-- **Register Outputs:**
-  - Index Register: scaled value (counterValue × scale)
-  - Raw Register: prescaled value (counterValue ÷ prescaler)
-  - Frequency Register: measured Hz
-  - Control Register: reset/start/stop/compare status
+- **Register Outputs (v4.2.4 - Smart Defaults):**
+  - Counter 1: HR100-114 (20 registers total)
+  - Counter 2: HR120-134
+  - Counter 3: HR140-154
+  - Counter 4: HR160-174
+  - **Per counter (32-bit example):**
+    - HR100-101: Index (scaled value, 2 words)
+    - HR104-105: Raw (prescaled value, 2 words)
+    - HR108: Frequency (Hz)
+    - HR109: Overload flag
+    - HR110: Control register (bit7=running, bit4=compare-match)
+    - HR111-112: Compare value (2 words, runtime writable)
 
 ### Timer Engine (4 Uafhængige Timers)
 Hver timer har **4 modes:**
@@ -267,20 +276,54 @@ show debug                     # Debug flags status
 show echo                      # Echo status
 ```
 
-**Counter Commands:**
+**Counter Commands (v4.2.4):**
 ```bash
-set counter <id> mode 1 parameter hw-mode:<sw|sw-isr|hw> \
+# Configure counter (register addresses AUTO-ASSIGNED)
+# NOTE: Register addresses are NOW READ-ONLY smart defaults (v4.2.4+)
+set counter <id> mode <1-3> hw-mode:<sw|sw-isr|hw> \
   edge:<rising|falling|both> prescaler:<1-65535> \
   scale:<float> bit-width:<8|16|32|64> \
-  index-reg:<0-255> raw-reg:<0-255> freq-reg:<0-255> \
-  ctrl-reg:<0-255> overload-reg:<0-255>
+  direction:<up|down>
 
-set counter <id> mode 1 parameter input-dis:<idx>        # SW mode
-set counter <id> mode 1 parameter interrupt-pin:<gpio>   # SW-ISR mode
-set counter <id> mode 1 parameter hw-gpio:<gpio>         # HW mode
+# Mode-specific configuration
+set counter <id> mode 1 input-dis:<idx>        # SW mode: discrete input
+set counter <id> mode 2 interrupt-pin:<gpio>   # SW-ISR mode: GPIO interrupt
+set counter <id> mode 3 hw-gpio:<gpio>         # HW mode: PCNT unit
 
-set counter <id> control reset                           # Reset counter
-set counter <id> enable on|off                           # Enable/disable
+# Compare feature (v4.2.4 - BUG-029, BUG-030)
+set counter <id> compare:on compare-value:<val> compare-mode:<0|1|2>
+  # Mode 0: ≥ (greater-or-equal, rising edge trigger)
+  # Mode 1: > (strictly greater, rising edge trigger)
+  # Mode 2: === (exact match, rising edge trigger)
+
+# Control commands
+set counter <id> control reset         # Reset counter to 0
+set counter <id> control running:on    # Start counter
+set counter <id> control running:off   # Stop counter
+
+# Enable/disable (Cisco-style)
+set counter <id> enable:<on|off>       # Enable/disable counter
+no set counter <id>                    # Delete counter (reset to defaults)
+
+# Read compare value from Modbus (v4.2.4 - BUG-030)
+read reg <base+11> <words>             # Counter 1: HR111, Counter 2: HR131, etc.
+write reg <base+11> value <threshold>  # Modify compare threshold runtime
+```
+
+**Register Layout (v4.2.4 - Smart Defaults, BUG-028):**
+```
+Counter 1: HR100-114 (index+raw+freq+overload+ctrl+compare, 5 reserved)
+Counter 2: HR120-134
+Counter 3: HR140-154
+Counter 4: HR160-174
+
+Example (Counter 1, 32-bit):
+  HR100-101: Index (scaled, 2 words)
+  HR104-105: Raw (prescaled, 2 words)
+  HR108:     Frequency (Hz, 1 word)
+  HR109:     Overload flag (1 word)
+  HR110:     Control (bit7=running, bit4=compare-match, 1 word)
+  HR111-112: Compare value (2 words, writable via FC06/FC16)
 ```
 
 **Timer Commands:**
@@ -1255,19 +1298,23 @@ Modbus_server_slave_ESP32/
 | **Max Frame Size** | 256 bytes |
 | **Response Time** | <100ms typical, <500ms worst-case |
 
-### Counters (4 Independent)
+### Counters (4 Independent) - v4.2.4
 | Feature | Specification |
 |---------|---------------|
 | **Modes** | 3 (SW polling, SW-ISR interrupt, HW PCNT) |
 | **Max Frequency** | 500Hz (SW), 10kHz (ISR), 40MHz (HW) |
-| **Counter Range** | 32-bit (0 to 4,294,967,295) |
+| **Counter Range** | 64-bit internal (0 to 18,446,744,073,709,551,615) |
 | **Prescaler Range** | 1-65535 |
 | **Scale Factor** | 0.0001-10000.0 (float) |
-| **Bit Width Output** | 8, 16, 32, or 64-bit |
+| **Bit Width Output** | 8, 16, 32, or 64-bit (multi-word Modbus support) |
 | **Edge Detection** | Rising, falling, or both |
 | **Direction** | Up or down counting |
 | **Frequency Measurement** | 0-20kHz, ±1Hz accuracy |
-| **Compare Feature** | Yes (threshold with auto-reset) |
+| **Compare Feature** | ✅ Edge detection (v4.2.4 - BUG-029) |
+| **Compare Modes** | ≥ (mode 0), > (mode 1), === (mode 2) |
+| **Compare Threshold** | Runtime modifiable via Modbus (v4.2.4 - BUG-030) |
+| **Register Spacing** | 20 registers per counter (v4.2.4 - BUG-028) |
+| **Smart Defaults** | HR100-114 (C1), HR120-134 (C2), HR140-154 (C3), HR160-174 (C4) |
 | **Debounce** | Software (1-1000ms) |
 
 ### Timers (4 Independent)
@@ -1466,6 +1513,20 @@ if client.connect():
 ---
 
 ## 📝 Version History
+
+- **v4.2.4** (2025-12-17) - ⭐ Counter Compare Edge Detection & Modbus Control
+  - **BUG-030 FIXED:** Compare value accessible via Modbus register (runtime modifiable)
+  - **BUG-029 FIXED:** Compare modes use edge detection (rising edge trigger only)
+  - **BUG-028 FIXED:** Register spacing increased to 20 per counter (64-bit support)
+  - **BUG-027 FIXED:** Counter display overflow clamping (bit-width respected)
+  - **Compare feature improvements:**
+    - All modes (≥, >, ===) now use edge detection
+    - Compare threshold writable via Modbus FC06/FC16
+    - Reset-on-read works correctly (bit4 clears and stays cleared)
+  - **Register layout updates:**
+    - Counter 1: HR100-114, Counter 2: HR120-134, Counter 3: HR140-154, Counter 4: HR160-174
+    - Each counter: index (1-4 words), raw (1-4 words), freq, overload, ctrl, compare_value (1-4 words)
+  - **Documentation:** Updated CLI help, BUGS.md (BUG-027 to BUG-030), BUGS_INDEX.md, CLAUDE_ARCH.md
 
 - **v4.1.0** (2025-12-12) - ⭐ ST Logic Performance Monitoring & Modbus Integration
   - **Performance monitoring system:** Min/Max/Avg execution time tracking (µs precision)

@@ -269,20 +269,29 @@ static void print_counter_help(void) {
   debug_println("  enable:<on|off>            - Enable/disable counter");
   debug_println("  disable:<on|off>           - Disable counter (opposite of enable)");
   debug_println("");
-  debug_println("NOTE: Register addresses are AUTO-ASSIGNED (v4.2.0+):");
-  debug_println("  Counter 1 → HR100-104 (index, raw, freq, overload, ctrl)");
-  debug_println("  Counter 2 → HR110-114");
-  debug_println("  Counter 3 → HR120-124");
-  debug_println("  Counter 4 → HR130-134");
+  debug_println("NOTE: Register addresses are AUTO-ASSIGNED (v4.2.4+):");
+  debug_println("  Counter 1 → HR100-114 (supports 64-bit multi-word values)");
+  debug_println("    HR100-103: Index (scaled value, 1-4 words depending on bit-width)");
+  debug_println("    HR104-107: Raw (prescaled value, 1-4 words)");
+  debug_println("    HR108:     Frequency (Hz)");
+  debug_println("    HR109:     Overload flag");
+  debug_println("    HR110:     Control register (bit4=compare-match)");
+  debug_println("    HR111-114: Compare value (1-4 words, runtime modifiable)");
+  debug_println("  Counter 2 → HR120-134, Counter 3 → HR140-154, Counter 4 → HR160-174");
   debug_println("  Manual register configuration is DISABLED for safety.");
   debug_println("");
   debug_println("Control commands:");
+  debug_println("  set counter <id> control reset-on-read:<on|off>");
+  debug_println("  set counter <id> control auto-start:<on|off>");
+  debug_println("  set counter <id> control running:<on|off>");
   debug_println("  reset counter <id>         - Nulstil counter værdi");
   debug_println("  no set counter <id>        - Slet counter (disable)");
   debug_println("  clear counters             - Nulstil alle counters");
   debug_println("");
-  debug_println("Example:");
-  debug_println("  set counter 1 mode 1 hw-mode:hw edge:rising prescaler:10 hw-gpio:25");
+  debug_println("Examples:");
+  debug_println("  set counter 1 mode 1 hw-mode:hw edge:rising prescaler:16 hw-gpio:25 \\");
+  debug_println("    bit-width:32 scale:2.5 compare:on compare-value:2500 compare-mode:0");
+  debug_println("  set counter 1 control running:on");
   debug_println("");
 }
 

@@ -63,11 +63,12 @@ typedef struct __attribute__((packed)) {
   float scale_factor;
 
   // Register addresses
-  uint16_t index_reg;     // Scaled value register
-  uint16_t raw_reg;       // Prescaled value register
-  uint16_t freq_reg;      // Frequency (Hz) register
-  uint16_t overload_reg;  // Overflow flag register
-  uint16_t ctrl_reg;      // Control register
+  uint16_t index_reg;        // Scaled value register
+  uint16_t raw_reg;          // Prescaled value register
+  uint16_t freq_reg;         // Frequency (Hz) register
+  uint16_t overload_reg;     // Overflow flag register
+  uint16_t ctrl_reg;         // Control register
+  uint16_t compare_value_reg; // Compare threshold register (BUG-030, v4.2.4)
 
   // Mode-specific
   uint16_t start_value;   // For reset-on-read

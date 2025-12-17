@@ -352,21 +352,21 @@ int cli_cmd_set_logic_bind_by_name(st_logic_engine_state_t *logic_state, uint8_t
  * @param old_reg The old register used by ST Logic binding (being freed)
  */
 static void cleanup_counters_using_register(uint16_t old_reg) {
-  // Only need to cleanup if it's in the tracked range (0-99)
-  if (old_reg >= 100) {
+  // Only need to cleanup if it's in the tracked range
+  if (old_reg >= ALLOCATOR_SIZE) {
     return;
   }
 
-  // Check all counters
+  // Check all counters (including disabled ones!)
   for (uint8_t counter_id = 1; counter_id <= 4; counter_id++) {
     CounterConfig cfg;
     if (!counter_config_get(counter_id, &cfg)) {
       continue;  // Counter not configured
     }
 
-    if (!cfg.enabled) {
-      continue;  // Counter not enabled
-    }
+    // BUG-026 EXTENSION FIX: Check BOTH enabled AND disabled counters
+    // Disabled counters may still have register allocations in persistent config
+    // that will conflict on next boot
 
     // Check if this counter uses the register we're freeing
     // Each counter uses 5 registers: index_reg, raw_reg, freq_reg, overload_reg, ctrl_reg
@@ -379,12 +379,17 @@ static void cleanup_counters_using_register(uint16_t old_reg) {
     );
 
     if (uses_register) {
-      debug_printf("[CLEANUP] Disabling Counter %d (used HR%d which is now taken by ST Logic)\n",
+      debug_printf("[CLEANUP] Counter %d uses HR%d - resetting to defaults to avoid boot conflict\n",
                    counter_id, old_reg);
 
-      // Disable the counter
-      cfg.enabled = false;
-      counter_config_set(counter_id, &cfg);
+      // Reset counter to defaults (clears register allocations)
+      // This ensures persistent config doesn't contain stale register values
+      CounterConfig default_cfg = counter_config_defaults(counter_id);
+      default_cfg.enabled = false;  // Keep disabled
+      counter_config_set(counter_id, &default_cfg);
+
+      // Also update persistent config directly (will be saved at end of bind function)
+      g_persist_config.counters[counter_id - 1] = default_cfg;
 
       // Note: The counter will be saved to persistent config by config_save_to_nvs()
       // called at the end of the bind function
@@ -452,13 +457,13 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
         map->st_program_id == program_id &&
         map->st_var_index == var_index) {
       // BUG-EXTENSION: Free old registers from allocation map before deleting binding
-      // (Only for holding registers in the tracked range 0-99)
-      if (map->is_input && map->input_type == 0 && map->input_reg < 100) {
+      // (Only for holding registers in the tracked range)
+      if (map->is_input && map->input_type == 0 && map->input_reg < ALLOCATOR_SIZE) {
         register_allocator_free(map->input_reg);
         // BUG-026 FIX: Also cleanup any counters using same register (persistent config)
         cleanup_counters_using_register(map->input_reg);
       }
-      if (!map->is_input && map->output_type == 0 && map->coil_reg < 100) {
+      if (!map->is_input && map->output_type == 0 && map->coil_reg < ALLOCATOR_SIZE) {
         register_allocator_free(map->coil_reg);
         // BUG-026 FIX: Also cleanup any counters using same register (persistent config)
         cleanup_counters_using_register(map->coil_reg);
@@ -491,8 +496,8 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
       return -1;
     }
 
-    // Check if register is allocated by other subsystems (0-99)
-    if (modbus_reg < 100) {
+    // Check if register is allocated by other subsystems
+    if (modbus_reg < ALLOCATOR_SIZE) {
       RegisterOwner owner;
       if (!register_allocator_check(modbus_reg, &owner)) {
         // Register is already allocated
@@ -537,10 +542,8 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
                  program_id + 1, var_index, prog->bytecode.var_names[var_index], modbus_reg);
 
     // BUG-EXTENSION: Allocate register in global allocator (for both INPUT and OUTPUT modes)
-    if (input_type == 0 && modbus_reg < 100) {
-      char desc[32];
-      snprintf(desc, sizeof(desc), "Logic%d var%d (both)", program_id + 1, var_index);
-      register_allocator_allocate(modbus_reg, REG_OWNER_ST_VAR, program_id + 1, desc);
+    if (input_type == 0 && modbus_reg < ALLOCATOR_SIZE) {
+      register_allocator_allocate(modbus_reg, REG_OWNER_ST_VAR, program_id + 1, "i/o");
     }
   } else {
     // "input" or "output" mode: Create ONE mapping
@@ -574,10 +577,8 @@ int cli_cmd_set_logic_bind(st_logic_engine_state_t *logic_state, uint8_t program
     }
 
     // BUG-EXTENSION: Allocate register in global allocator (for holding register bindings only)
-    if (((is_input && input_type == 0) || (!is_input && output_type == 0)) && modbus_reg < 100) {
-      char desc[32];
-      snprintf(desc, sizeof(desc), "Logic%d var%d", program_id + 1, var_index);
-      register_allocator_allocate(modbus_reg, REG_OWNER_ST_VAR, program_id + 1, desc);
+    if (((is_input && input_type == 0) || (!is_input && output_type == 0)) && modbus_reg < ALLOCATOR_SIZE) {
+      register_allocator_allocate(modbus_reg, REG_OWNER_ST_VAR, program_id + 1, is_input ? "in" : "out");
     }
   }
 

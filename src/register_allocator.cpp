@@ -23,11 +23,13 @@
  * ============================================================================ */
 
 // Global allocation map - tracks which subsystem owns each register
-// Note: Only track registers 0-99 (main allocation zone)
-// Registers 100-159 for future expansion (can track later if needed)
-// RegisterOwner size: 1+1+16+4 = 22 bytes
-// Total: 100*22 = 2200 bytes in DRAM (minimal footprint)
-#define ALLOCATOR_SIZE 100
+// BUG-026 FIX (v4.2.3): Expanded to include counter/timer default zone
+// BUG-028 FIX (v4.2.3): Expanded to 180 for 64-bit counter support
+// HR0-99: General allocation zone (ST Logic vars, user manual)
+// HR100-179: Counter/Timer allocation zone (smart defaults with 64-bit support)
+// RegisterOwner size: 1+1+4 = 6 bytes (optimized)
+// Total: 180*6 = 1080 bytes in DRAM (acceptable footprint)
+#define ALLOCATOR_SIZE 180
 
 // Allocate in DRAM (initialized at boot)
 static RegisterOwner allocation_map[ALLOCATOR_SIZE];
@@ -53,15 +55,29 @@ void register_allocator_init(void) {
   // ST Logic registers are protected at a higher level (cli_commands_logic.cpp)
 
   // 3. Pre-allocate counter smart defaults (if enabled)
+  // BUG-028 FIX: Allocate multi-word ranges for 32/64-bit counters
+  // BUG-030 FIX: Also allocate compare_value_reg (multi-word for 32/64-bit)
   for (uint8_t id = 1; id <= 4; id++) {
     CounterConfig cfg;
     if (counter_config_get(id, &cfg) && cfg.enabled) {
-      // Allocate all 5 counter registers
-      register_allocator_allocate(cfg.index_reg, REG_OWNER_COUNTER, id, "index-reg");
-      register_allocator_allocate(cfg.raw_reg, REG_OWNER_COUNTER, id, "raw-reg");
-      register_allocator_allocate(cfg.freq_reg, REG_OWNER_COUNTER, id, "freq-reg");
-      register_allocator_allocate(cfg.overload_reg, REG_OWNER_COUNTER, id, "overload-reg");
-      register_allocator_allocate(cfg.ctrl_reg, REG_OWNER_COUNTER, id, "ctrl-reg");
+      // Calculate word count based on bit width
+      uint8_t words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
+
+      // Allocate index register range (1-4 words depending on bit_width)
+      register_allocator_allocate_range(cfg.index_reg, words, REG_OWNER_COUNTER, id, "idx");
+
+      // Allocate raw register range (1-4 words depending on bit_width)
+      register_allocator_allocate_range(cfg.raw_reg, words, REG_OWNER_COUNTER, id, "raw");
+
+      // Allocate single-word registers (always 16-bit)
+      register_allocator_allocate(cfg.freq_reg, REG_OWNER_COUNTER, id, "frq");
+      register_allocator_allocate(cfg.overload_reg, REG_OWNER_COUNTER, id, "ovl");
+      register_allocator_allocate(cfg.ctrl_reg, REG_OWNER_COUNTER, id, "ctl");
+
+      // Allocate compare_value register range (1-4 words depending on bit_width)
+      if (cfg.compare_enabled && cfg.compare_value_reg < ALLOCATOR_SIZE) {
+        register_allocator_allocate_range(cfg.compare_value_reg, words, REG_OWNER_COUNTER, id, "cmp");
+      }
     }
   }
 
@@ -69,9 +85,7 @@ void register_allocator_init(void) {
   for (uint8_t id = 1; id <= 4; id++) {
     TimerConfig cfg;
     if (timer_config_get(id, &cfg) && cfg.enabled && cfg.ctrl_reg < HOLDING_REGS_SIZE) {
-      char desc[32];
-      snprintf(desc, sizeof(desc), "Timer %d ctrl-reg", id);
-      register_allocator_allocate(cfg.ctrl_reg, REG_OWNER_TIMER, id, desc);
+      register_allocator_allocate(cfg.ctrl_reg, REG_OWNER_TIMER, id, "ctl");
     }
   }
 
@@ -85,21 +99,15 @@ void register_allocator_init(void) {
     // Only allocate holding register bindings (input_type=0 or output_type=0)
     if (map->source_type == MAPPING_SOURCE_ST_VAR) {
       // Check INPUT bindings
-      if (map->is_input && map->input_type == 0 && map->input_reg < 100) {
-        char desc[32];
-        snprintf(desc, sizeof(desc), "Logic%d var%d (input)",
-                 map->st_program_id + 1, map->st_var_index);
+      if (map->is_input && map->input_type == 0 && map->input_reg < ALLOCATOR_SIZE) {
         register_allocator_allocate(map->input_reg, REG_OWNER_ST_VAR,
-                                   map->st_program_id + 1, desc);
+                                   map->st_program_id + 1, "in");
       }
 
       // Check OUTPUT bindings (only allocate if different from input)
-      if (!map->is_input && map->output_type == 0 && map->coil_reg < 100) {
-        char desc[32];
-        snprintf(desc, sizeof(desc), "Logic%d var%d (output)",
-                 map->st_program_id + 1, map->st_var_index);
+      if (!map->is_input && map->output_type == 0 && map->coil_reg < ALLOCATOR_SIZE) {
         register_allocator_allocate(map->coil_reg, REG_OWNER_ST_VAR,
-                                   map->st_program_id + 1, desc);
+                                   map->st_program_id + 1, "out");
       }
     }
   }
@@ -145,7 +153,6 @@ bool register_allocator_allocate(uint16_t reg_addr, RegisterOwnerType type,
   // Allocate
   owner->type = type;
   owner->subsystem_id = subsystem_id;
-  owner->timestamp = 0;  // Could use millis() for debugging
 
   if (description != NULL) {
     strncpy(owner->description, description, sizeof(owner->description) - 1);
@@ -227,4 +234,31 @@ void register_allocator_free_range(uint16_t start_addr, uint8_t count) {
   for (uint8_t i = 0; i < count; i++) {
     register_allocator_free(start_addr + i);
   }
+}
+
+void register_allocator_debug_dump(void) {
+  debug_println("[ALLOCATOR] === Register Allocation Map ===");
+
+  uint8_t allocated_count = 0;
+  for (uint16_t i = 0; i < ALLOCATOR_SIZE; i++) {
+    RegisterOwner* owner = &allocation_map[i];
+    if (owner->type != REG_OWNER_NONE) {
+      debug_print("  HR");
+      debug_print_uint(i);
+      debug_print(" -> type=");
+      debug_print_uint(owner->type);
+      debug_print(", subsys=");
+      debug_print_uint(owner->subsystem_id);
+      debug_print(", desc=\"");
+      debug_print(owner->description);
+      debug_println("\"");
+      allocated_count++;
+    }
+  }
+
+  debug_print("[ALLOCATOR] Total allocated: ");
+  debug_print_uint(allocated_count);
+  debug_print(" / ");
+  debug_print_uint(ALLOCATOR_SIZE);
+  debug_println("");
 }

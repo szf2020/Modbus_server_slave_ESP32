@@ -270,8 +270,14 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
           debug_print("ST Logic var");
         } else if (owner.type == REG_OWNER_ST_FIXED) {
           debug_print("ST Logic (fixed)");
+        } else if (owner.type == REG_OWNER_USER) {
+          debug_print("User (manual)");
         } else {
-          debug_print("Unknown");
+          debug_print("Unknown (type=");
+          debug_print_uint(owner.type);
+          debug_print(", subsys=");
+          debug_print_uint(owner.subsystem_id);
+          debug_print(")");
         }
 
         // Add description if available

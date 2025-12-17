@@ -91,6 +91,9 @@ void setup() {
   // This must be AFTER config_apply() so all subsystems are configured
   register_allocator_init();
 
+  // DEBUG: Dump allocation map to see what's allocated at boot
+  register_allocator_debug_dump();
+
   Serial.println("\nSetup complete.");
   Serial.println("Modbus RTU Server ready on UART1 (GPIO4/5, 9600 baud)");
   Serial.println("RS485 DIR control on GPIO15");

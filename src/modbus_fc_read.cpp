@@ -30,8 +30,10 @@
  *
  * ISSUE-3 ENHANCEMENT: Also handles reset-on-read for counter VALUE registers
  * If index_reg or raw_reg is read and reset-on-read is enabled, resets counter to start_value.
+ *
+ * PUBLIC: Can be called from CLI commands (read reg) and Modbus FC03
  */
-static void modbus_fc03_handle_reset_on_read(uint16_t starting_address, uint16_t quantity) {
+void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity) {
   uint16_t ending_address = starting_address + quantity;
 
   // Iterate through all counters to find those with reset-on-read enabled
@@ -207,7 +209,7 @@ bool modbus_fc03_read_holding_registers(const ModbusFrame* request_frame, Modbus
   // Handle reset-on-read for counter compare status bits (v2.3+)
   // This must happen AFTER reading registers but BEFORE sending response
   // so the master receives the current value, then clears bit 4 for next cycle
-  modbus_fc03_handle_reset_on_read(req.starting_address, req.quantity);
+  modbus_handle_reset_on_read(req.starting_address, req.quantity);
 
   // Serialize response
   return modbus_serialize_read_registers_response(response_frame, request_frame->slave_id,
