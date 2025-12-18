@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.2.7 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.2.8 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
 
@@ -1513,6 +1513,15 @@ if client.connect():
 ---
 
 ## 📝 Version History
+
+- **v4.2.8** (2025-12-18) - ⚙️ Counter Compare Source Selection
+  - **BUG-040 FIXED:** Compare now supports source selection (raw/prescaled/scaled)
+  - **New feature:** `compare-source` parameter (0=raw, 1=prescaled [default], 2=scaled)
+  - **Improvements:**
+    - Compare can now use raw hardware counter, prescaled value, or scaled value
+    - Default is prescaled (most intuitive - matches raw register)
+    - Supports all bit-widths (8/16/32/64) correctly
+    - CLI shows compare source in `show counters` output
 
 - **v4.2.7** (2025-12-18) - 🐛 CLI Parameter Fix
   - **BUG-039 FIXED:** CLI now accepts both "compare:1" and "compare-enabled:1" syntax

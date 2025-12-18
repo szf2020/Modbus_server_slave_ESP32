@@ -89,11 +89,12 @@ typedef struct __attribute__((packed)) {
   uint8_t compare_mode;         // 0=≥, 1=>, 2=== (exact match)
   uint64_t compare_value;       // Værdi at sammenligne med
   uint8_t reset_on_read;        // Auto-clear bit 4 ved ctrl-reg read
+  uint8_t compare_source;       // BUG-040: 0=raw, 1=prescaled, 2=scaled (default: 1)
 
   // Note: Compare status stored in ctrl_reg bit 4 (no separate fields needed)
 
   // Reserved for alignment
-  uint8_t reserved[2];
+  uint8_t reserved[1];
 } CounterConfig;
 
 typedef struct {

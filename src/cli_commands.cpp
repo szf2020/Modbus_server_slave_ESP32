@@ -168,6 +168,8 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       cfg.compare_value = atoll(value);  // 64-bit value
     } else if (!strcmp(key, "compare-mode")) {
       cfg.compare_mode = atoi(value);  // 0=≥, 1=>, 2===
+    } else if (!strcmp(key, "compare-source")) {
+      cfg.compare_source = atoi(value);  // BUG-040: 0=raw, 1=prescaled, 2=scaled
     } else if (!strcmp(key, "reset-on-read")) {
       cfg.reset_on_read = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
     } else if (!strcmp(key, "enable")) {

@@ -68,6 +68,7 @@ CounterConfig counter_config_defaults(uint8_t id) {
   cfg.compare_mode = 0;          // 0 = ≥ (greater-or-equal)
   cfg.compare_value = 0;         // No compare value set
   cfg.reset_on_read = 1;         // Auto-clear bit 4 on ctrl-reg read by default
+  cfg.compare_source = 1;        // BUG-040: 1 = prescaled (most intuitive)
 
   // Note: Compare status stored in ctrl_reg bit 4 (no register/bit config needed)
 

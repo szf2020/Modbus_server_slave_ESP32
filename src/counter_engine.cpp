@@ -521,6 +521,37 @@ static void counter_engine_check_compare(uint8_t id, uint64_t counter_value) {
     }
   }
 
+  // BUG-040 FIX: Calculate compare source value based on compare_source setting
+  // 0 = raw (hardware counter), 1 = prescaled (÷ prescaler), 2 = scaled (× scale)
+  uint64_t compare_source_value = counter_value;  // Default: raw
+
+  if (cfg.compare_source == 1) {
+    // PRESCALED: Divide by prescaler
+    if (cfg.prescaler > 1) {
+      compare_source_value = counter_value / cfg.prescaler;
+    }
+  } else if (cfg.compare_source == 2) {
+    // SCALED: Multiply by scale factor
+    double scale = (cfg.scale_factor > 0.0f) ? (double)cfg.scale_factor : 1.0;
+    double scaled_float = (double)counter_value * scale;
+
+    // Clamp to bit width
+    uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;
+    switch (cfg.bit_width) {
+      case 8:  max_val = 0xFFULL; break;
+      case 16: max_val = 0xFFFFULL; break;
+      case 32: max_val = 0xFFFFFFFFULL; break;
+      case 64: max_val = 0xFFFFFFFFFFFFFFFFULL; break;
+    }
+
+    if (scaled_float < 0.0) scaled_float = 0.0;
+    if (scaled_float > (double)max_val) scaled_float = (double)max_val;
+
+    compare_source_value = (uint64_t)(scaled_float + 0.5);  // Round to nearest
+    compare_source_value &= max_val;
+  }
+  // else: compare_source == 0, use raw counter_value (already set)
+
   // Get runtime state for tracking previous value
   CounterCompareRuntime *runtime = &counter_compare_state[id - 1];
 
@@ -533,24 +564,24 @@ static void counter_engine_check_compare(uint8_t id, uint64_t counter_value) {
     case 0:  // ≥ (greater-or-equal) - Rising edge detection
       // Trigger when crossing from below to at-or-above threshold
       compare_hit = (runtime->last_value < compare_value &&
-                     counter_value >= compare_value) ? 1 : 0;
+                     compare_source_value >= compare_value) ? 1 : 0;
       break;
 
     case 1:  // > (greater-than) - Rising edge detection
       // Trigger when crossing from at-or-below to strictly above threshold
       compare_hit = (runtime->last_value <= compare_value &&
-                     counter_value > compare_value) ? 1 : 0;
+                     compare_source_value > compare_value) ? 1 : 0;
       break;
 
     case 2:  // === (exact match, only on rising edge transition)
       // Only trigger when crossing from below to at-or-above compare value
       compare_hit = (runtime->last_value < compare_value &&
-                     counter_value >= compare_value) ? 1 : 0;
+                     compare_source_value >= compare_value) ? 1 : 0;
       break;
   }
 
   // Update last value for next iteration (used by all modes for edge detection)
-  runtime->last_value = counter_value;
+  runtime->last_value = compare_source_value;
 
   // If compare condition met, set bit 4 in control register
   if (compare_hit) {

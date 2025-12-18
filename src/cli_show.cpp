@@ -550,11 +550,11 @@ void cli_cmd_show_counters(void) {
   debug_println("co = count-on, sv = startValue, res = resolution, ps = prescaler, ir = index-reg, rr = raw-reg, fr = freq-reg");
   debug_println("or = overload-reg, cr = ctrl-reg, dir = direction, sf = scaleFloat, d = debounce, dt = debounce-ms");
   debug_println("hw = HW/SW mode (SW|ISR|HW), hz = measured freq (Hz), value = scaled value, raw = prescaled counter value");
-  debug_println("cmp-en = compare enabled, cmp-mode = 0:≥ 1:> 2:exact, cmp-val = compare threshold, ror = reset-on-read");
+  debug_println("cmp-en = compare enabled, cmp-mode = 0:≥ 1:> 2:exact, cmp-src = 0:raw 1:prescaled 2:scaled, cmp-val = threshold, ror = reset-on-read");
   debug_println("─────────────────────────────────────────────────────────────---------------───────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
   // Kolonne headers
-  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |     val     |    raw    | cmp-en | cmp-md | cmp-val | ror");
+  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |     val     |    raw    | cmp-en | cmp-md | cmp-src | cmp-val | ror");
 
   // Data rækker for hver counter
   for (uint8_t id = 1; id <= 4; id++) {
@@ -715,6 +715,18 @@ void cli_cmd_show_counters(void) {
       else if (cfg.compare_mode == 1) cmp_mode_char = ">";
       else if (cfg.compare_mode == 2) cmp_mode_char = "=";
       p += snprintf(p, sizeof(line) - (p - line), "%-8s ", cmp_mode_char);
+    } else {
+      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", "—");
+    }
+    p += snprintf(p, sizeof(line) - (p - line), "| ");
+
+    // cmp-src (compare source: 0=raw, 1=prescaled, 2=scaled)
+    if (cfg.compare_enabled) {
+      const char* cmp_src_str = "?";
+      if (cfg.compare_source == 0) cmp_src_str = "raw";
+      else if (cfg.compare_source == 1) cmp_src_str = "presc";
+      else if (cfg.compare_source == 2) cmp_src_str = "scale";
+      p += snprintf(p, sizeof(line) - (p - line), "%-8s ", cmp_src_str);
     } else {
       p += snprintf(p, sizeof(line) - (p - line), "%-8s ", "—");
     }
