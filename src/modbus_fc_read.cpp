@@ -61,9 +61,12 @@ void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity) {
       }
     }
 
-    // ISSUE-3 FIX: Reset counter if index_reg or raw_reg was read
-    // This allows Modbus master to read counter value and auto-reset it
-    if (cfg.reset_on_read && cfg.enabled) {
+    // BUG-041: Reset counter if index_reg or raw_reg was read
+    // Check ctrl-reg bit 0 (counter-reg-reset-on-read flag)
+    uint16_t ctrl_val = (cfg.ctrl_reg < HOLDING_REGS_SIZE) ? registers_get_holding_register(cfg.ctrl_reg) : 0;
+    uint8_t counter_reset_on_read = (ctrl_val & 0x01) != 0;
+
+    if (counter_reset_on_read && cfg.enabled) {
       uint8_t reset_counter = 0;
 
       // Check if index register was read (could be 1-4 words depending on bit_width)

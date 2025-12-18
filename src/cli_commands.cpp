@@ -170,8 +170,6 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       cfg.compare_mode = atoi(value);  // 0=≥, 1=>, 2===
     } else if (!strcmp(key, "compare-source")) {
       cfg.compare_source = atoi(value);  // BUG-040: 0=raw, 1=prescaled, 2=scaled
-    } else if (!strcmp(key, "reset-on-read")) {
-      cfg.reset_on_read = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
     } else if (!strcmp(key, "enable")) {
       cfg.enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
     } else if (!strcmp(key, "disable")) {
@@ -377,13 +375,14 @@ void cli_cmd_clear_counters(void) {
 }
 
 void cli_cmd_set_counter_control(uint8_t argc, char* argv[]) {
-  // set counter <id> control reset-on-read:on|off auto-start:on|off running:on|off
+  // set counter <id> control counter-reg-reset-on-read:on|off compare-reg-reset-on-read:on|off auto-start:on|off running:on|off
   if (argc < 2) {
     debug_println("SET COUNTER CONTROL: missing parameters");
-    debug_println("  Usage: set counter <id> control reset-on-read:<on|off>");
+    debug_println("  Usage: set counter <id> control counter-reg-reset-on-read:<on|off>");
+    debug_println("         set counter <id> control compare-reg-reset-on-read:<on|off>");
     debug_println("         set counter <id> control auto-start:<on|off>");
     debug_println("         set counter <id> control running:<on|off>");
-    debug_println("  Example: set counter 1 control auto-start:on running:on");
+    debug_println("  Example: set counter 1 control auto-start:on running:on compare-reg-reset-on-read:off");
     return;
   }
 
@@ -425,13 +424,31 @@ void cli_cmd_set_counter_control(uint8_t argc, char* argv[]) {
     const char* value = colon + 1;
 
     // Parse control flags
-    if (!strcmp(key, "reset-on-read")) {
+    if (!strcmp(key, "counter-reg-reset-on-read")) {
+      // BUG-041: counter-reg-reset-on-read sets bit 0 (reset counter when value regs read)
       if (!strcmp(value, "on") || !strcmp(value, "ON")) {
         ctrl_value |= 0x01;  // Set bit 0
       } else if (!strcmp(value, "off") || !strcmp(value, "OFF")) {
         ctrl_value &= ~0x01; // Clear bit 0
       } else {
-        debug_print("SET COUNTER CONTROL: invalid value for reset-on-read: ");
+        debug_print("SET COUNTER CONTROL: invalid value for counter-reg-reset-on-read: ");
+        debug_println(value);
+      }
+    } else if (!strcmp(key, "compare-reg-reset-on-read")) {
+      // BUG-041: compare-reg-reset-on-read sets cfg.reset_on_read (clear bit 4 when ctrl-reg read)
+      // Need to update config, not just ctrl register
+      if (!strcmp(value, "on") || !strcmp(value, "ON")) {
+        cfg.reset_on_read = 1;
+        if (!counter_config_set(id, &cfg)) {
+          debug_println("SET COUNTER CONTROL: failed to update compare-reg-reset-on-read");
+        }
+      } else if (!strcmp(value, "off") || !strcmp(value, "OFF")) {
+        cfg.reset_on_read = 0;
+        if (!counter_config_set(id, &cfg)) {
+          debug_println("SET COUNTER CONTROL: failed to update compare-reg-reset-on-read");
+        }
+      } else {
+        debug_print("SET COUNTER CONTROL: invalid value for compare-reg-reset-on-read: ");
         debug_println(value);
       }
     } else if (!strcmp(key, "auto-start")) {
@@ -490,7 +507,7 @@ void cli_cmd_set_counter_control(uint8_t argc, char* argv[]) {
   bool auto_start = (ctrl_value & 0x02) != 0;
   running = (ctrl_value & 0x80) != 0;
 
-  debug_print("  reset-on-read: ");
+  debug_print("  counter-reg-reset-on-read: ");
   debug_println(reset_on_read ? "ENABLED" : "DISABLED");
   debug_print("  auto-start: ");
   debug_println(auto_start ? "ENABLED" : "DISABLED");

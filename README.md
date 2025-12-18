@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.2.8 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.2.9 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
 
@@ -1513,6 +1513,17 @@ if client.connect():
 ---
 
 ## 📝 Version History
+
+- **v4.2.9** (2025-12-18) - 🔧 Counter Control Parameter Restructuring
+  - **BUG-041 FIXED:** Separated reset-on-read into two distinct parameters
+  - **Breaking change:** `reset-on-read` removed from `set counter` mode command
+  - **New parameters in `set counter control`:**
+    - `counter-reg-reset-on-read` - Reset counter when value registers read (ctrl-reg bit 0)
+    - `compare-reg-reset-on-read` - Clear compare bit 4 when ctrl-reg read (cfg.reset_on_read)
+  - **Improvements:**
+    - Clearer separation: mode command = hardware config, control command = runtime flags
+    - Counter reset now controlled by ctrl-reg bit 0 (proper runtime control)
+    - Compare reset still uses cfg field (proper config persistence)
 
 - **v4.2.8** (2025-12-18) - ⚙️ Counter Compare Source Selection
   - **BUG-040 FIXED:** Compare now supports source selection (raw/prescaled/scaled)

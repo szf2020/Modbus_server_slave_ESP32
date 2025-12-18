@@ -46,6 +46,7 @@
 | BUG-038 | ST Logic variable memcpy uden synchronization | ✅ FIXED | 🟡 HIGH | v4.2.6 | Race condition mellem execute og I/O |
 | BUG-039 | CLI compare-enabled parameter ikke genkendt | ✅ FIXED | 🟠 MEDIUM | v4.2.7 | Kun "compare:1" virker, ikke "compare-enabled:1" |
 | BUG-040 | Compare bruger rå counter værdi i stedet for prescaled | ✅ FIXED | 🟡 HIGH | v4.2.8 | Compare ignorerer prescaler/scale, ukonfigurérbar |
+| BUG-041 | Reset-on-read parameter placering og navngivning forvirrende | ✅ FIXED | 🟠 MEDIUM | v4.2.9 | Samme parameter navn for counter og compare reset |
 
 ## Quick Lookup by Category
 
@@ -91,6 +92,7 @@
 - **BUG-037:** Jump patch grænse forkert (512 vs 1024)
 - **BUG-039:** CLI compare-enabled parameter (FIXED v4.2.7)
 - **BUG-040:** Compare source configurability (FIXED v4.2.8)
+- **BUG-041:** Reset-on-read parameter structure (FIXED v4.2.9)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535
