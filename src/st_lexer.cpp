@@ -119,6 +119,8 @@ static const keyword_entry_t keywords[] = {
 
   {"PROGRAM", ST_TOK_PROGRAM},
   {"END_PROGRAM", ST_TOK_END_PROGRAM},
+  {"BEGIN", ST_TOK_BEGIN},
+  {"END", ST_TOK_END},
 
   // Operators
   {"AND", ST_TOK_AND},
@@ -523,6 +525,10 @@ const char *st_token_type_to_string(st_token_type_t type) {
     case ST_TOK_END_REPEAT:     return "END_REPEAT";
     case ST_TOK_EXIT:           return "EXIT";
     case ST_TOK_RETURN:         return "RETURN";
+    case ST_TOK_PROGRAM:        return "PROGRAM";
+    case ST_TOK_END_PROGRAM:    return "END_PROGRAM";
+    case ST_TOK_BEGIN:          return "BEGIN";
+    case ST_TOK_END:            return "END";
     case ST_TOK_ASSIGN:         return "ASSIGN";
     case ST_TOK_EQ:             return "EQ";
     case ST_TOK_NE:             return "NE";

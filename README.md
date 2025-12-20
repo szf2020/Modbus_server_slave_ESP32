@@ -1182,6 +1182,7 @@ Control Register: 45
 ```bash
 # Upload ST Logic program
 > set logic 1 upload
+PROGRAM ThermostatControl
 VAR_INPUT
   sensor : INT;      (* Temperature sensor input *)
   setpoint : INT;    (* Desired temperature *)

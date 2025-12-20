@@ -77,6 +77,8 @@ typedef enum {
   // Keywords - Program structure
   ST_TOK_PROGRAM,           // PROGRAM (future, for now just statements)
   ST_TOK_END_PROGRAM,       // END_PROGRAM
+  ST_TOK_BEGIN,             // BEGIN (v4.3.0 - IEC 61131-3 program body start)
+  ST_TOK_END,               // END (v4.3.0 - IEC 61131-3 program end)
 
   // Operators
   ST_TOK_ASSIGN,            // :=

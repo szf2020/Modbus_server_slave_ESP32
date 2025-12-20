@@ -808,7 +808,8 @@ st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
          !parser_match(parser, ST_TOK_END_FOR) &&
          !parser_match(parser, ST_TOK_END_WHILE) &&
          !parser_match(parser, ST_TOK_END_REPEAT) &&
-         !parser_match(parser, ST_TOK_END_PROGRAM)) {
+         !parser_match(parser, ST_TOK_END_PROGRAM) &&
+         !parser_match(parser, ST_TOK_END)) {
 
     st_ast_node_t *stmt = st_parser_parse_statement(parser);
     if (!stmt) {
@@ -851,6 +852,7 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
            !parser_match(parser, ST_TOK_VAR_INPUT) &&
            !parser_match(parser, ST_TOK_VAR_OUTPUT) &&
            !parser_match(parser, ST_TOK_END_PROGRAM) &&
+           !parser_match(parser, ST_TOK_BEGIN) &&
            !parser_match(parser, ST_TOK_EOF)) {
 
       // Expect identifier
@@ -927,8 +929,9 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
     if (parser_match(parser, ST_TOK_END_VAR)) {
       parser_advance(parser);
     } else if (!parser_match(parser, ST_TOK_EOF) &&
-               !parser_match(parser, ST_TOK_END_PROGRAM)) {
-      // Only error if not at EOF or END_PROGRAM (multiple VAR blocks allowed)
+               !parser_match(parser, ST_TOK_END_PROGRAM) &&
+               !parser_match(parser, ST_TOK_BEGIN)) {
+      // Only error if not at EOF, END_PROGRAM, or BEGIN (multiple VAR blocks allowed)
       parser_error(parser, "Expected END_VAR to close variable declaration block");
       return false;
     }
@@ -946,7 +949,32 @@ st_program_t *st_parser_parse_program(st_parser_t *parser) {
   if (!program) return NULL;
 
   memset(program, 0, sizeof(*program));
-  strcpy(program->name, "Logic");
+  strcpy(program->name, "Logic");  // Default program name
+
+  bool has_program_keyword = false;
+  bool has_begin_keyword = false;
+
+  // Optional: Parse PROGRAM <identifier>
+  if (parser_match(parser, ST_TOK_PROGRAM)) {
+    has_program_keyword = true;
+    parser_advance(parser);
+
+    // Expect program name (identifier)
+    if (parser_match(parser, ST_TOK_IDENT)) {
+      strncpy(program->name, parser->current_token.value, 63);
+      program->name[63] = '\0';
+      parser_advance(parser);
+    } else {
+      parser_error(parser, "Expected program name after PROGRAM keyword");
+      free(program);
+      return NULL;
+    }
+
+    // Optional semicolon after PROGRAM name
+    if (parser_match(parser, ST_TOK_SEMICOLON)) {
+      parser_advance(parser);
+    }
+  }
 
   // Parse variable declarations
   if (!st_parser_parse_var_declarations(parser, program->variables, &program->var_count)) {
@@ -954,8 +982,29 @@ st_program_t *st_parser_parse_program(st_parser_t *parser) {
     return NULL;
   }
 
+  // Optional: Parse BEGIN keyword
+  if (parser_match(parser, ST_TOK_BEGIN)) {
+    has_begin_keyword = true;
+    parser_advance(parser);
+  }
+
   // Parse statements
   program->body = st_parser_parse_statements(parser);
+
+  // Optional: Parse END or END_PROGRAM if PROGRAM or BEGIN was used
+  if (has_program_keyword || has_begin_keyword) {
+    if (parser_match(parser, ST_TOK_END)) {
+      parser_advance(parser);
+    } else if (parser_match(parser, ST_TOK_END_PROGRAM)) {
+      parser_advance(parser);
+    }
+    // Note: For backward compatibility, END/END_PROGRAM is optional even if PROGRAM/BEGIN was present
+
+    // Optional semicolon after END
+    if (parser_match(parser, ST_TOK_SEMICOLON)) {
+      parser_advance(parser);
+    }
+  }
 
   if (parser->error_count > 0) {
     st_program_free(program);
