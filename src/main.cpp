@@ -31,6 +31,7 @@
 #include "network_manager.h"
 #include "watchdog_monitor.h"
 #include "register_allocator.h"
+#include "registers_persist.h"
 
 // ============================================================================
 // GLOBAL CONSOLE
