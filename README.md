@@ -469,6 +469,17 @@ END_PROGRAM
 - `SAVE(2)` / `LOAD(2)` - Group #2
 - etc. (up to group #8)
 
+**Auto-Load on Boot (v4.3.0):**
+```bash
+set persist auto-load enable                # Enable auto-restore at boot
+set persist auto-load add 1                 # Auto-load group #1 at boot
+set persist auto-load add 2                 # Auto-load group #2 at boot
+set persist auto-load remove 1              # Remove group #1 from auto-load
+set persist auto-load disable               # Disable auto-load
+```
+
+When enabled, configured groups are automatically restored from NVS during system startup, ensuring last saved values are available immediately after boot/reboot.
+
 #### Watchdog Monitor (v4.0+)
 - **Auto-Restart:** ESP32 Task Watchdog Timer (30s timeout)
   - Automatically restarts system if main loop hangs

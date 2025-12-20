@@ -94,6 +94,14 @@ void setup() {
   // DEBUG: Dump allocation map to see what's allocated at boot
   register_allocator_debug_dump();
 
+  // Auto-load persistent register groups if enabled (v4.3.0)
+  uint8_t auto_loaded = registers_persist_auto_load_execute();
+  if (auto_loaded > 0) {
+    Serial.print("Auto-loaded ");
+    Serial.print(auto_loaded);
+    Serial.println(" persistent register group(s) from NVS");
+  }
+
   Serial.println("\nSetup complete.");
   Serial.println("Modbus RTU Server ready on UART1 (GPIO4/5, 9600 baud)");
   Serial.println("RS485 DIR control on GPIO15");

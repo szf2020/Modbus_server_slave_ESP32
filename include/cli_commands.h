@@ -169,6 +169,19 @@ void cli_cmd_load_registers(uint8_t argc, char* argv[]);
 void cli_cmd_set_persist_enable(bool enabled);
 
 /**
+ * @brief Handle "set persist auto-load" command (configure auto-load on boot)
+ * @param argc Argument count
+ * @param argv Argument array
+ *
+ * Syntax:
+ *   set persist auto-load enable
+ *   set persist auto-load disable
+ *   set persist auto-load add <group_id>
+ *   set persist auto-load remove <group_id>
+ */
+void cli_cmd_set_persist_auto_load(uint8_t argc, char* argv[]);
+
+/**
  * @brief Handle "defaults" command (reset to factory defaults)
  */
 void cli_cmd_defaults(void);

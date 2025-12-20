@@ -414,6 +414,127 @@ bool registers_persist_restore_all_groups(void) {
 }
 
 /* ============================================================================
+ * AUTO-LOAD ON BOOT (v4.3.0)
+ * ============================================================================ */
+
+void registers_persist_set_auto_load_enabled(bool enabled) {
+  g_persist_config.persist_regs.auto_load_enabled = enabled ? 1 : 0;
+
+  debug_print("Auto-load on boot: ");
+  debug_println(enabled ? "ENABLED" : "DISABLED");
+}
+
+bool registers_persist_is_auto_load_enabled(void) {
+  return g_persist_config.persist_regs.auto_load_enabled != 0;
+}
+
+bool registers_persist_auto_load_add_group(uint8_t group_id) {
+  PersistentRegisterData* pr = &g_persist_config.persist_regs;
+
+  // Validate ID (1-8)
+  if (group_id < 1 || group_id > PERSIST_MAX_GROUPS) {
+    debug_print("ERROR: Invalid group ID ");
+    debug_print_uint(group_id);
+    debug_println(" (valid: 1-8)");
+    return false;
+  }
+
+  // Check if group exists
+  uint8_t idx = group_id - 1;
+  if (idx >= pr->group_count) {
+    debug_print("ERROR: Group #");
+    debug_print_uint(group_id);
+    debug_println(" does not exist");
+    return false;
+  }
+
+  // Check if already in auto-load list
+  for (uint8_t i = 0; i < 7; i++) {
+    if (pr->auto_load_group_ids[i] == group_id) {
+      debug_print("Group #");
+      debug_print_uint(group_id);
+      debug_println(" already in auto-load list");
+      return false;
+    }
+  }
+
+  // Find empty slot
+  for (uint8_t i = 0; i < 7; i++) {
+    if (pr->auto_load_group_ids[i] == 0) {
+      pr->auto_load_group_ids[i] = group_id;
+      debug_print("✓ Added group #");
+      debug_print_uint(group_id);
+      debug_println(" to auto-load list");
+      return true;
+    }
+  }
+
+  debug_println("ERROR: Auto-load list full (max 7 groups)");
+  return false;
+}
+
+bool registers_persist_auto_load_remove_group(uint8_t group_id) {
+  PersistentRegisterData* pr = &g_persist_config.persist_regs;
+
+  // Find and remove
+  for (uint8_t i = 0; i < 7; i++) {
+    if (pr->auto_load_group_ids[i] == group_id) {
+      // Shift remaining entries down
+      for (uint8_t j = i; j < 6; j++) {
+        pr->auto_load_group_ids[j] = pr->auto_load_group_ids[j + 1];
+      }
+      pr->auto_load_group_ids[6] = 0;  // Clear last entry
+
+      debug_print("✓ Removed group #");
+      debug_print_uint(group_id);
+      debug_println(" from auto-load list");
+      return true;
+    }
+  }
+
+  debug_print("Group #");
+  debug_print_uint(group_id);
+  debug_println(" not found in auto-load list");
+  return false;
+}
+
+uint8_t registers_persist_auto_load_execute(void) {
+  PersistentRegisterData* pr = &g_persist_config.persist_regs;
+
+  if (!pr->auto_load_enabled) {
+    return 0;
+  }
+
+  debug_println("\n[Auto-Load] Restoring persistence groups from NVS...");
+
+  uint8_t restored_count = 0;
+  for (uint8_t i = 0; i < 7; i++) {
+    uint8_t group_id = pr->auto_load_group_ids[i];
+    if (group_id == 0) break;  // End of list
+
+    debug_print("[Auto-Load] Restoring group #");
+    debug_print_uint(group_id);
+    debug_print("...");
+
+    if (registers_persist_group_restore_by_id(group_id)) {
+      restored_count++;
+    } else {
+      debug_println(" FAILED");
+    }
+  }
+
+  if (restored_count > 0) {
+    debug_print("[Auto-Load] ✓ Restored ");
+    debug_print_uint(restored_count);
+    debug_println(" groups");
+  } else {
+    debug_println("[Auto-Load] No groups configured for auto-load");
+  }
+
+  return restored_count;
+}
+
+/* ============================================================================
  * UTILITY FUNCTIONS
  * ============================================================================ */
 
@@ -458,6 +579,32 @@ void registers_persist_list_groups(void) {
   debug_println("  SAVE(1)  - Save group #1");
   debug_println("  LOAD(0)  - Load all groups");
   debug_println("  LOAD(1)  - Load group #1");
+  debug_println("");
+
+  // Show auto-load configuration
+  debug_print("Auto-load on boot: ");
+  debug_println(pr->auto_load_enabled ? "ENABLED" : "DISABLED");
+
+  if (pr->auto_load_enabled) {
+    debug_print("Auto-load groups: ");
+    bool has_groups = false;
+    for (uint8_t i = 0; i < 7; i++) {
+      if (pr->auto_load_group_ids[i] == 0) break;
+      if (has_groups) debug_print(", ");
+      debug_print("#");
+      debug_print_uint(pr->auto_load_group_ids[i]);
+      has_groups = true;
+    }
+    if (!has_groups) {
+      debug_print("(none configured)");
+    }
+    debug_println("");
+  }
+
+  debug_println("CLI commands:");
+  debug_println("  set persist auto-load enable");
+  debug_println("  set persist auto-load add <group_id>");
+  debug_println("  set persist auto-load remove <group_id>");
   debug_println("");
 }
 

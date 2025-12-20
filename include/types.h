@@ -249,7 +249,8 @@ typedef struct __attribute__((packed)) {
   uint8_t enabled;                   // Persistence system enabled
   uint8_t group_count;               // Number of active groups (0-8)
   PersistGroup groups[PERSIST_MAX_GROUPS];  // Persistence groups
-  uint8_t reserved[8];               // Future use
+  uint8_t auto_load_enabled;         // Auto-load on boot enabled (v4.3.0)
+  uint8_t auto_load_group_ids[7];    // Group IDs to auto-load (1-8, 0=unused)
 } PersistentRegisterData;
 
 /* ============================================================================

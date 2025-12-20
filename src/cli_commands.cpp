@@ -1263,6 +1263,49 @@ void cli_cmd_set_persist_enable(bool enabled) {
   }
 }
 
+void cli_cmd_set_persist_auto_load(uint8_t argc, char* argv[]) {
+  // Syntax:
+  //   set persist auto-load enable
+  //   set persist auto-load disable
+  //   set persist auto-load add <group_id>
+  //   set persist auto-load remove <group_id>
+
+  if (argc < 1) {
+    debug_println("ERROR: Missing action");
+    debug_println("Usage: set persist auto-load enable|disable|add|remove [group_id]");
+    return;
+  }
+
+  const char* action = argv[0];
+
+  if (strcmp(action, "enable") == 0) {
+    registers_persist_set_auto_load_enabled(true);
+  } else if (strcmp(action, "disable") == 0) {
+    registers_persist_set_auto_load_enabled(false);
+  } else if (strcmp(action, "add") == 0) {
+    if (argc < 2) {
+      debug_println("ERROR: Missing group ID");
+      debug_println("Usage: set persist auto-load add <group_id>");
+      return;
+    }
+    uint8_t group_id = atoi(argv[1]);
+    registers_persist_auto_load_add_group(group_id);
+  } else if (strcmp(action, "remove") == 0) {
+    if (argc < 2) {
+      debug_println("ERROR: Missing group ID");
+      debug_println("Usage: set persist auto-load remove <group_id>");
+      return;
+    }
+    uint8_t group_id = atoi(argv[1]);
+    registers_persist_auto_load_remove_group(group_id);
+  } else {
+    debug_print("ERROR: Unknown action '");
+    debug_print(action);
+    debug_println("'");
+    debug_println("Valid actions: enable, disable, add, remove");
+  }
+}
+
 void cli_cmd_defaults(void) {
   debug_println("Resetting to factory defaults...");
 

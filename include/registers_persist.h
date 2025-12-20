@@ -147,6 +147,44 @@ bool registers_persist_group_restore_by_id(uint8_t group_id);
 bool registers_persist_restore_all_groups(void);
 
 /* ============================================================================
+ * AUTO-LOAD ON BOOT (v4.3.0)
+ * ============================================================================ */
+
+/**
+ * @brief Enable/disable auto-load on boot
+ * @param enabled true to enable, false to disable
+ */
+void registers_persist_set_auto_load_enabled(bool enabled);
+
+/**
+ * @brief Check if auto-load is enabled
+ * @return true if enabled, false otherwise
+ */
+bool registers_persist_is_auto_load_enabled(void);
+
+/**
+ * @brief Add group to auto-load list
+ * @param group_id Group ID (1-8)
+ * @return true if added, false if already in list or list full
+ */
+bool registers_persist_auto_load_add_group(uint8_t group_id);
+
+/**
+ * @brief Remove group from auto-load list
+ * @param group_id Group ID (1-8)
+ * @return true if removed, false if not found
+ */
+bool registers_persist_auto_load_remove_group(uint8_t group_id);
+
+/**
+ * @brief Execute auto-load (restore configured groups from NVS)
+ * @return Number of groups successfully restored
+ *
+ * Called during boot sequence if auto_load_enabled is true.
+ */
+uint8_t registers_persist_auto_load_execute(void);
+
+/* ============================================================================
  * UTILITY FUNCTIONS
  * ============================================================================ */
 

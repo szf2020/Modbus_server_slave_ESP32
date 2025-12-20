@@ -364,28 +364,30 @@ static void print_persist_help(void) {
   debug_println("  set persist group <name> delete                 - Slet gruppe");
   debug_println("  set persist enable on|off                       - Aktivér/deaktivér system");
   debug_println("");
+  debug_println("Auto-Load on Boot (v4.3.0):");
+  debug_println("  set persist auto-load enable                    - Aktivér auto-load ved boot");
+  debug_println("  set persist auto-load disable                   - Deaktivér auto-load");
+  debug_println("  set persist auto-load add <group_id>            - Tilføj gruppe til auto-load");
+  debug_println("  set persist auto-load remove <group_id>         - Fjern gruppe fra auto-load");
+  debug_println("");
   debug_println("Save & Restore:");
   debug_println("  save registers all             - Gem alle grupper til NVS");
   debug_println("  save registers group <name>    - Gem specifik gruppe til NVS");
   debug_println("  load registers all             - Gendan alle grupper fra NVS");
   debug_println("  load registers group <name>    - Gendan specifik gruppe fra NVS");
-  debug_println("  show persist                   - Vis alle persistence groups");
+  debug_println("  show persist                   - Vis alle persistence groups (med auto-load status)");
   debug_println("");
-  debug_println("ST Logic Integration:");
-  debug_println("  SAVE()          - Gem alle grupper fra ST program (rate limited)");
-  debug_println("  LOAD()          - Gendan alle grupper fra ST program");
-  debug_println("  SAVE_GRP1()     - Gem gruppe 1 (index 0)");
-  debug_println("  SAVE_GRP2()     - Gem gruppe 2 (index 1)");
-  debug_println("  SAVE_GRP3()     - Gem gruppe 3 (index 2)");
-  debug_println("  SAVE_GRP4()     - Gem gruppe 4 (index 3)");
-  debug_println("  LOAD_GRP1()     - Gendan gruppe 1 (index 0)");
-  debug_println("  LOAD_GRP2()     - Gendan gruppe 2 (index 1)");
-  debug_println("  LOAD_GRP3()     - Gendan gruppe 3 (index 2)");
-  debug_println("  LOAD_GRP4()     - Gendan gruppe 4 (index 3)");
+  debug_println("ST Logic Integration (v4.3.0):");
+  debug_println("  SAVE(0)         - Gem alle grupper fra ST program (rate limited)");
+  debug_println("  SAVE(id)        - Gem specifik gruppe (id = 1-8, se 'show persist' for IDs)");
+  debug_println("  LOAD(0)         - Gendan alle grupper fra ST program");
+  debug_println("  LOAD(id)        - Gendan specifik gruppe (id = 1-8)");
   debug_println("");
   debug_println("Eksempel:");
   debug_println("  set persist group \"sensors\" add 100 101 102");
   debug_println("  save registers group \"sensors\"");
+  debug_println("  set persist auto-load add 1         # Auto-load gruppe #1 ved boot");
+  debug_println("  set persist auto-load enable        # Aktivér auto-load");
   debug_println("  show persist");
   debug_println("");
 }
@@ -778,8 +780,12 @@ bool cli_parser_execute(char* line) {
         bool enabled = (!strcmp(onoff, "on") || !strcmp(onoff, "1") || !strcmp(onoff, "TRUE"));
         cli_cmd_set_persist_enable(enabled);
         return true;
+      } else if (!strcmp(subwhat, "AUTO-LOAD")) {
+        // set persist auto-load enable|disable|add|remove ...
+        cli_cmd_set_persist_auto_load(argc - 3, argv + 3);
+        return true;
       } else {
-        debug_println("SET PERSIST: unknown argument (expected group or enable)");
+        debug_println("SET PERSIST: unknown argument (expected group, enable, or auto-load)");
         return false;
       }
     } else if (!strcmp(what, "LOGIC")) {
