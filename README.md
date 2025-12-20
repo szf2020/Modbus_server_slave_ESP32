@@ -6,6 +6,33 @@ En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mik
 
 ---
 
+## 📑 Table of Contents
+
+### Core Features
+- [Modbus RTU Protocol](#core-modbus-rtu-protocol)
+- [Counter Engine](#counter-engine-4-uafhængige-counters)
+- [Timer Engine](#timer-engine-4-uafhængige-timers)
+- [ST Logic (Structured Text)](#st-logic-structured-text-programming-v20)
+- [Network & Wi-Fi](#network--wi-fi-v30)
+
+### Data Persistence ⭐
+- [**Persistent Registers (v4.0+)**](#persistent-registers-v40) - Save/restore register groups
+  - [Group Management](#1-group-management-cli)
+  - [Save & Restore Operations](#2-save--restore-operations)
+  - [**Auto-Load on Boot (v4.3.0)**](#3-auto-load-on-boot-v430) ⭐ NEW
+  - [ST Logic Integration](#4-st-logic-integration)
+  - [Best Practices](#6-best-practices)
+  - [Troubleshooting](#8-troubleshooting)
+
+### Development
+- [Quick Start](#quick-start-first-boot)
+- [CLI Commands](#cli-commands)
+- [Examples](#-examples)
+- [Project Structure](#-project-structure)
+- [Changelog](#changelog)
+
+---
+
 ## 🚀 Features
 
 ### Core Modbus RTU Protocol
@@ -127,7 +154,9 @@ Hver timer har **4 modes:**
 - **Control Flow:** IF/THEN/ELSIF/ELSE, WHILE, FOR, REPEAT/UNTIL
 - **Variable Sections:** VAR_INPUT, VAR_OUTPUT, VAR (persistent)
 - **Comments:** (* multi-line *) og // single-line
-- **Built-in Functions:** ABS(), SQRT(), MIN(), MAX()
+- **Built-in Functions:**
+  - Math: `ABS()`, `SQRT()`, `MIN()`, `MAX()`
+  - Persistence: `SAVE(id)`, `LOAD(id)` - [See documentation](#4-st-logic-integration) 📖
 
 **Compiler & Runtime:**
 - **Bytecode Compilation:** Real-time compilation ved upload
@@ -425,7 +454,12 @@ exit                                     # Exit telnet session (telnet only)
 - **Mode:** Toggle at 500ms intervals
 - **Disable:** Frigør GPIO2 til user applications
 
+---
+
 #### Persistent Registers (v4.0+)
+
+> **📌 Quick Links:**
+> [Group Management](#1-group-management-cli) | [Save & Restore](#2-save--restore-operations) | [**Auto-Load (v4.3.0)** ⭐](#3-auto-load-on-boot-v430) | [ST Logic Integration](#4-st-logic-integration) | [Best Practices](#6-best-practices) | [Troubleshooting](#8-troubleshooting)
 
 **Overview:**
 The Persistent Registers system allows you to save selected Modbus holding register values to ESP32 Non-Volatile Storage (NVS flash) and restore them after reboot/power cycle. Unlike the main configuration (which saves all timers, counters, and settings), this feature provides selective, runtime-controlled persistence for process data.
@@ -1263,6 +1297,9 @@ Telnet: ENABLED (port 23)
 ```
 
 ### Example 5: Persistent Registers with ST Logic (v4.0+)
+
+> **📖 For complete documentation, see:** [Persistent Registers (v4.0+)](#persistent-registers-v40) | [Auto-Load on Boot (v4.3.0)](#3-auto-load-on-boot-v430)
+
 ```bash
 # Create persistence group for sensor calibration
 > set persist group "calibration" add 200 201 202
