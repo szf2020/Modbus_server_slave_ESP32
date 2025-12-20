@@ -282,6 +282,35 @@ bool registers_persist_group_save(const char* group_name) {
   return true;
 }
 
+bool registers_persist_group_save_by_id(uint8_t group_id) {
+  PersistentRegisterData* pr = &g_persist_config.persist_regs;
+
+  // ID 0 = save all groups
+  if (group_id == 0) {
+    return registers_persist_save_all_groups();
+  }
+
+  // Validate ID (1-8)
+  if (group_id < 1 || group_id > PERSIST_MAX_GROUPS) {
+    debug_print("ERROR: Invalid group ID ");
+    debug_print_uint(group_id);
+    debug_println(" (valid: 0-8)");
+    return false;
+  }
+
+  // Check if group exists
+  uint8_t idx = group_id - 1;  // Convert to 0-indexed
+  if (idx >= pr->group_count) {
+    debug_print("ERROR: Group #");
+    debug_print_uint(group_id);
+    debug_println(" not found");
+    return false;
+  }
+
+  // Save by name
+  return registers_persist_group_save(pr->groups[idx].name);
+}
+
 bool registers_persist_save_all_groups(void) {
   PersistentRegisterData* pr = &g_persist_config.persist_regs;
 
@@ -331,6 +360,35 @@ bool registers_persist_group_restore(const char* group_name) {
   return true;
 }
 
+bool registers_persist_group_restore_by_id(uint8_t group_id) {
+  PersistentRegisterData* pr = &g_persist_config.persist_regs;
+
+  // ID 0 = restore all groups
+  if (group_id == 0) {
+    return registers_persist_restore_all_groups();
+  }
+
+  // Validate ID (1-8)
+  if (group_id < 1 || group_id > PERSIST_MAX_GROUPS) {
+    debug_print("ERROR: Invalid group ID ");
+    debug_print_uint(group_id);
+    debug_println(" (valid: 0-8)");
+    return false;
+  }
+
+  // Check if group exists
+  uint8_t idx = group_id - 1;  // Convert to 0-indexed
+  if (idx >= pr->group_count) {
+    debug_print("ERROR: Group #");
+    debug_print_uint(group_id);
+    debug_println(" not found");
+    return false;
+  }
+
+  // Restore by name
+  return registers_persist_group_restore(pr->groups[idx].name);
+}
+
 bool registers_persist_restore_all_groups(void) {
   PersistentRegisterData* pr = &g_persist_config.persist_regs;
 
@@ -370,7 +428,9 @@ void registers_persist_list_groups(void) {
   for (uint8_t i = 0; i < pr->group_count; i++) {
     PersistGroup* grp = &pr->groups[i];
 
-    debug_print("Group \"");
+    debug_print("Group #");
+    debug_print_uint(i + 1);  // Group ID (1-indexed for ST Logic)
+    debug_print(" \"");
     debug_print(grp->name);
     debug_print("\" (");
     debug_print_uint(grp->reg_count);
@@ -392,6 +452,13 @@ void registers_persist_list_groups(void) {
 
     debug_println("");
   }
+
+  debug_println("ST Logic usage:");
+  debug_println("  SAVE(0)  - Save all groups");
+  debug_println("  SAVE(1)  - Save group #1");
+  debug_println("  LOAD(0)  - Load all groups");
+  debug_println("  LOAD(1)  - Load group #1");
+  debug_println("");
 }
 
 void registers_persist_set_enabled(bool enabled) {

@@ -457,10 +457,17 @@ END_VAR
 sensor_value := 42;  (* Bound to HR#100 *)
 
 IF save_trigger THEN
-  SAVE();  (* Save all persistence groups *)
+  SAVE(0);  (* Save all persistence groups *)
+  (* OR: SAVE(1) to save only group #1 *)
 END_IF;
 END_PROGRAM
 ```
+
+**Group ID Reference (from `show persist`):**
+- `SAVE(0)` / `LOAD(0)` - All groups
+- `SAVE(1)` / `LOAD(1)` - Group #1
+- `SAVE(2)` / `LOAD(2)` - Group #2
+- etc. (up to group #8)
 
 #### Watchdog Monitor (v4.0+)
 - **Auto-Restart:** ESP32 Task Watchdog Timer (30s timeout)
@@ -946,14 +953,14 @@ END_VAR
 BEGIN
   (* Manual save when triggered *)
   IF save_trigger THEN
-    save_result := SAVE();  (* Save all groups to NVS *)
-    save_trigger := 0;      (* Clear trigger *)
+    save_result := SAVE(1);  (* Save group #1 "calibration" to NVS *)
+    save_trigger := 0;       (* Clear trigger *)
   END_IF;
 
   (* Manual restore when triggered *)
   IF load_trigger THEN
-    save_result := LOAD();  (* Restore all groups from NVS *)
-    load_trigger := 0;      (* Clear trigger *)
+    save_result := LOAD(1);  (* Restore group #1 from NVS *)
+    load_trigger := 0;       (* Clear trigger *)
   END_IF;
 END
 

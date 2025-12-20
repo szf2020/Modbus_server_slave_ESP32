@@ -103,6 +103,15 @@ bool registers_persist_group_has_reg(const char* group_name, uint16_t reg_addr);
 bool registers_persist_group_save(const char* group_name);
 
 /**
+ * @brief Save group by ID (snapshot current register values)
+ * @param group_id Group ID (1-8), or 0 for all groups
+ * @return true if saved, false if group not found
+ *
+ * Used by ST Logic SAVE(id) function.
+ */
+bool registers_persist_group_save_by_id(uint8_t group_id);
+
+/**
  * @brief Save all groups (snapshot current register values)
  * @return true if successful
  *
@@ -119,6 +128,15 @@ bool registers_persist_save_all_groups(void);
  * reg_values[] array back to holding_regs[].
  */
 bool registers_persist_group_restore(const char* group_name);
+
+/**
+ * @brief Restore group by ID (write values to holding registers)
+ * @param group_id Group ID (1-8), or 0 for all groups
+ * @return true if restored, false if group not found
+ *
+ * Used by ST Logic LOAD(id) function.
+ */
+bool registers_persist_group_restore_by_id(uint8_t group_id);
 
 /**
  * @brief Restore all groups (write values to holding registers)

@@ -182,11 +182,11 @@ st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_
 
     // Persistence (v4.0+)
     case ST_BUILTIN_PERSIST_SAVE:
-      result = st_builtin_persist_save();
+      result = st_builtin_persist_save(arg1);  // arg1 = group_id
       break;
 
     case ST_BUILTIN_PERSIST_LOAD:
-      result = st_builtin_persist_load();
+      result = st_builtin_persist_load(arg1);  // arg1 = group_id
       break;
 
     default:
@@ -247,10 +247,10 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_SUM:
       return 2;
 
-    // 0-argument functions (v4.0+)
+    // 1-argument functions (v4.0+)
     case ST_BUILTIN_PERSIST_SAVE:
     case ST_BUILTIN_PERSIST_LOAD:
-      return 0;
+      return 1;  // arg: group_id (0=all, 1-8=specific)
 
     default:
       return 0;
