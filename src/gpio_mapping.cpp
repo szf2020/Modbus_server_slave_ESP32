@@ -69,7 +69,16 @@ static void gpio_mapping_read_inputs(void) {
 
       if (map->is_input) {
         // INPUT mode: Read from Modbus, write to ST variable
-        if (map->input_reg != 65535 && map->input_reg < HOLDING_REGS_SIZE) {
+        if (map->input_reg != 65535) {
+          // BUG-010 FIX: Type-aware bounds check (DI uses different size than HR)
+          if (map->input_type == 1) {
+            // Discrete Input - check DI array size (32 bytes = 256 bits)
+            if (map->input_reg >= DISCRETE_INPUTS_SIZE * 8) continue;
+          } else {
+            // Holding Register - check HR array size
+            if (map->input_reg >= HOLDING_REGS_SIZE) continue;
+          }
+
           uint16_t reg_value;
 
           // Check input_type: 0 = Holding Register (HR), 1 = Discrete Input (DI)

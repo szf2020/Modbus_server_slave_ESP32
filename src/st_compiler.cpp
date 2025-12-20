@@ -114,7 +114,8 @@ uint16_t st_compiler_emit_jump(st_compiler_t *compiler, st_opcode_t opcode) {
 }
 
 void st_compiler_patch_jump(st_compiler_t *compiler, uint16_t jump_addr, uint16_t target_addr) {
-  if (jump_addr >= 512) return;
+  // BUG-037 FIX: Changed from 512 to 1024 (matches bytecode array size in st_compiler.h)
+  if (jump_addr >= 1024) return;
   compiler->bytecode[jump_addr].arg.int_arg = target_addr;
 }
 

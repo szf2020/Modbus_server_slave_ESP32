@@ -397,7 +397,19 @@ void registers_update_st_logic_status(void) {
 
         if (var_reg_offset < INPUT_REGS_SIZE) {
           // BUG-001 FIX: Update input register with actual variable value from bytecode
-          int16_t var_value = prog->bytecode.variables[map->st_var_index].int_val;
+          // BUG-009 FIX: Use type-aware reading (consistent with gpio_mapping.cpp)
+          st_datatype_t var_type = prog->bytecode.var_types[map->st_var_index];
+          int16_t var_value;
+
+          if (var_type == ST_TYPE_BOOL) {
+            var_value = prog->bytecode.variables[map->st_var_index].bool_val ? 1 : 0;
+          } else if (var_type == ST_TYPE_REAL) {
+            var_value = (int16_t)prog->bytecode.variables[map->st_var_index].real_val;
+          } else {
+            // ST_TYPE_INT or ST_TYPE_DWORD
+            var_value = prog->bytecode.variables[map->st_var_index].int_val;
+          }
+
           registers_set_input_register(var_reg_offset, (uint16_t)var_value);
         }
       }

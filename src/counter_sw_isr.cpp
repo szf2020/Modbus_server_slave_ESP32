@@ -35,6 +35,7 @@ static uint8_t isr_gpio_pins[COUNTER_COUNT] = {0};
 static volatile unsigned long last_interrupt_time[COUNTER_COUNT] = {0};
 static const unsigned long DEBOUNCE_MICROS = 50;  // 50 microseconds debounce
 static volatile uint8_t isr_direction[COUNTER_COUNT] = {COUNTER_DIR_UP, COUNTER_DIR_UP, COUNTER_DIR_UP, COUNTER_DIR_UP};  // BUG FIX 1.5 + 3.1
+static volatile uint64_t isr_max_val[COUNTER_COUNT] = {0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL, 0xFFFFFFFFFFFFFFFFULL};  // BUG-036 FIX: max value for underflow wrapping
 
 /* ============================================================================
  * ISR HANDLERS (IRAM_ATTR for fast interrupt handling with debounce)
@@ -49,8 +50,15 @@ void IRAM_ATTR counter_isr_0() {
     // BUG FIX 1.5: Implement direction
     if (isr_direction[0] == COUNTER_DIR_UP) {
       isr_state[0].counter_value++;
-    } else if (isr_state[0].counter_value > 0) {
-      isr_state[0].counter_value--;
+    } else {
+      // BUG-036 FIX: DOWN counting with underflow wrapping (consistent with SW mode)
+      if (isr_state[0].counter_value > 0) {
+        isr_state[0].counter_value--;
+      } else {
+        // Underflow: wrap to max_val
+        isr_state[0].counter_value = isr_max_val[0];
+        isr_state[0].overflow_flag = 1;  // Set overflow flag on underflow
+      }
     }
     last_interrupt_time[0] = interrupt_time;
   }
@@ -65,8 +73,15 @@ void IRAM_ATTR counter_isr_1() {
     // BUG FIX 1.5: Implement direction
     if (isr_direction[1] == COUNTER_DIR_UP) {
       isr_state[1].counter_value++;
-    } else if (isr_state[1].counter_value > 0) {
-      isr_state[1].counter_value--;
+    } else {
+      // BUG-036 FIX: DOWN counting with underflow wrapping (consistent with SW mode)
+      if (isr_state[1].counter_value > 0) {
+        isr_state[1].counter_value--;
+      } else {
+        // Underflow: wrap to max_val
+        isr_state[1].counter_value = isr_max_val[1];
+        isr_state[1].overflow_flag = 1;  // Set overflow flag on underflow
+      }
     }
     last_interrupt_time[1] = interrupt_time;
   }
@@ -81,8 +96,15 @@ void IRAM_ATTR counter_isr_2() {
     // BUG FIX 1.5: Implement direction
     if (isr_direction[2] == COUNTER_DIR_UP) {
       isr_state[2].counter_value++;
-    } else if (isr_state[2].counter_value > 0) {
-      isr_state[2].counter_value--;
+    } else {
+      // BUG-036 FIX: DOWN counting with underflow wrapping (consistent with SW mode)
+      if (isr_state[2].counter_value > 0) {
+        isr_state[2].counter_value--;
+      } else {
+        // Underflow: wrap to max_val
+        isr_state[2].counter_value = isr_max_val[2];
+        isr_state[2].overflow_flag = 1;  // Set overflow flag on underflow
+      }
     }
     last_interrupt_time[2] = interrupt_time;
   }
@@ -97,8 +119,15 @@ void IRAM_ATTR counter_isr_3() {
     // BUG FIX 1.5: Implement direction
     if (isr_direction[3] == COUNTER_DIR_UP) {
       isr_state[3].counter_value++;
-    } else if (isr_state[3].counter_value > 0) {
-      isr_state[3].counter_value--;
+    } else {
+      // BUG-036 FIX: DOWN counting with underflow wrapping (consistent with SW mode)
+      if (isr_state[3].counter_value > 0) {
+        isr_state[3].counter_value--;
+      } else {
+        // Underflow: wrap to max_val
+        isr_state[3].counter_value = isr_max_val[3];
+        isr_state[3].overflow_flag = 1;  // Set overflow flag on underflow
+      }
     }
     last_interrupt_time[3] = interrupt_time;
   }
@@ -156,14 +185,11 @@ void counter_sw_isr_loop(uint8_t id) {
       break;
   }
 
-  // BUG FIX 1.5: Handle both overflow (UP) and underflow (DOWN)
+  // BUG FIX 1.5: Handle overflow (UP mode wraps at max_val)
+  // BUG-036 FIX: Underflow (DOWN mode) now wraps in ISR, no check needed here
   if (cfg.direction == COUNTER_DIR_UP && state->counter_value > max_val) {
     state->counter_value = cfg.start_value;  // Wrap to start value
     state->overflow_flag = 1;  // BUG FIX 1.2: Set overflow flag
-  } else if (cfg.direction == COUNTER_DIR_DOWN && state->counter_value == 0) {
-    // ISR already prevented underflow below 0, but check if we're at 0
-    // and set overflow flag if applicable (underflow counts as overflow)
-    // Note: ISR stops at 0, so no wrap needed
   }
 }
 
@@ -187,6 +213,22 @@ void counter_sw_isr_attach(uint8_t id, uint8_t gpio_pin) {
 
   // BUG FIX 1.5: Store direction for ISR use
   isr_direction[id - 1] = cfg.direction;
+
+  // BUG-036 FIX: Store max_val for ISR underflow wrapping
+  switch (cfg.bit_width) {
+    case 8:
+      isr_max_val[id - 1] = 0xFFULL;
+      break;
+    case 16:
+      isr_max_val[id - 1] = 0xFFFFULL;
+      break;
+    case 32:
+      isr_max_val[id - 1] = 0xFFFFFFFFULL;
+      break;
+    default:
+      isr_max_val[id - 1] = 0xFFFFFFFFFFFFFFFFULL;  // 64-bit
+      break;
+  }
 
   // Map edge type to Arduino interrupt mode
   int mode = RISING;  // Default

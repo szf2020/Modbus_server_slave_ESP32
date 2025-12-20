@@ -14,10 +14,10 @@
 | BUG-006 | Execution/error counters truncated til 16-bit | ✅ FIXED | 🔵 LOW | v4.0.2 | Counter wraps at 65535 |
 | BUG-007 | Ingen timeout protection på program execution | ✅ FIXED | 🟠 MEDIUM | v4.0.2 | Runaway program can hang system |
 | BUG-008 | IR 220-251 opdateres 1 iteration senere (latency) | ✅ FIXED | 🟠 MEDIUM | v4.1.0 | Stale data in Modbus registers |
-| BUG-009 | Inkonsistent type handling (IR 220-251 vs gpio_mapping) | ❌ OPEN | 🔵 LOW | v4.1.0 | Confusing behavior, low priority |
-| BUG-010 | Forkert bounds check for INPUT bindings | ❌ OPEN | 🔵 LOW | v4.1.0 | Cosmetic validation issue |
+| BUG-009 | Inkonsistent type handling (IR 220-251 vs gpio_mapping) | ✅ FIXED | 🔵 LOW | v4.1.0 | Confusing behavior, low priority |
+| BUG-010 | Forkert bounds check for INPUT bindings | ✅ FIXED | 🔵 LOW | v4.1.0 | Cosmetic validation issue |
 | BUG-011 | Variabelnavn `coil_reg` bruges til HR også (confusing) | ❌ OPEN | 🔵 LOW | v4.1.0 | Code clarity issue |
-| BUG-012 | "both" mode binding skaber dobbelt output i 'show logic' | ❌ OPEN | 🟡 HIGH | v4.1.0 | Confusing UI display |
+| BUG-012 | "both" mode binding skaber dobbelt output i 'show logic' | ✅ FIXED | 🟡 HIGH | v4.1.0 | Confusing UI display |
 | BUG-013 | Binding visnings-rækkefølge matcher ikke var index | ✔️ NOT A BUG | 🔵 LOW | v4.1.0 | Design choice, not a bug |
 | BUG-014 | execution_interval_ms bliver ikke gemt persistent | ✅ FIXED | 🟡 HIGH | v4.1.0 | Settings lost on reboot |
 | BUG-015 | HW Counter PCNT ikke initialiseret uden hw_gpio | ✅ FIXED | 🔴 CRITICAL | v4.2.0 | HW counter doesn't work |
@@ -41,8 +41,8 @@
 | BUG-033 | Variable declaration bounds check efter increment | ✅ FIXED | 🔴 CRITICAL | v4.2.5 | Buffer overflow på 33. variable |
 | BUG-034 | ISR state læsning uden volatile cast | ✅ FIXED | 🟡 HIGH | v4.2.6 | Sporadisk manglende pulser ved høj frekvens |
 | BUG-035 | Overflow flag aldrig clearet automatisk | ✅ FIXED | 🟡 HIGH | v4.2.6 | Sticky overflow kræver manuel reset |
-| BUG-036 | SW-ISR underflow wrapper ikke (inkonsistent med SW) | ❌ OPEN | 🟠 MEDIUM | v4.2.5 | DOWN mode stopper ved 0 i ISR mode |
-| BUG-037 | Jump patch grænse 512 i stedet for 1024 | ❌ OPEN | 🟠 MEDIUM | v4.2.5 | Store CASE statements kan fejle |
+| BUG-036 | SW-ISR underflow wrapper ikke (inkonsistent med SW) | ✅ FIXED | 🟠 MEDIUM | v4.2.5 | DOWN mode stopper ved 0 i ISR mode |
+| BUG-037 | Jump patch grænse 512 i stedet for 1024 | ✅ FIXED | 🟠 MEDIUM | v4.2.5 | Store CASE statements kan fejle |
 | BUG-038 | ST Logic variable memcpy uden synchronization | ✅ FIXED | 🟡 HIGH | v4.2.6 | Race condition mellem execute og I/O |
 | BUG-039 | CLI compare-enabled parameter ikke genkendt | ✅ FIXED | 🟠 MEDIUM | v4.2.7 | Kun "compare:1" virker, ikke "compare-enabled:1" |
 | BUG-040 | Compare bruger rå counter værdi i stedet for prescaled | ✅ FIXED | 🟡 HIGH | v4.2.8 | Compare ignorerer prescaler/scale, ukonfigurérbar |
@@ -70,7 +70,6 @@
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-003:** Bounds checking on var index
 - **BUG-004:** Reset bit in control register
-- **BUG-012:** "both" mode display
 - **BUG-014:** Persistent interval save
 - **BUG-018:** Show counters bit-width
 - **BUG-019:** Race condition in display
@@ -88,16 +87,12 @@
 - **BUG-007:** Execution timeout protection
 - **BUG-008:** IR update latency
 - **BUG-027:** Counter display overflow clamping
-- **BUG-036:** SW-ISR underflow wrapper inkonsistent
-- **BUG-037:** Jump patch grænse forkert (512 vs 1024)
 - **BUG-039:** CLI compare-enabled parameter (FIXED v4.2.7)
 - **BUG-040:** Compare source configurability (FIXED v4.2.8)
 - **BUG-041:** Reset-on-read parameter structure (FIXED v4.2.9)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535
-- **BUG-009:** Type handling inconsistency
-- **BUG-010:** Input bounds check messaging
 - **BUG-011:** Variable naming (`coil_reg`)
 
 ### ✔️ NOT BUGS (DESIGN CHOICES)
