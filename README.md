@@ -426,59 +426,381 @@ exit                                     # Exit telnet session (telnet only)
 - **Disable:** Frigør GPIO2 til user applications
 
 #### Persistent Registers (v4.0+)
-- **Named Groups:** Organize registers in groups for selective persistence
-  - Max 8 groups, 16 registers per group
-  - Groups saved to NVS, auto-restored at boot
-- **ST Logic Integration:** Built-in SAVE()/LOAD() functions
-  - Save from ST programs when conditions are met
-  - Rate limited (max 1 save per 5 seconds)
-- **Use Cases:**
-  - Sensor calibration data
-  - Last known good setpoints
-  - Production counters
-  - Configuration parameters
 
-**CLI Commands:**
+**Overview:**
+The Persistent Registers system allows you to save selected Modbus holding register values to ESP32 Non-Volatile Storage (NVS flash) and restore them after reboot/power cycle. Unlike the main configuration (which saves all timers, counters, and settings), this feature provides selective, runtime-controlled persistence for process data.
+
+**Key Features:**
+- **Named Groups:** Organize up to 8 groups, each containing up to 16 registers
+- **Selective Persistence:** Save/restore specific groups or all groups
+- **Runtime Control:** Trigger saves from ST Logic programs or CLI
+- **Auto-Load on Boot:** (v4.3.0) Automatically restore configured groups at startup
+- **NVS Storage:** Survives power cycles, reboots, and firmware updates
+- **Rate Limiting:** Protection against excessive NVS writes (max 1 save per 5 seconds)
+
+**Common Use Cases:**
+- Sensor calibration coefficients (offset, scale, linearity)
+- Production counters (total parts produced, batch count)
+- Recipe/setpoint management (temperature, pressure, flow rates)
+- Last known good configuration backup
+- User-defined runtime parameters
+
+---
+
+##### 1. Group Management (CLI)
+
+**Create a Group:**
 ```bash
-set persist group "sensors" add 100 101 102    # Create group
-save registers all                              # Save all groups
-save registers group "sensors"                  # Save specific group
-show persist                                    # Display groups
+# Create group with name (max 15 chars)
+> set persist group "sensors" add 100 101 102
+✓ Added 3 registers to group 'sensors'
+
+# Add more registers to existing group (max 16 total)
+> set persist group "sensors" add 103 104
+✓ Added 2 registers to group 'sensors'
 ```
 
-**ST Logic Example:**
+**Remove Registers:**
+```bash
+> set persist group "sensors" remove 104
+✓ Removed register 104 from group 'sensors'
+```
+
+**Delete Entire Group:**
+```bash
+> set persist group "sensors" delete
+✓ Deleted group 'sensors'
+```
+
+**View All Groups:**
+```bash
+> show persist
+
+=== Persistent Registers (v4.0+) ===
+System: ENABLED
+Groups: 2/8
+Auto-Load: ENABLED (groups: #1, #2)
+
+Group #1 "calibration" (3 registers)
+  HR100 = 42    (offset)
+  HR101 = 100   (scale)
+  HR102 = 5     (deadband)
+  Last save: 2 minutes ago
+
+Group #2 "production" (2 registers)
+  HR200 = 1523  (total_parts)
+  HR201 = 47    (batch_count)
+  Last save: 10 seconds ago
+```
+
+**Enable/Disable System:**
+```bash
+> set persist enable on
+Persistence system ENABLED
+
+> set persist enable off
+Persistence system DISABLED
+```
+
+---
+
+##### 2. Save & Restore Operations
+
+**Save to RAM (Snapshot):**
+```bash
+# Save specific group (copies current register values to group buffer)
+> save registers group "calibration"
+✓ Saved group 'calibration' (3 registers)
+
+# Save all groups
+> save registers all
+✓ Saved 2 groups (5 registers total)
+```
+
+**Persist to NVS Flash:**
+```bash
+# IMPORTANT: Use 'save' command to write to NVS
+> save
+✓ Configuration saved to NVS (including persist groups)
+```
+
+**Restore from Group Buffer:**
+```bash
+# Restore specific group (writes saved values back to holding registers)
+> load registers group "calibration"
+✓ Restored group 'calibration' (3 registers)
+
+# Restore all groups
+> load registers all
+✓ Restored 2 groups (5 registers total)
+```
+
+**Complete Workflow:**
+```bash
+# 1. Create group
+> set persist group "recipe" add 150 151 152
+
+# 2. Write values to registers
+> write reg 150 value 250   # Temperature setpoint
+> write reg 151 value 80    # Pressure setpoint
+> write reg 152 value 30    # Flow rate setpoint
+
+# 3. Save group (snapshot to RAM)
+> save registers group "recipe"
+
+# 4. Persist to NVS
+> save
+
+# 5. After reboot, restore manually
+> load registers group "recipe"
+✓ HR150-152 restored with saved values
+```
+
+---
+
+##### 3. Auto-Load on Boot (v4.3.0)
+
+**Problem Solved:**
+Before v4.3.0, users had to manually run `load registers group <name>` after every reboot to restore saved values. This was impractical for industrial automation where devices must be operational immediately after power-on.
+
+**Solution:**
+Configure which groups should automatically restore at boot, eliminating manual intervention.
+
+**Setup Auto-Load:**
+```bash
+# Step 1: Enable auto-load system
+> set persist auto-load enable
+Auto-load on boot: ENABLED
+
+# Step 2: Add groups to auto-load list (by Group ID, see 'show persist')
+> set persist auto-load add 1    # Group #1 "calibration"
+✓ Added group #1 to auto-load list
+
+> set persist auto-load add 2    # Group #2 "production"
+✓ Added group #2 to auto-load list
+
+# Step 3: Save configuration to NVS
+> save
+✓ Configuration saved to NVS
+```
+
+**Remove from Auto-Load:**
+```bash
+> set persist auto-load remove 1
+✓ Removed group #1 from auto-load list
+
+> set persist auto-load disable
+Auto-load on boot: DISABLED
+```
+
+**Boot Sequence Behavior:**
+When auto-load is enabled, the system automatically executes during boot (after config load, before main loop):
+1. Reads auto-load configuration from NVS
+2. Restores each configured group in order (Group #1, then #2, etc.)
+3. Prints boot message: `Auto-loaded 2 persistent register group(s) from NVS`
+4. Proceeds with normal startup
+
+**Limitations:**
+- Max 7 groups can be configured for auto-load (hardware limitation)
+- Groups must exist in configuration to be auto-loaded
+- If a group is deleted, it's automatically removed from auto-load list
+
+---
+
+##### 4. ST Logic Integration
+
+**Built-in Functions:**
+- `SAVE(group_id)` - Save group to NVS (0 = all groups, 1-8 = specific group)
+- `LOAD(group_id)` - Restore group from NVS (0 = all groups, 1-8 = specific group)
+
+**Return Values:**
+- `0` = Success
+- `1` = Group not found
+- `2` = Rate limit exceeded (too frequent saves)
+
+**Example 1: Calibration Save on Trigger**
 ```st
-PROGRAM Logic1
+PROGRAM CalibrationManager
 VAR
-  sensor_value: INT;
-  save_trigger: BOOL;
+  calibration_mode: BOOL;   (* HR200: Enter calibration mode *)
+  save_cal: BOOL;           (* HR201: Trigger save *)
+  cal_offset: INT;          (* HR202: Calibration offset *)
+  cal_scale: INT;           (* HR203: Calibration scale *)
+  save_result: INT;         (* HR204: Save status *)
 END_VAR
 
-sensor_value := 42;  (* Bound to HR#100 *)
+BEGIN
+  (* Save calibration when triggered *)
+  IF save_cal AND calibration_mode THEN
+    save_result := SAVE(1);  (* Save group #1 "calibration" *)
 
-IF save_trigger THEN
-  SAVE(0);  (* Save all persistence groups *)
-  (* OR: SAVE(1) to save only group #1 *)
-END_IF;
-END_PROGRAM
+    IF save_result = 0 THEN
+      save_cal := 0;  (* Clear trigger on success *)
+    END_IF;
+  END_IF;
+
+  (* Auto-restore on startup *)
+  IF NOT calibration_mode THEN
+    save_result := LOAD(1);  (* Restore group #1 *)
+  END_IF;
+END
 ```
 
-**Group ID Reference (from `show persist`):**
-- `SAVE(0)` / `LOAD(0)` - All groups
-- `SAVE(1)` / `LOAD(1)` - Group #1
-- `SAVE(2)` / `LOAD(2)` - Group #2
-- etc. (up to group #8)
+**Example 2: Production Counter with Periodic Save**
+```st
+PROGRAM ProductionCounter
+VAR
+  part_complete: BOOL;      (* HR210: Pulse when part done *)
+  total_parts: DWORD;       (* HR211-212: Total counter *)
+  last_save_count: DWORD;   (* HR213-214: Counter at last save *)
+  save_interval: INT := 100; (* Save every 100 parts *)
+END_VAR
 
-**Auto-Load on Boot (v4.3.0):**
+BEGIN
+  (* Increment on part complete *)
+  IF part_complete THEN
+    total_parts := total_parts + 1;
+    part_complete := 0;
+  END_IF;
+
+  (* Periodic save every 100 parts *)
+  IF (total_parts - last_save_count) >= save_interval THEN
+    IF SAVE(2) = 0 THEN  (* Save group #2 "production" *)
+      last_save_count := total_parts;
+    END_IF;
+  END_IF;
+END
+```
+
+**Rate Limiting Protection:**
+```st
+VAR
+  save_timer: TON;
+  save_request: BOOL;
+END_VAR
+
+BEGIN
+  (* Debounce save requests (min 5 seconds between saves) *)
+  save_timer(IN := save_request, PT := T#5s);
+
+  IF save_timer.Q THEN
+    IF SAVE(1) = 0 THEN
+      save_request := 0;  (* Clear after successful save *)
+    END_IF;
+  END_IF;
+END
+```
+
+---
+
+##### 5. Group ID Reference
+
+Group IDs are assigned automatically in order of creation (1-8). Use `show persist` to see IDs:
+
 ```bash
-set persist auto-load enable                # Enable auto-restore at boot
-set persist auto-load add 1                 # Auto-load group #1 at boot
-set persist auto-load add 2                 # Auto-load group #2 at boot
-set persist auto-load remove 1              # Remove group #1 from auto-load
-set persist auto-load disable               # Disable auto-load
+> show persist
+
+Group #1 "sensors"     ← Use SAVE(1) / LOAD(1)
+Group #2 "calibration" ← Use SAVE(2) / LOAD(2)
+Group #3 "setpoints"   ← Use SAVE(3) / LOAD(3)
 ```
 
-When enabled, configured groups are automatically restored from NVS during system startup, ensuring last saved values are available immediately after boot/reboot.
+**Special ID: 0 = All Groups**
+```st
+SAVE(0);  (* Save ALL groups at once *)
+LOAD(0);  (* Restore ALL groups *)
+```
+
+---
+
+##### 6. Best Practices
+
+**DO:**
+- ✅ Use meaningful group names ("cal_temp", "recipe_A", "counters")
+- ✅ Group related registers together (all calibration in one group)
+- ✅ Use auto-load for critical startup data (calibration, recipes)
+- ✅ Implement rate limiting in ST Logic (max 1 save per 5 seconds)
+- ✅ Verify SAVE() return value before clearing triggers
+- ✅ Use `save registers` + `save` workflow (snapshot then persist)
+
+**DON'T:**
+- ❌ Save on every PLC cycle (NVS has ~100k write limit per sector)
+- ❌ Mix process data with configuration (use persist groups for runtime data)
+- ❌ Auto-load groups with frequently changing data
+- ❌ Exceed 16 registers per group (hard limit)
+- ❌ Create more than 8 groups (hard limit)
+
+**NVS Write Endurance:**
+- ESP32 NVS flash: ~100,000 write cycles per sector
+- With rate limiting (1 save per 5s): ~5.7 years of continuous saves
+- Recommended: Save on events (recipe change, calibration update) not periodic
+
+---
+
+##### 7. Technical Details
+
+**Storage Location:**
+- Groups stored in `PersistConfig` struct (NVS partition "config")
+- Each group: 16-byte name + 16x uint16_t addresses + 16x uint16_t values
+- Total size: ~1.5 KB for all 8 groups
+- Survives firmware updates (NVS partition preserved)
+
+**Memory Layout:**
+```cpp
+typedef struct {
+  char name[16];                     // Group name (null-terminated)
+  uint8_t reg_count;                 // 0-16
+  uint16_t reg_addresses[16];        // Register addresses
+  uint16_t reg_values[16];           // Saved values
+  uint32_t last_save_ms;             // Timestamp
+} PersistGroup;
+
+typedef struct {
+  uint8_t enabled;                   // System on/off
+  uint8_t group_count;               // 0-8
+  PersistGroup groups[8];            // All groups
+  uint8_t auto_load_enabled;         // v4.3.0
+  uint8_t auto_load_group_ids[7];    // v4.3.0
+} PersistentRegisterData;
+```
+
+**Save/Restore Workflow:**
+1. **save registers group "X"** → Copies current HR values to `group.reg_values[]` in RAM
+2. **save** → Writes entire `PersistConfig` to NVS (includes persist groups)
+3. **Boot/Reboot** → Loads `PersistConfig` from NVS into RAM
+4. **Auto-load** (if enabled) → Writes `group.reg_values[]` back to `holding_regs[]`
+5. **load registers group "X"** → Manual restore from `group.reg_values[]`
+
+---
+
+##### 8. Troubleshooting
+
+**Problem: "Group not found" when using SAVE(1)**
+- **Cause:** Group #1 doesn't exist or was deleted
+- **Solution:** Run `show persist` to verify group IDs
+
+**Problem: Auto-load doesn't restore values**
+- **Cause:** Auto-load not enabled or group not added to list
+- **Solution:**
+  ```bash
+  set persist auto-load enable
+  set persist auto-load add 1
+  save
+  ```
+
+**Problem: SAVE() returns 2 (rate limit)**
+- **Cause:** Called more than once per 5 seconds
+- **Solution:** Add timer in ST Logic or reduce save frequency
+
+**Problem: Values not persisting across reboot**
+- **Cause:** Forgot to run `save` after `save registers`
+- **Solution:** Always use two-step workflow:
+  1. `save registers group "X"` (snapshot to RAM)
+  2. `save` (persist to NVS)
+
+**Problem: "Max groups reached"**
+- **Cause:** Already created 8 groups
+- **Solution:** Delete unused group: `set persist group "old" delete`
 
 #### Watchdog Monitor (v4.0+)
 - **Auto-Restart:** ESP32 Task Watchdog Timer (30s timeout)
