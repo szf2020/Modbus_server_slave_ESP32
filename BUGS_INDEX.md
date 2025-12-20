@@ -47,6 +47,9 @@
 | BUG-039 | CLI compare-enabled parameter ikke genkendt | ✅ FIXED | 🟠 MEDIUM | v4.2.7 | Kun "compare:1" virker, ikke "compare-enabled:1" |
 | BUG-040 | Compare bruger rå counter værdi i stedet for prescaled | ✅ FIXED | 🟡 HIGH | v4.2.8 | Compare ignorerer prescaler/scale, ukonfigurérbar |
 | BUG-041 | Reset-on-read parameter placering og navngivning forvirrende | ✅ FIXED | 🟠 MEDIUM | v4.2.9 | Samme parameter navn for counter og compare reset |
+| BUG-042 | normalize_alias() håndterer ikke "auto-load" | ✅ FIXED | 🟡 HIGH | v4.3.0 | "set persist auto-load" ikke genkendt af parser |
+| BUG-043 | "set persist enable on" case sensitivity bug | ✅ FIXED | 🟡 HIGH | v4.3.0 | enabled blev altid false → printer "DISABLED" |
+| BUG-044 | cli_cmd_set_persist_auto_load() case sensitive strcmp | ✅ FIXED | 🟠 MEDIUM | v4.3.0 | "ENABLE" eller "Enable" ville ikke virke |
 
 ## Quick Lookup by Category
 
@@ -79,6 +82,8 @@
 - **BUG-034:** ISR state volatile cast (FIXED v4.2.6)
 - **BUG-035:** Overflow flag auto-clear (FIXED v4.2.6)
 - **BUG-038:** ST Logic variable race condition (FIXED v4.2.6)
+- **BUG-042:** normalize_alias() missing "auto-load" (FIXED v4.3.0)
+- **BUG-043:** "set persist enable on" case sensitivity (FIXED v4.3.0)
 - **BUG-CLI-1:** Parameter keyword clarification
 - **BUG-CLI-2:** GPIO validation
 
@@ -90,6 +95,7 @@
 - **BUG-039:** CLI compare-enabled parameter (FIXED v4.2.7)
 - **BUG-040:** Compare source configurability (FIXED v4.2.8)
 - **BUG-041:** Reset-on-read parameter structure (FIXED v4.2.9)
+- **BUG-044:** cli_cmd_set_persist_auto_load() case sensitive (FIXED v4.3.0)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535

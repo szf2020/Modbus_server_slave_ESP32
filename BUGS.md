@@ -3437,10 +3437,183 @@ Build #628: ✅ Compiled successfully
 
 ---
 
+## BUG-042: normalize_alias() Håndterer Ikke "auto-load" (v4.3.0)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟡 HIGH
+**Opdaget:** 2025-12-20
+**Fixet:** 2025-12-20
+**Version:** v4.3.0, Build #652
+
+### Beskrivelse
+
+CLI kommando `set persist auto-load enable` blev ikke genkendt af parseren.
+
+**Problem:**
+- `normalize_alias()` konverterer kendte keywords til uppercase ("on" → "ON", "enable" → "ENABLE")
+- "auto-load" var IKKE i keyword listen
+- `normalize_alias("auto-load")` returnerede "auto-load" (lowercase, unchanged)
+- Parser sammenligner med `strcmp(subwhat, "AUTO-LOAD")` → fejler!
+
+**Symptom:**
+```
+> set persist auto-load enable
+SET PERSIST: unknown argument (expected group, enable, or auto-load)
+```
+
+### Root Cause
+
+**Fil:** `src/cli_parser.cpp` linje 108-182
+
+`normalize_alias()` manglede entry for "auto-load" keyword:
+```cpp
+// Missing:
+if (!strcmp(s, "AUTO-LOAD") || !strcmp(s, "auto-load")) return "AUTO-LOAD";
+```
+
+### Implementeret Fix
+
+**Fil:** `src/cli_parser.cpp` linje 168
+
+Tilføjet "auto-load" til normalize_alias():
+```cpp
+if (!strcmp(s, "AUTO-LOAD") || !strcmp(s, "auto-load") ||
+    !strcmp(s, "AUTOLOAD") || !strcmp(s, "autoload")) return "AUTO-LOAD";
+```
+
+### Resultat
+
+- ✅ `set persist auto-load enable` virker nu
+- ✅ Både "auto-load" og "autoload" varianter understøttet
+- ✅ Case insensitive ("AUTO-LOAD", "Auto-Load", "auto-load" alle virker)
+
+Build #652: ✅ Compiled successfully
+
+---
+
+## BUG-043: "set persist enable on" Case Sensitivity Bug (v4.3.0)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟡 HIGH
+**Opdaget:** 2025-12-20
+**Fixet:** 2025-12-20
+**Version:** v4.3.0, Build #652
+
+### Beskrivelse
+
+Kommando `set persist enable on` printer "Persistence system DISABLED" i stedet for "ENABLED".
+
+**Problem:**
+- `normalize_alias("on")` returnerer "ON" (uppercase)
+- Parser sammenligner med lowercase `!strcmp(onoff, "on")`
+- Matcher aldrig → `enabled` bliver false → printer "DISABLED"
+
+**Symptom:**
+```
+> set persist enable on
+Persistence system DISABLED    ← FORKERT!
+```
+
+### Root Cause
+
+**Fil:** `src/cli_parser.cpp` linje 781
+
+Case mismatch i boolean parsing:
+```cpp
+const char* onoff = normalize_alias(argv[3]);  // Returns "ON"
+bool enabled = (!strcmp(onoff, "on") || ...);  // Compares with lowercase "on" → FAILS
+```
+
+### Implementeret Fix
+
+**Fil:** `src/cli_parser.cpp` linje 781
+
+Rettet til uppercase "ON":
+```cpp
+bool enabled = (!strcmp(onoff, "ON") || !strcmp(onoff, "1") || !strcmp(onoff, "TRUE"));
+```
+
+### Resultat
+
+- ✅ `set persist enable on` → "Persistence system ENABLED"
+- ✅ `set persist enable off` → "Persistence system DISABLED"
+- ✅ Alle varianter virker: "on", "ON", "On", "1", "true", "TRUE"
+
+Build #652: ✅ Compiled successfully
+
+---
+
+## BUG-044: cli_cmd_set_persist_auto_load() Case Sensitive strcmp (v4.3.0)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟠 MEDIUM
+**Prioritet:** 2025-12-20
+**Fixet:** 2025-12-20
+**Version:** v4.3.0, Build #652
+
+### Beskrivelse
+
+`cli_cmd_set_persist_auto_load()` bruger `strcmp()` med hardcoded lowercase strings.
+
+**Problem:**
+- Funktion modtager argv direkte fra parser UDEN normalisering
+- Bruger `strcmp(action, "enable")` → case sensitive!
+- "ENABLE" eller "Enable" ville ikke matche
+
+**Potentielt symptom:**
+```
+> set persist auto-load ENABLE
+ERROR: Unknown action 'ENABLE'
+Valid actions: enable, disable, add, remove
+```
+
+### Root Cause
+
+**Fil:** `src/cli_commands.cpp` linje 1281-1294
+
+Case-sensitive string matching:
+```cpp
+const char* action = argv[0];
+
+if (strcmp(action, "enable") == 0) {          // Case sensitive!
+  // ...
+} else if (strcmp(action, "disable") == 0) {  // Case sensitive!
+  // ...
+}
+```
+
+### Implementeret Fix
+
+**Fil:** `src/cli_commands.cpp` linje 1282-1294
+
+Skiftet til case-insensitive `strcasecmp()`:
+```cpp
+if (strcasecmp(action, "enable") == 0) {
+  registers_persist_set_auto_load_enabled(true);
+} else if (strcasecmp(action, "disable") == 0) {
+  registers_persist_set_auto_load_enabled(false);
+} else if (strcasecmp(action, "add") == 0) {
+  // ...
+} else if (strcasecmp(action, "remove") == 0) {
+  // ...
+}
+```
+
+### Resultat
+
+- ✅ Case-insensitive matching for alle actions
+- ✅ "enable", "ENABLE", "Enable" alle virker nu
+- ✅ Konsistent med resten af CLI design
+
+Build #652: ✅ Compiled successfully
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-20 | BUG-042, BUG-043, BUG-044 FIXED - CLI Parser Case Sensitivity Bugs (v4.3.0, Build #652) | Claude Code |
 | 2025-12-17 | BUG-030 FIXED - Compare value accessible via Modbus register (runtime modifiable) (v4.2.4) | Claude Code |
 | 2025-12-17 | BUG-029 FIXED - Compare modes use edge detection instead of continuous check (v4.2.4) | Claude Code |
 | 2025-12-17 | BUG-028 FIXED - Register spacing increased to 20 per counter for 64-bit support (v4.2.3) | Claude Code |

@@ -1278,11 +1278,12 @@ void cli_cmd_set_persist_auto_load(uint8_t argc, char* argv[]) {
 
   const char* action = argv[0];
 
-  if (strcmp(action, "enable") == 0) {
+  // Normalize action to uppercase for comparison
+  if (strcasecmp(action, "enable") == 0) {
     registers_persist_set_auto_load_enabled(true);
-  } else if (strcmp(action, "disable") == 0) {
+  } else if (strcasecmp(action, "disable") == 0) {
     registers_persist_set_auto_load_enabled(false);
-  } else if (strcmp(action, "add") == 0) {
+  } else if (strcasecmp(action, "add") == 0) {
     if (argc < 2) {
       debug_println("ERROR: Missing group ID");
       debug_println("Usage: set persist auto-load add <group_id>");
@@ -1290,7 +1291,7 @@ void cli_cmd_set_persist_auto_load(uint8_t argc, char* argv[]) {
     }
     uint8_t group_id = atoi(argv[1]);
     registers_persist_auto_load_add_group(group_id);
-  } else if (strcmp(action, "remove") == 0) {
+  } else if (strcasecmp(action, "remove") == 0) {
     if (argc < 2) {
       debug_println("ERROR: Missing group ID");
       debug_println("Usage: set persist auto-load remove <group_id>");
