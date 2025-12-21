@@ -282,7 +282,8 @@ static void print_counter_help(void) {
   debug_println("  Manual register configuration is DISABLED for safety.");
   debug_println("");
   debug_println("Control commands:");
-  debug_println("  set counter <id> control reset-on-read:<on|off>");
+  debug_println("  set counter <id> control counter-reg-reset-on-read:<on|off>");
+  debug_println("  set counter <id> control compare-reg-reset-on-read:<on|off>");
   debug_println("  set counter <id> control auto-start:<on|off>");
   debug_println("  set counter <id> control running:<on|off>");
   debug_println("  reset counter <id>         - Nulstil counter værdi");
@@ -1204,7 +1205,8 @@ void cli_parser_print_help(void) {
   debug_println("                input-dis:50 index-reg:60 raw-reg:65 debounce:off");
   debug_println("");
   debug_println("  Counter control:");
-  debug_println("    set counter <id> control reset-on-read:<on|off>");
+  debug_println("    set counter <id> control counter-reg-reset-on-read:<on|off>");
+  debug_println("    set counter <id> control compare-reg-reset-on-read:<on|off>");
   debug_println("    set counter <id> control auto-start:<on|off>");
   debug_println("    set counter <id> control running:<on|off>");
   debug_println("    Example: set counter 1 control auto-start:on running:on");
