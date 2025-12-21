@@ -3889,10 +3889,140 @@ User errors were due to incorrect upload format (quotation marks).
 
 ---
 
+## § BUG-047: Register Allocator Ikke Frigivet Ved Program Delete
+
+**Status:** ✅ FIXED (v4.3.2, Build #691)
+**Priority:** 🔴 CRITICAL
+**Impact:** "Register already allocated" fejl ved delete/recreate af ST Logic programs
+
+### Problem Beskrivelse
+
+Når man sletter et ST Logic program med `set logic <id> delete` og derefter opretter et nyt program med samme register bindings, får man fejl:
+
+```
+> set logic 2 delete
+[OK] Logic2 deleted
+
+> set logic 2 upload
+PROGRAM TEST
+VAR raw_temp: INT; END_VAR
+END_PROGRAM
+END_UPLOAD
+
+> set logic 2 bind raw_temp reg:80 input
+ERROR: Register HR80 already allocated!
+  Owner: out
+  Suggestion: Try HR0 or higher
+```
+
+### Root Cause
+
+`st_logic_delete()` fjernede variable bindings fra `g_persist_config.var_maps` array, men kaldte **IKKE** `register_allocator_free()` for de allokerede registre.
+
+**Før fix (st_logic_config.cpp:160-170):**
+```cpp
+while (i < g_persist_config.var_map_count) {
+  if (g_persist_config.var_maps[i].st_program_id == program_id) {
+    // Remove this binding by shifting all subsequent bindings down
+    for (uint8_t j = i; j < g_persist_config.var_map_count - 1; j++) {
+      g_persist_config.var_maps[j] = g_persist_config.var_maps[j + 1];
+    }
+    g_persist_config.var_map_count--;
+    // ❌ MANGLER: register_allocator_free() kald!
+  }
+}
+```
+
+**Konsekvens:**
+- `g_persist_config.var_maps[]` array blev clearet ✅
+- Register allocator map blev IKKE opdateret ❌
+- Registre forblev markeret som "allocated" selvom binding var væk
+- Næste forsøg på at bruge samme register fejlede
+
+### Løsning
+
+**Del 1: Include register allocator header**
+`src/st_logic_config.cpp:9` - Tilføjet:
+```cpp
+#include "register_allocator.h"
+```
+
+**Del 2: Free registers before removing binding**
+`src/st_logic_config.cpp:161-177` - Tilføjet:
+```cpp
+if (g_persist_config.var_maps[i].st_program_id == program_id) {
+  // BUG-047 FIX: Free allocated registers before removing binding
+  VariableMapping *map = &g_persist_config.var_maps[i];
+
+  // Free input register if allocated (HR type)
+  if (map->is_input && map->input_type == 0 && map->input_reg < ALLOCATOR_SIZE) {
+    register_allocator_free(map->input_reg);
+  }
+
+  // Free output register/coil if allocated
+  if (!map->is_input) {
+    if (map->output_type == 0 && map->coil_reg < ALLOCATOR_SIZE) {
+      // Holding register
+      register_allocator_free(map->coil_reg);
+    }
+    // Note: Coils don't use register allocator (only HR 0-299 tracked)
+  }
+
+  // Remove this binding by shifting all subsequent bindings down
+  ...
+}
+```
+
+**Logik:**
+1. **Input HR:** Hvis `is_input && input_type==0` → holding register input → frigiv `input_reg`
+2. **Output HR:** Hvis `!is_input && output_type==0` → holding register output → frigiv `coil_reg`
+3. **Range check:** Kun frigiv hvis register < ALLOCATOR_SIZE (180)
+4. **Coils:** Ignoreres (ikke tracked i register allocator)
+
+### Test Resultat
+
+**Før fix (Build #688):**
+```
+> set logic 2 delete
+[OK] Logic2 deleted
+
+> set logic 2 bind raw_temp reg:80 input
+ERROR: Register HR80 already allocated!
+  Owner: out
+```
+
+**Efter fix (Build #691):**
+```
+> set logic 2 delete
+[OK] Logic2 deleted
+
+> set logic 2 bind raw_temp reg:80 input
+[OK] Logic2: var[0] (raw_temp) -> Modbus HR#80 ✅
+```
+
+### Relaterede Ændringer
+
+- `src/st_logic_config.cpp:9` - Include register_allocator.h
+- `src/st_logic_config.cpp:161-177` - Free registers before binding removal
+
+### Commit
+
+Build #691 - "FIX: BUG-047 - Register Allocator Not Freed on Program Delete"
+
+### Relation til Andre Bugs
+
+**BUG-026:** ST Logic binding register allocator cleanup
+- BUG-026 fixede cleanup når man **ændrer** en binding (cli_cmd_set_logic_bind)
+- BUG-047 fixer cleanup når man **sletter** et program (st_logic_delete)
+- Begge bruger samme pattern: free registers før binding fjernes
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-21 | BUG-047 FIXED - Register allocator freed on program delete (v4.3.2, Build #691) | Claude Code |
 | 2025-12-21 | BUG-046 VERIFIED - Verified working in Build #689, user input format was issue | Claude Code |
 | 2025-12-21 | BUG-046 FIXED - ST datatype keywords (INT, REAL) token disambiguation (v4.3.1, Build #676) | Claude Code |
 | 2025-12-20 | BUG-045 FIXED - Upload mode respects user echo setting (v4.3.0, Build #661) | Claude Code |

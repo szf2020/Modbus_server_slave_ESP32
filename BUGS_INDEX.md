@@ -52,6 +52,7 @@
 | BUG-044 | cli_cmd_set_persist_auto_load() case sensitive strcmp | ✅ FIXED | 🟠 MEDIUM | v4.3.0 | "ENABLE" eller "Enable" ville ikke virke |
 | BUG-045 | Upload mode ignorerer brugerens echo setting | ✅ FIXED | 🟡 HIGH | v4.3.0 | "set echo on" har ingen effekt i ST upload mode |
 | BUG-046 | ST datatype keywords (INT, REAL) kolliderer med literals | ✅ FIXED | 🔴 CRITICAL | v4.3.1 | REAL/INT variable declarations fejler med "Unknown variable" |
+| BUG-047 | Register allocator ikke frigivet ved program delete | ✅ FIXED | 🔴 CRITICAL | v4.3.2 | "Register already allocated" efter delete/recreate |
 
 ## Quick Lookup by Category
 
@@ -72,6 +73,7 @@
 - **BUG-032:** ST parser buffer overflow (FIXED v4.2.5)
 - **BUG-033:** Variable declaration bounds (FIXED v4.2.5)
 - **BUG-046:** ST datatype keywords collision (FIXED v4.3.1 Build #676)
+- **BUG-047:** Register allocator not freed on delete (FIXED v4.3.2 Build #691)
 
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-003:** Bounds checking on var index
