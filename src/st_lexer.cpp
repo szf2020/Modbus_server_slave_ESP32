@@ -501,6 +501,9 @@ const char *st_token_type_to_string(st_token_type_t type) {
     case ST_TOK_IDENT:          return "IDENT";
     case ST_TOK_CONST:          return "CONST";
     case ST_TOK_BOOL:           return "BOOL";
+    case ST_TOK_INT_KW:         return "INT_KW";
+    case ST_TOK_DWORD:          return "DWORD";
+    case ST_TOK_REAL_KW:        return "REAL_KW";
     case ST_TOK_VAR:            return "VAR";
     case ST_TOK_VAR_INPUT:      return "VAR_INPUT";
     case ST_TOK_VAR_OUTPUT:     return "VAR_OUTPUT";

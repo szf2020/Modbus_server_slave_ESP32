@@ -932,6 +932,13 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
 
       // Expect data type
       st_datatype_t datatype = ST_TYPE_NONE;
+
+      // DEBUG: Print current token
+      debug_printf("[VAR_PARSE] Variable '%s', expecting type, got token: %s (value='%s')\n",
+                   var->name,
+                   st_token_type_to_string(parser->current_token.type),
+                   parser->current_token.value);
+
       if (parser_match(parser, ST_TOK_BOOL)) {
         datatype = ST_TYPE_BOOL;
         parser_advance(parser);
@@ -945,7 +952,11 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
         datatype = ST_TYPE_REAL;
         parser_advance(parser);
       } else {
-        parser_error(parser, "Expected data type (BOOL, INT, DWORD, REAL)");
+        char err_msg[256];
+        snprintf(err_msg, sizeof(err_msg),
+                 "Expected data type (BOOL, INT, DWORD, REAL), got %s",
+                 st_token_type_to_string(parser->current_token.type));
+        parser_error(parser, err_msg);
         return false;
       }
 
