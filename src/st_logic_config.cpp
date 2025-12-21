@@ -6,6 +6,7 @@
 #include "st_logic_config.h"
 #include "st_parser.h"
 #include "st_compiler.h"
+#include "register_allocator.h"
 #include "debug.h"
 #include <string.h>
 #include <stdio.h>
@@ -158,6 +159,23 @@ bool st_logic_delete(st_logic_engine_state_t *state, uint8_t program_id) {
   uint8_t i = 0;
   while (i < g_persist_config.var_map_count) {
     if (g_persist_config.var_maps[i].st_program_id == program_id) {
+      // BUG-047 FIX: Free allocated registers before removing binding
+      VariableMapping *map = &g_persist_config.var_maps[i];
+
+      // Free input register if allocated (HR type)
+      if (map->is_input && map->input_type == 0 && map->input_reg < ALLOCATOR_SIZE) {
+        register_allocator_free(map->input_reg);
+      }
+
+      // Free output register/coil if allocated
+      if (!map->is_input) {
+        if (map->output_type == 0 && map->coil_reg < ALLOCATOR_SIZE) {
+          // Holding register
+          register_allocator_free(map->coil_reg);
+        }
+        // Note: Coils don't use register allocator (only HR 0-299 tracked)
+      }
+
       // Remove this binding by shifting all subsequent bindings down
       for (uint8_t j = i; j < g_persist_config.var_map_count - 1; j++) {
         g_persist_config.var_maps[j] = g_persist_config.var_maps[j + 1];
