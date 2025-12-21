@@ -158,6 +158,53 @@ st_value_t st_builtin_floor(st_value_t x);
 st_value_t st_builtin_ceil(st_value_t x);
 
 /* ============================================================================
+ * CLAMPING & SELECTION FUNCTIONS (v4.4+)
+ * ============================================================================ */
+
+/**
+ * @brief Limit value to range [min, max]
+ * @param min_val Minimum value
+ * @param value Current value
+ * @param max_val Maximum value
+ * @return Clamped value
+ */
+st_value_t st_builtin_limit(st_value_t min_val, st_value_t value, st_value_t max_val);
+
+/**
+ * @brief Boolean selector
+ * @param g Boolean selector (false=in0, true=in1)
+ * @param in0 Value when g=false
+ * @param in1 Value when g=true
+ * @return Selected value
+ */
+st_value_t st_builtin_sel(st_value_t g, st_value_t in0, st_value_t in1);
+
+/* ============================================================================
+ * TRIGONOMETRIC FUNCTIONS (v4.4+)
+ * ============================================================================ */
+
+/**
+ * @brief Sine function
+ * @param x Angle in radians (REAL)
+ * @return sin(x)
+ */
+st_value_t st_builtin_sin(st_value_t x);
+
+/**
+ * @brief Cosine function
+ * @param x Angle in radians (REAL)
+ * @return cos(x)
+ */
+st_value_t st_builtin_cos(st_value_t x);
+
+/**
+ * @brief Tangent function
+ * @param x Angle in radians (REAL)
+ * @return tan(x)
+ */
+st_value_t st_builtin_tan(st_value_t x);
+
+/* ============================================================================
  * TYPE CONVERSION FUNCTIONS
  * ============================================================================ */
 
