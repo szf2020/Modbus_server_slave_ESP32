@@ -378,11 +378,27 @@ void cli_cmd_set_counter_control(uint8_t argc, char* argv[]) {
   // set counter <id> control counter-reg-reset-on-read:on|off compare-reg-reset-on-read:on|off auto-start:on|off running:on|off
   if (argc < 2) {
     debug_println("SET COUNTER CONTROL: missing parameters");
-    debug_println("  Usage: set counter <id> control counter-reg-reset-on-read:<on|off>");
-    debug_println("         set counter <id> control compare-reg-reset-on-read:<on|off>");
-    debug_println("         set counter <id> control auto-start:<on|off>");
-    debug_println("         set counter <id> control running:<on|off>");
-    debug_println("  Example: set counter 1 control auto-start:on running:on compare-reg-reset-on-read:off");
+    debug_println("  Usage: set counter <id> control <parameter>:<on|off> [...]");
+    debug_println("");
+    debug_println("  Parameters:");
+    debug_println("    counter-reg-reset-on-read:<on|off>  - Reset counter when value registers read via Modbus");
+    debug_println("    compare-reg-reset-on-read:<on|off>  - Auto-clear compare bit 4 when ctrl-reg read");
+    debug_println("    auto-start:<on|off>                 - Start counter automatically at boot");
+    debug_println("    running:<on|off>                    - Start/stop counter (persistent state)");
+    debug_println("");
+    debug_println("  Example: set counter 1 control auto-start:on running:on");
+    debug_println("           set counter 1 control counter-reg-reset-on-read:on");
+    debug_println("");
+    debug_println("  Ctrl-reg bits:");
+    debug_println("    Bit 0: counter-reg-reset-on-read flag (persistent)");
+    debug_println("    Bit 1: auto-start flag (persistent)");
+    debug_println("    Bit 4: compare-match status (read-only, set by compare engine)");
+    debug_println("    Bit 7: running state (persistent)");
+    debug_println("");
+    debug_println("  Note: You can also use Modbus write to ctrl-reg for one-shot commands:");
+    debug_println("    Write bit 0=1 -> Reset counter immediately (auto-clears)");
+    debug_println("    Write bit 1=1 -> Start counter (auto-clears)");
+    debug_println("    Write bit 2=1 -> Stop counter (auto-clears)");
     return;
   }
 

@@ -325,10 +325,17 @@ set counter <id> compare:on compare-value:<val> compare-mode:<0|1|2>
   # Mode 1: > (strictly greater, rising edge trigger)
   # Mode 2: === (exact match, rising edge trigger)
 
-# Control commands
-set counter <id> control reset         # Reset counter to 0
-set counter <id> control running:on    # Start counter
-set counter <id> control running:off   # Stop counter
+# Control commands (v4.2.9 - BUG-041)
+set counter <id> control counter-reg-reset-on-read:<on|off>   # Reset counter når value regs læses
+set counter <id> control compare-reg-reset-on-read:<on|off>   # Auto-clear compare bit 4
+set counter <id> control auto-start:<on|off>                  # Start counter ved boot
+set counter <id> control running:<on|off>                     # Start/stop counter
+
+# Control via Modbus FC06 write to ctrl-reg (one-shot commands)
+write reg <ctrl-reg> value 0x0001      # Reset counter (bit 0, auto-clears)
+write reg <ctrl-reg> value 0x0002      # Start counter (bit 1, auto-clears)
+write reg <ctrl-reg> value 0x0004      # Stop counter (bit 2, auto-clears)
+write reg <ctrl-reg> value 0x0080      # Set running=on (bit 7, persistent)
 
 # Enable/disable (Cisco-style)
 set counter <id> enable:<on|off>       # Enable/disable counter
@@ -351,7 +358,12 @@ Example (Counter 1, 32-bit):
   HR104-105: Raw (prescaled, 2 words)
   HR108:     Frequency (Hz, 1 word)
   HR109:     Overload flag (1 word)
-  HR110:     Control (bit7=running, bit4=compare-match, 1 word)
+  HR110:     Control register (1 word):
+             - Bit 0: counter-reg-reset-on-read flag (persistent) / one-shot reset cmd
+             - Bit 1: auto-start flag (persistent) / one-shot start cmd
+             - Bit 2: one-shot stop cmd (write-only, auto-clears)
+             - Bit 4: compare-match status (read-only)
+             - Bit 7: running state (persistent)
   HR111-112: Compare value (2 words, writable via FC06/FC16)
 ```
 
