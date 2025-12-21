@@ -891,8 +891,15 @@ st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
 bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *variables, uint8_t *var_count) {
   *var_count = 0;
 
+  debug_printf("[VAR_PARSE] Starting variable declaration parsing, current token: %s\n",
+               st_token_type_to_string(parser->current_token.type));
+
   while (parser_match(parser, ST_TOK_VAR) || parser_match(parser, ST_TOK_VAR_INPUT) || parser_match(parser, ST_TOK_VAR_OUTPUT)) {
     st_token_type_t var_type_token = parser->current_token.type;
+
+    debug_printf("[VAR_PARSE] Found VAR block type: %s\n",
+                 st_token_type_to_string(var_type_token));
+
     parser_advance(parser);
 
     // Parse variable declarations until END_VAR
@@ -922,6 +929,9 @@ bool st_parser_parse_var_declarations(st_parser_t *parser, st_variable_decl_t *v
       // BUG-032 FIX: Use strncpy to prevent buffer overflow (name is 64 bytes, token is 256)
       strncpy(var->name, parser->current_token.value, 63);
       var->name[63] = '\0';
+
+      debug_printf("[VAR_PARSE] Parsing variable '%s'\n", var->name);
+
       parser_advance(parser);
 
       // Expect colon

@@ -1,7 +1,7 @@
 #!/bin/bash
 echo "=== ESP32 Modbus RTU Server - Kode Statistik ==="
 echo ""
-echo "📊 TOTAL OVERSIGT:"
+echo "📊 TOTAL OVERSIGT: TEST"
 echo "---------------------------------------------------"
 echo -n "Totalt .cpp filer: "
 find src -name "*.cpp" | wc -l
