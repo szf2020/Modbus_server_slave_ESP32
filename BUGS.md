@@ -3715,10 +3715,149 @@ Build #661: ✅ Compiled successfully
 
 ---
 
+## § BUG-046: ST Datatype Keywords (INT, REAL) Kolliderer med Literals
+
+**Status:** ✅ FIXED (v4.3.1, Build #676)
+**Priority:** 🔴 CRITICAL
+**Impact:** REAL og INT variable declarations fejler med "Unknown variable: angle"
+
+### Problem Beskrivelse
+
+ST Logic programs kunne ikke compile hvis de brugte REAL eller INT variabler:
+
+```
+VAR
+  angle: REAL;
+  raw_temp: INT;
+END_VAR
+BEGIN
+  x_motion := 50.0 * COS(angle);  (* FEJL: Unknown variable: angle *)
+END_PROGRAM
+```
+
+**Symptom:**
+```
+╔════════════════════════════════════════════════════════╗
+║            COMPILATION ERROR - Logic Program          ║
+╚════════════════════════════════════════════════════════╝
+Error: Compile error: Unknown variable: angle
+```
+
+### Root Cause
+
+Token-typen `ST_TOK_REAL` blev brugt til BÅDE:
+1. **REAL literals** (50.0, 0.1, 6.28)
+2. **REAL datatype keyword** ("REAL" i `angle: REAL`)
+
+Samme problem med `ST_TOK_INT`:
+1. **INT literals** (123, -456)
+2. **INT datatype keyword** ("INT" i `raw_temp: INT`)
+
+**Problemet opstod her:**
+
+`st_lexer.cpp:80-83` - Keyword table:
+```cpp
+{"INT", ST_TOK_INT},    // ❌ FORKERT: Skulle være ST_TOK_INT_KW
+{"REAL", ST_TOK_REAL},  // ❌ FORKERT: Skulle være ST_TOK_REAL_KW
+```
+
+`st_parser.cpp:938,944` - Variable declaration parser:
+```cpp
+} else if (parser_match(parser, ST_TOK_INT)) {   // ❌ FORKERT: Matches literals
+  datatype = ST_TYPE_INT;
+} else if (parser_match(parser, ST_TOK_REAL)) {  // ❌ FORKERT: Matches literals
+  datatype = ST_TYPE_REAL;
+```
+
+**Konsekvens:**
+Når parseren så `angle: REAL;`, blev "REAL" tokenized som `ST_TOK_REAL` (literal token), ikke som datatype keyword. Dette forhindrede variablen i at blive registreret i symbol-tabellen → compilation error "Unknown variable: angle".
+
+### Løsning
+
+**Del 1: Lexer keyword table**
+`src/st_lexer.cpp:81-83` - Brug separate tokens for keywords:
+```cpp
+{"INT", ST_TOK_INT_KW},   // ✅ INT keyword
+{"REAL", ST_TOK_REAL_KW}, // ✅ REAL keyword
+```
+
+**Del 2: Parser variable declarations**
+`src/st_parser.cpp:938,944` - Check for keyword tokens:
+```cpp
+} else if (parser_match(parser, ST_TOK_INT_KW)) {   // ✅ Keyword check
+  datatype = ST_TYPE_INT;
+} else if (parser_match(parser, ST_TOK_REAL_KW)) {  // ✅ Keyword check
+  datatype = ST_TYPE_REAL;
+```
+
+**Token design i `st_types.h`:**
+```cpp
+// Literals (numeric values)
+ST_TOK_INT,               // 123, -456, 0x1A2B
+ST_TOK_REAL,              // 1.23, 4.56e-10
+
+// Keywords (datatype specifiers)
+ST_TOK_INT_KW,            // INT keyword in VAR section
+ST_TOK_REAL_KW,           // REAL keyword in VAR section
+```
+
+### Test Resultat
+
+**Test program:**
+```
+set logic 1 upload
+"PROGRAM VAR
+  raw_temp: INT;
+  mode_auto: BOOL;
+  angle: REAL;
+  safe_temp: INT;
+  x_motion: REAL;
+  y_motion: REAL;
+  selected_output: INT;
+  auto_value: INT;
+  manual_value: INT;
+ END_VAR BEGIN
+  safe_temp := LIMIT(0, raw_temp, 100);
+  x_motion := 50.0 * COS(angle);
+  y_motion := 50.0 * SIN(angle);
+  auto_value := 75; manual_value := 50;
+  selected_output := SEL(mode_auto, manual_value, auto_value);
+  angle := angle + 0.1;
+  IF angle > 6.28 THEN
+   angle := 0.0;
+  END_IF;
+ END_PROGRAM"
+END_UPLOAD
+```
+
+**Før fix:**
+```
+Error: Compile error: Unknown variable: angle
+```
+
+**Efter fix (Build #676):**
+```
+✅ Program compiled successfully
+Variables: 9
+Bytecode instructions: ~45
+```
+
+### Relaterede Ændringer
+
+- `src/st_lexer.cpp:81-83` - Keyword table opdateret
+- `src/st_parser.cpp:938,944` - Parser checks opdateret
+
+### Commit
+
+Build #676 - "FIX: ST REAL Variable Declaration - Token Type Disambiguation"
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-21 | BUG-046 FIXED - ST datatype keywords (INT, REAL) token disambiguation (v4.3.1, Build #676) | Claude Code |
 | 2025-12-20 | BUG-045 FIXED - Upload mode respects user echo setting (v4.3.0, Build #661) | Claude Code |
 | 2025-12-20 | BUG-042, BUG-043, BUG-044 FIXED - CLI Parser Case Sensitivity Bugs (v4.3.0, Build #652) | Claude Code |
 | 2025-12-17 | BUG-030 FIXED - Compare value accessible via Modbus register (runtime modifiable) (v4.2.4) | Claude Code |
