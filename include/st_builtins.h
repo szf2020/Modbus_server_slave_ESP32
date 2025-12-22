@@ -95,6 +95,13 @@ const char *st_builtin_name(st_builtin_func_t func_id);
  */
 uint8_t st_builtin_arg_count(st_builtin_func_t func_id);
 
+/**
+ * @brief Get return type of builtin function
+ * @param func_id Function ID
+ * @return Return datatype (ST_TYPE_INT, ST_TYPE_REAL, ST_TYPE_BOOL, ST_TYPE_DWORD)
+ */
+st_datatype_t st_builtin_return_type(st_builtin_func_t func_id);
+
 /* ============================================================================
  * MATHEMATICAL FUNCTIONS
  * ============================================================================ */

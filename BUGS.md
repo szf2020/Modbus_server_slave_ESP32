@@ -4355,10 +4355,150 @@ Build #708 - "FIX: BUG-050 - VM Arithmetic Operators Now Support REAL"
 
 ---
 
+## § BUG-051: Expression Chaining Fejler for REAL (v4.3.5)
+
+**Status:** ✅ FIXED
+**Prioritet:** 🟡 HIGH
+**Version:** v4.3.5 (Build #712)
+**Opdaget:** 2025-12-22
+**Løst:** 2025-12-22
+
+### Problem Beskrivelse
+
+Efter fix af BUG-050 (REAL arithmetic support i VM), opdagede vi at expression chaining med INT_TO_REAL stadig fejlede:
+
+**Virker:**
+```st
+angle_real := INT_TO_REAL(angle_deg);  (* Separat statement OK *)
+temp := angle_real * PI;                (* Separat statement OK *)
+```
+
+**Fejler:**
+```st
+temp := INT_TO_REAL(angle_deg) * PI / 180.0;  (* Returnerer garbage: 40066, 65535, -1 *)
+temp := INT_TO_REAL(angle_deg) * 2.0;         (* Returnerer 65535 *)
+```
+
+**Symptomer:**
+- Separate statements virker perfekt
+- Expression chains med INT_TO_REAL returnerer garbage
+- Problem isoleret til INT_TO_REAL specifikt
+
+### Root Cause
+
+`st_vm_exec_call_builtin()` brugte den gamle `st_vm_push()` i stedet for den nye type-aware `st_vm_push_typed()` fra BUG-050 fix.
+
+**Flow:**
+1. INT_TO_REAL kaldes via CALL_BUILTIN
+2. Returnerer REAL værdi i result union
+3. `st_vm_push(vm, result)` pusher værdien **uden** at opdatere `type_stack[]`
+4. Næste operation (MUL) popper værdien med `st_vm_pop_typed()`
+5. Type stack har stale/garbage type → Arithmetic læser forkert union field
+6. Resultat: Garbage output (65535, 40066, etc.)
+
+**Problem location:**
+- `src/st_vm.cpp:454` - CALL_BUILTIN brugte `st_vm_push()` i stedet for `st_vm_push_typed()`
+
+### Solution
+
+**1. Tilføj return type helper (st_builtins.h + st_builtins.cpp)**
+
+Ny funktion til at bestemme return type for hver builtin:
+
+```cpp
+st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
+  switch (func_id) {
+    // Returns REAL
+    case ST_BUILTIN_SQRT:
+    case ST_BUILTIN_SIN:
+    case ST_BUILTIN_COS:
+    case ST_BUILTIN_TAN:
+    case ST_BUILTIN_INT_TO_REAL:
+      return ST_TYPE_REAL;
+
+    // Returns BOOL
+    case ST_BUILTIN_INT_TO_BOOL:
+      return ST_TYPE_BOOL;
+
+    // Returns DWORD
+    case ST_BUILTIN_INT_TO_DWORD:
+      return ST_TYPE_DWORD;
+
+    // Returns INT (most functions)
+    default:
+      return ST_TYPE_INT;
+  }
+}
+```
+
+**2. Fix CALL_BUILTIN til at bruge type-aware push (st_vm.cpp:453-455)**
+
+```cpp
+// OLD (BUG):
+// Push result
+return st_vm_push(vm, result);
+
+// NEW (FIXED):
+// Push result with type information (BUG-051 FIX)
+st_datatype_t return_type = st_builtin_return_type(func_id);
+return st_vm_push_typed(vm, result, return_type);
+```
+
+### Test Results
+
+**Før fix (Build #711):**
+```
+> set logic 2 var test := INT_TO_REAL(angle_deg) * 2.0
+> read reg 85 1
+Reg[85]: 65535    ← GARBAGE
+```
+
+**Efter fix (Build #712):**
+```
+> set logic 2 var test := INT_TO_REAL(angle_deg) * 2.0
+> read reg 85 1
+Reg[85]: 180      ← CORRECT (angle_deg=90 * 2.0 = 180)
+
+> set logic 2 var angle_rad := INT_TO_REAL(angle_deg) * PI / 180.0
+> read reg 86 1
+Reg[86]: 1570     ← CORRECT (90 degrees = ~1.57 radians * 1000)
+```
+
+### Implementation Details
+
+**Files Changed:**
+1. **include/st_builtins.h** - Tilføj declaration af `st_builtin_return_type()`
+2. **src/st_builtins.cpp** - Implementer `st_builtin_return_type()`
+3. **src/st_vm.cpp:453-455** - Ret CALL_BUILTIN til at bruge `st_vm_push_typed()`
+
+**Code locations:**
+- `st_builtins.h:103` - Function declaration
+- `st_builtins.cpp:347-384` - Implementation
+- `st_vm.cpp:453-455` - Fixed CALL_BUILTIN
+
+### Commit
+
+Build #712 - "FIX: BUG-051 - Expression Chaining Now Works with INT_TO_REAL"
+
+### Relation til Andre Bugs
+
+**BUG-050:** VM arithmetic REAL support
+- BUG-050 added type_stack[] and type-aware arithmetic operators
+- BUG-051: CALL_BUILTIN didn't use the new type-aware stack push
+- Both bugs needed to be fixed for full REAL support
+
+### Impact
+
+**Before:** Expression chaining with type conversions completely broken
+**After:** All expression chains work correctly, including complex expressions like `INT_TO_REAL(x) * PI / 180.0`
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-22 | BUG-051 FIXED - Expression chaining now works with INT_TO_REAL (v4.3.5, Build #712) | Claude Code |
 | 2025-12-22 | BUG-051 IDENTIFIED - Expression chaining fejler for REAL (workaround exists) | Claude Code |
 | 2025-12-22 | BUG-050 FIXED - VM arithmetic operators now support REAL (v4.3.4, Build #708) | Claude Code |
 | 2025-12-22 | BUG-049 FIXED - ST Logic can now read from Coils (v4.3.3, Build #703) | Claude Code |

@@ -450,8 +450,9 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
     result = st_builtin_call(func_id, arg1, arg2);
   }
 
-  // Push result
-  return st_vm_push(vm, result);
+  // Push result with type information (BUG-051 FIX)
+  st_datatype_t return_type = st_builtin_return_type(func_id);
+  return st_vm_push_typed(vm, result, return_type);
 }
 
 /* ============================================================================

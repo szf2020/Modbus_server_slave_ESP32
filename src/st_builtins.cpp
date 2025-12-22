@@ -343,3 +343,42 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
       return 0;
   }
 }
+
+st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
+  switch (func_id) {
+    // Returns REAL
+    case ST_BUILTIN_SQRT:
+    case ST_BUILTIN_SIN:
+    case ST_BUILTIN_COS:
+    case ST_BUILTIN_TAN:
+    case ST_BUILTIN_INT_TO_REAL:
+      return ST_TYPE_REAL;
+
+    // Returns BOOL
+    case ST_BUILTIN_INT_TO_BOOL:
+      return ST_TYPE_BOOL;
+
+    // Returns DWORD
+    case ST_BUILTIN_INT_TO_DWORD:
+      return ST_TYPE_DWORD;
+
+    // Returns INT (most functions)
+    case ST_BUILTIN_ABS:
+    case ST_BUILTIN_MIN:
+    case ST_BUILTIN_MAX:
+    case ST_BUILTIN_SUM:
+    case ST_BUILTIN_ROUND:
+    case ST_BUILTIN_TRUNC:
+    case ST_BUILTIN_FLOOR:
+    case ST_BUILTIN_CEIL:
+    case ST_BUILTIN_LIMIT:
+    case ST_BUILTIN_SEL:
+    case ST_BUILTIN_REAL_TO_INT:
+    case ST_BUILTIN_BOOL_TO_INT:
+    case ST_BUILTIN_DWORD_TO_INT:
+    case ST_BUILTIN_PERSIST_SAVE:
+    case ST_BUILTIN_PERSIST_LOAD:
+    default:
+      return ST_TYPE_INT;
+  }
+}
