@@ -1,15 +1,16 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.3.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.4.0 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
-En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
+En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, **Modbus Master** (remote device control via ST Logic), Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
 
 ---
 
 ## 📑 Table of Contents
 
 ### Core Features
-- [Modbus RTU Protocol](#core-modbus-rtu-protocol)
+- [Modbus RTU Protocol (Slave)](#core-modbus-rtu-protocol)
+- [**Modbus Master (v4.4.0) ⭐**](#modbus-master-remote-device-control-v440) - Remote device control via ST Logic
 - [Counter Engine](#counter-engine-4-uafhængige-counters)
 - [Timer Engine](#timer-engine-4-uafhængige-timers)
 - [ST Logic (Structured Text)](#st-logic-structured-text-programming-v20)
@@ -55,6 +56,105 @@ En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mik
 - **Hardware RS-485 Support** med GPIO15 direction control
 - **Timeout Handling:** 3.5 character times (baudrate-adaptive)
 - **Error Detection:** CRC mismatch, illegal function, illegal address
+
+### Modbus Master (Remote Device Control) (v4.4.0)
+
+**⭐ NYT I v4.4.0:** ESP32'en kan nu fungere som **Modbus Master** for at styre remote devices via ST Logic programmer!
+
+#### Hardware
+- **Separate RS485 Port:** UART1 (ikke delt med Modbus Slave)
+  - **TX:** GPIO25
+  - **RX:** GPIO26
+  - **DE/RE:** GPIO27 (Direction Enable)
+- **Protocol:** Modbus RTU (FC01-FC06 supported)
+- **Baudrate:** Konfigurerbar (300-115200, default: 9600)
+- **Parity:** None/Even/Odd (default: None)
+- **Stop Bits:** 1 eller 2 (default: 1)
+- **Timeout:** Konfigurerbar (default: 500ms)
+
+#### ST Logic Integration (6 Builtin Functions)
+
+**Read Functions (2 argumenter):**
+```structured-text
+MB_READ_COIL(slave_id, address) → BOOL         (* Read remote coil *)
+MB_READ_INPUT(slave_id, address) → BOOL        (* Read remote discrete input *)
+MB_READ_HOLDING(slave_id, address) → INT       (* Read remote holding register *)
+MB_READ_INPUT_REG(slave_id, address) → INT     (* Read remote input register *)
+```
+
+**Write Functions (3 argumenter):**
+```structured-text
+MB_WRITE_COIL(slave_id, address, value) → BOOL      (* Write remote coil *)
+MB_WRITE_HOLDING(slave_id, address, value) → BOOL   (* Write remote holding register *)
+```
+
+**Global Status Variables:**
+```structured-text
+mb_last_error (INT)   (* 0=OK, 1=TIMEOUT, 2=CRC, 3=EXCEPTION, 4=MAX_REQ, 5=DISABLED *)
+mb_success (BOOL)     (* TRUE if last operation succeeded *)
+```
+
+#### Eksempel: Remote Temperature Control
+```structured-text
+VAR
+  remote_temp: INT;
+  heating_on: BOOL;
+  error: BOOL;
+END_VAR
+
+(* Read temperature from slave ID 5, HR#100 *)
+remote_temp := MB_READ_HOLDING(5, 100);
+
+(* Check if read succeeded *)
+IF mb_success THEN
+  (* Control heating based on temperature *)
+  IF remote_temp < 18 THEN
+    heating_on := MB_WRITE_COIL(3, 20, TRUE);   (* Slave 3, Coil 20 ON *)
+  ELSE
+    heating_on := MB_WRITE_COIL(3, 20, FALSE);  (* Slave 3, Coil 20 OFF *)
+  END_IF;
+  error := FALSE;
+ELSE
+  (* Communication failed *)
+  error := TRUE;
+END_IF;
+```
+
+#### CLI Configuration
+```bash
+# Enable Modbus Master
+set modbus-master enabled on
+
+# Configure serial port
+set modbus-master baudrate 9600
+set modbus-master parity none
+set modbus-master stop-bits 1
+set modbus-master timeout 500
+
+# Configure rate limiting
+set modbus-master max-requests 10           # Max 10 requests per ST cycle
+set modbus-master inter-frame-delay 10      # 10ms delay between requests
+
+# Show status
+show modbus-master
+
+# Help
+set modbus-master ?
+```
+
+#### Rate Limiting
+- **Default:** Max 10 requests per ST execution cycle
+- **Purpose:** Prevent bus overload
+- **Error:** MB_MAX_REQUESTS_EXCEEDED (code 4) hvis limit overskredet
+- **Best Practice:** Cache remote values i lokale variabler
+
+#### Function Codes Supported
+- **FC01:** Read Coils (MB_READ_COIL)
+- **FC02:** Read Discrete Inputs (MB_READ_INPUT)
+- **FC03:** Read Holding Registers (MB_READ_HOLDING)
+- **FC04:** Read Input Registers (MB_READ_INPUT_REG)
+- **FC05:** Write Single Coil (MB_WRITE_COIL)
+- **FC06:** Write Single Register (MB_WRITE_HOLDING)
 
 ### Counter Engine (4 Uafhængige Counters)
 Hver counter har **3 hardware modes:**
@@ -272,7 +372,7 @@ save                           # Persist to NVS
 - **Remote Echo:** Configurable (on/off)
 - **Buffer:** 256 bytes input buffer
 
-#### CLI Commands (~46 funktioner)
+#### CLI Commands (~53 funktioner)
 
 **Configuration Commands:**
 ```bash
@@ -301,6 +401,7 @@ show inputs [start] [count]    # Input registers (0-255)
 show coils [start] [count]     # Coils (0-255)
 show gpio                      # GPIO mappings
 show wifi                      # Wi-Fi connection status
+show modbus-master             # Modbus Master status & stats (v4.4+)
 show debug                     # Debug flags status
 show echo                      # Echo status
 ```
@@ -415,6 +516,37 @@ set logic <id> enable on|off             # Enable/disable program
 set logic <id> delete                    # Delete program
 set logic <id> bind <var> reg:<addr>     # Bind variable to register
 set logic <id> bind <var> coil:<addr>    # Bind variable to coil
+```
+
+**Modbus Master Commands (v4.4+):**
+```bash
+# Configuration
+set modbus-master enabled on|off                # Enable/disable Modbus Master
+set modbus-master baudrate <rate>               # Set baudrate (default: 9600)
+set modbus-master parity <none|even|odd>        # Set parity (default: none)
+set modbus-master stop-bits <1|2>               # Set stop bits (default: 1)
+set modbus-master timeout <ms>                  # Set timeout (default: 500ms)
+set modbus-master inter-frame-delay <ms>        # Inter-frame delay (default: 10ms)
+set modbus-master max-requests <count>          # Max requests per cycle (default: 10)
+
+# Status & Help
+show modbus-master                              # Show config & statistics
+set modbus-master ?                             # Detailed help menu
+```
+
+**ST Logic Modbus Master Functions:**
+```structured-text
+(* Available in ST Logic programs - see section above for examples *)
+MB_READ_COIL(slave_id, address) → BOOL
+MB_READ_INPUT(slave_id, address) → BOOL
+MB_READ_HOLDING(slave_id, address) → INT
+MB_READ_INPUT_REG(slave_id, address) → INT
+MB_WRITE_COIL(slave_id, address, value) → BOOL
+MB_WRITE_HOLDING(slave_id, address, value) → BOOL
+
+(* Global status variables *)
+mb_last_error (INT)   (* 0=OK, 1=TIMEOUT, 2=CRC, 3=EXCEPTION, 4=MAX_REQ, 5=DISABLED *)
+mb_success (BOOL)     (* TRUE if last operation succeeded *)
 ```
 
 **Register/Coil Direct Access:**
@@ -2105,7 +2237,7 @@ Please describe:
 ---
 
 **Maintained by:** Jan Green Larsen
-**Last Updated:** 2025-12-12
+**Last Updated:** 2025-12-24
 **Repository:** https://github.com/Jangreenlarsen/Modbus_server_slave_ESP32
 
 ---

@@ -261,6 +261,27 @@ typedef enum {
 #define NVS_NAMESPACE_NETWORK           "network"
 
 /* ============================================================================
+ * MODBUS MASTER CONFIGURATION (UART1)
+ * ============================================================================ */
+
+// Hardware pins (fixed)
+#define MODBUS_MASTER_TX_PIN      25    // UART1 TX
+#define MODBUS_MASTER_RX_PIN      26    // UART1 RX
+#define MODBUS_MASTER_DE_PIN      27    // MAX485 DE/RE control
+
+// Default configuration
+#define MODBUS_MASTER_DEFAULT_BAUDRATE     9600
+#define MODBUS_MASTER_DEFAULT_PARITY       0     // 0=none, 1=even, 2=odd
+#define MODBUS_MASTER_DEFAULT_STOP_BITS    1
+#define MODBUS_MASTER_DEFAULT_TIMEOUT      500   // ms
+#define MODBUS_MASTER_DEFAULT_INTER_FRAME  10    // ms
+#define MODBUS_MASTER_DEFAULT_MAX_REQUESTS 10    // per cycle
+
+// Protocol constants
+#define MODBUS_MASTER_MIN_RESPONSE_TIME    3     // ms (minimum inter-frame delay)
+#define MODBUS_MASTER_MAX_RETRIES          0     // No retries (ST Logic handles it)
+
+/* ============================================================================
  * VERSION & BUILD
  * ============================================================================ */
 

@@ -296,6 +296,36 @@ typedef struct __attribute__((packed)) {
 } NetworkConfig;
 
 /* ============================================================================
+ * MODBUS MASTER CONFIGURATION
+ * ============================================================================ */
+
+typedef enum {
+  MB_OK = 0,
+  MB_TIMEOUT = 1,
+  MB_CRC_ERROR = 2,
+  MB_EXCEPTION = 3,
+  MB_MAX_REQUESTS_EXCEEDED = 4,
+  MB_NOT_ENABLED = 5
+} mb_error_code_t;
+
+typedef struct {
+  bool enabled;                  // Master enabled/disabled
+  uint32_t baudrate;            // 9600, 19200, 38400, 57600, 115200
+  uint8_t parity;               // 0=none, 1=even, 2=odd
+  uint8_t stop_bits;            // 1 or 2
+  uint16_t timeout_ms;          // Response timeout (default: 500ms)
+  uint16_t inter_frame_delay;   // Delay between requests (default: 10ms)
+  uint8_t max_requests_per_cycle; // Max requests per ST execution (default: 10)
+
+  // Runtime statistics
+  uint32_t total_requests;      // Total requests sent
+  uint32_t successful_requests; // Successful responses
+  uint32_t timeout_errors;      // Timeout count
+  uint32_t crc_errors;          // CRC error count
+  uint32_t exception_errors;    // Modbus exception count
+} modbus_master_config_t;
+
+/* ============================================================================
  * PERSISTENT CONFIGURATION (EEPROM/NVS)
  * ============================================================================ */
 
@@ -348,6 +378,9 @@ typedef struct __attribute__((packed)) {
 
   // ST Logic configuration (v4.1+)
   uint32_t st_logic_interval_ms;  // Execution interval for all ST Logic programs (default: 10ms)
+
+  // Modbus Master configuration (v4.4+)
+  modbus_master_config_t modbus_master;
 
   // Reserved for future features
   uint8_t reserved[8];  // Reserved space for future use

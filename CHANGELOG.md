@@ -4,6 +4,77 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [4.4.0] - 2025-12-24 🎉 (Modbus Master + ST Logic Enhancements)
+
+### ADDED
+- **⭐ Modbus Master (Remote Device Control via ST Logic)**
+  - **Hardware:** Separate RS485 port on UART1 (TX:GPIO25, RX:GPIO26, DE:GPIO27)
+  - **Protocol:** Modbus RTU FC01-FC06 support
+  - **6 Builtin ST Functions:**
+    - `MB_READ_COIL(slave_id, address) → BOOL`
+    - `MB_READ_INPUT(slave_id, address) → BOOL`
+    - `MB_READ_HOLDING(slave_id, address) → INT`
+    - `MB_READ_INPUT_REG(slave_id, address) → INT`
+    - `MB_WRITE_COIL(slave_id, address, value) → BOOL`
+    - `MB_WRITE_HOLDING(slave_id, address, value) → BOOL`
+  - **Global Status Variables:** `mb_last_error` (INT), `mb_success` (BOOL)
+  - **Rate Limiting:** Max 10 requests per ST cycle (configurable)
+  - **CLI Configuration:** `set modbus-master enabled on`, `set modbus-master baudrate 9600`, etc.
+  - **Status Display:** `show modbus-master` shows config, statistics, error counters
+  - **Impact:** ESP32 can now control remote Modbus devices from ST Logic programs
+
+- **ST Logic: 3-Argument Function Support**
+  - `LIMIT(min, value, max) → INT` - Clamp value between min/max
+  - `SEL(g, in0, in1) → T` - Select in0 if g=FALSE, in1 if g=TRUE
+  - `MB_WRITE_COIL(slave_id, address, value) → BOOL`
+  - `MB_WRITE_HOLDING(slave_id, address, value) → BOOL`
+  - VM updated to support 3-argument CALL_BUILTIN operations
+
+- **ST Logic: Trigonometric Functions (v4.3.0 backport)**
+  - `SIN(x) → REAL` - Sine (x in radians)
+  - `COS(x) → REAL` - Cosine (x in radians)
+  - `TAN(x) → REAL` - Tangent (x in radians)
+  - Type-aware stack operations for REAL arithmetic
+  - Expression chaining with type conversions now works correctly
+
+- **ST Logic: Rounding Functions (v4.3.0 backport)**
+  - `ROUND(x) → INT` - Round to nearest integer
+  - `TRUNC(x) → INT` - Truncate fractional part
+  - `FLOOR(x) → INT` - Round down
+  - `CEIL(x) → INT` - Round up
+
+### ENHANCED
+- **Documentation:**
+  - Updated `docs/ST_USAGE_GUIDE.md` with all new functions + examples
+  - Updated `docs/ST_IEC61131_COMPLIANCE.md` to v2.0.0
+  - Updated `docs/ST_FUNCTIONS_TODO.md` with implementation status
+  - Added comprehensive Modbus Master section to README.md
+  - Added help menu: `set modbus-master ?`
+
+### TECHNICAL
+- **New Files:**
+  - `src/modbus_master.cpp` (421 lines) - UART1 + Modbus RTU protocol
+  - `src/st_builtin_modbus.cpp` (191 lines) - ST wrapper functions
+  - `src/cli_commands_modbus_master.cpp` (140 lines) - CLI handlers
+  - `include/modbus_master.h` - Hardware interface
+  - `include/st_builtin_modbus.h` - ST Logic integration
+  - `include/cli_commands_modbus_master.h` - CLI declarations
+
+- **Modified Files:**
+  - `include/types.h` - Added `modbus_master_config_t` struct
+  - `include/constants.h` - Added Modbus Master GPIO pins + defaults
+  - `src/st_builtins.cpp` - Added 6 Modbus functions to dispatcher
+  - `src/st_vm.cpp` - Added 3-argument function support
+  - `src/cli_parser.cpp` - Added SET/SHOW modbus-master handlers
+  - `src/config_load.cpp` - Added Modbus Master defaults
+  - `src/main.cpp` - Added `modbus_master_init()` call
+
+- **Build:**
+  - Flash: 67.5% (884,553 bytes / 1,310,720 bytes) - +1.6 KB
+  - RAM: 37.1% (121,696 bytes / 327,680 bytes) - unchanged
+
+---
+
 ## [4.2.0] - 2025-12-13 ✨ (HR 204-235 Direct Variable Write & Timing Fix)
 
 ### ADDED

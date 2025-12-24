@@ -41,6 +41,20 @@ static void config_init_defaults(PersistConfig* cfg) {
   // ST Logic configuration (v4.1+)
   cfg->st_logic_interval_ms = 10;  // Default: 10ms execution interval
 
+  // Modbus Master configuration (v4.4+)
+  cfg->modbus_master.enabled = false;  // Disabled by default
+  cfg->modbus_master.baudrate = MODBUS_MASTER_DEFAULT_BAUDRATE;  // 9600
+  cfg->modbus_master.parity = MODBUS_MASTER_DEFAULT_PARITY;  // 0 (none)
+  cfg->modbus_master.stop_bits = MODBUS_MASTER_DEFAULT_STOP_BITS;  // 1
+  cfg->modbus_master.timeout_ms = MODBUS_MASTER_DEFAULT_TIMEOUT;  // 500ms
+  cfg->modbus_master.inter_frame_delay = MODBUS_MASTER_DEFAULT_INTER_FRAME;  // 10ms
+  cfg->modbus_master.max_requests_per_cycle = MODBUS_MASTER_DEFAULT_MAX_REQUESTS;  // 10
+  cfg->modbus_master.total_requests = 0;
+  cfg->modbus_master.successful_requests = 0;
+  cfg->modbus_master.timeout_errors = 0;
+  cfg->modbus_master.crc_errors = 0;
+  cfg->modbus_master.exception_errors = 0;
+
   // Initialize network config with defaults (v3.0+)
   network_config_init_defaults(&cfg->network);
 

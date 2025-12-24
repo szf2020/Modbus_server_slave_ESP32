@@ -7,6 +7,7 @@
 
 #include "st_vm.h"
 #include "st_builtins.h"
+#include "st_builtin_modbus.h"
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
@@ -443,6 +444,10 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
       result = st_builtin_limit(arg1, arg2, arg3);
     } else if (func_id == ST_BUILTIN_SEL) {
       result = st_builtin_sel(arg1, arg2, arg3);
+    } else if (func_id == ST_BUILTIN_MB_WRITE_COIL) {
+      result = st_builtin_mb_write_coil(arg1, arg2, arg3);
+    } else if (func_id == ST_BUILTIN_MB_WRITE_HOLDING) {
+      result = st_builtin_mb_write_holding(arg1, arg2, arg3);
     } else {
       result = st_builtin_call(func_id, arg1, arg2);
     }

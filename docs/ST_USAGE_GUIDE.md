@@ -331,6 +331,200 @@ int_from_dword := DWORD_TO_INT(1000);
 dword_from_int := INT_TO_DWORD(42);
 ```
 
+### Clamping & Selection Functions (v4.4+)
+
+```structured-text
+(* LIMIT: Clamp value between min and max *)
+safe_val := LIMIT(0, sensor, 100);    (* Keeps sensor in range 0-100 *)
+temp := LIMIT(-10, temperature, 50);  (* Clamps temperature to -10...50 *)
+
+(* SEL: Select one of two inputs based on condition *)
+output := SEL(selector, value_0, value_1);
+(* If selector=FALSE → returns value_0 *)
+(* If selector=TRUE  → returns value_1 *)
+
+(* Example: Choose heating or cooling setpoint *)
+setpoint := SEL(mode, 18, 24);  (* mode=FALSE → 18°C, mode=TRUE → 24°C *)
+```
+
+### Trigonometric Functions (v4.4+)
+
+**Note:** All trigonometric functions work with REAL values. Angles are in **radians**.
+
+```structured-text
+(* Convert degrees to radians: radians = degrees * PI / 180.0 *)
+VAR
+  angle_deg: INT;
+  angle_rad: REAL;
+  sine: REAL;
+  cosine: REAL;
+  tangent: REAL;
+  PI: REAL := 3.14159265;
+END_VAR
+
+angle_deg := 90;  (* 90 degrees *)
+angle_rad := INT_TO_REAL(angle_deg) * PI / 180.0;
+
+sine := SIN(angle_rad);      (* → 1.0 (sin 90° = 1) *)
+cosine := COS(angle_rad);    (* → 0.0 (cos 90° = 0) *)
+tangent := TAN(angle_rad);   (* → undefined (tan 90° → infinity) *)
+
+(* Common values: *)
+sine_0 := SIN(0.0);          (* → 0.0 *)
+cosine_0 := COS(0.0);        (* → 1.0 *)
+sine_30 := SIN(PI / 6.0);    (* → 0.5 (30 degrees) *)
+cosine_60 := COS(PI / 3.0);  (* → 0.5 (60 degrees) *)
+```
+
+### Modbus Master Functions (v4.4+)
+
+**Prerequisites:**
+1. Enable Modbus Master: `set modbus-master enabled on`
+2. Configure serial port: `set modbus-master baudrate 9600`
+3. Set timeout: `set modbus-master timeout 500` (ms)
+
+**Hardware:** Uses separate RS485 port on UART1 (TX:GPIO25, RX:GPIO26, DE:GPIO27)
+
+**Global Status Variables:**
+- `mb_last_error` (INT) - Error code from last operation (0 = success)
+- `mb_success` (BOOL) - TRUE if last operation succeeded
+
+**Error Codes:**
+- 0 = MB_OK
+- 1 = MB_TIMEOUT
+- 2 = MB_CRC_ERROR
+- 3 = MB_EXCEPTION
+- 4 = MB_MAX_REQUESTS_EXCEEDED
+- 5 = MB_NOT_ENABLED
+
+---
+
+#### Reading Functions (2 arguments)
+
+```structured-text
+(* MB_READ_COIL: Read single coil from remote device *)
+coil_value := MB_READ_COIL(slave_id, address);
+(* Returns: BOOL (coil state) *)
+
+(* MB_READ_INPUT: Read single discrete input from remote device *)
+input_value := MB_READ_INPUT(slave_id, address);
+(* Returns: BOOL (input state) *)
+
+(* MB_READ_HOLDING: Read single holding register from remote device *)
+register_value := MB_READ_HOLDING(slave_id, address);
+(* Returns: INT (register value 0-65535) *)
+
+(* MB_READ_INPUT_REG: Read single input register from remote device *)
+input_reg := MB_READ_INPUT_REG(slave_id, address);
+(* Returns: INT (register value 0-65535) *)
+```
+
+#### Writing Functions (3 arguments)
+
+```structured-text
+(* MB_WRITE_COIL: Write single coil to remote device *)
+result := MB_WRITE_COIL(slave_id, address, value);
+(* Returns: BOOL (TRUE if write succeeded) *)
+
+(* MB_WRITE_HOLDING: Write single holding register to remote device *)
+result := MB_WRITE_HOLDING(slave_id, address, value);
+(* Returns: BOOL (TRUE if write succeeded) *)
+```
+
+---
+
+#### Example: Read Remote Sensor
+
+```structured-text
+VAR
+  remote_sensor: INT;
+  local_output: INT;
+  error_flag: BOOL;
+END_VAR
+
+(* Read holding register #100 from slave ID 5 *)
+remote_sensor := MB_READ_HOLDING(5, 100);
+
+(* Check if read succeeded *)
+IF mb_success THEN
+  local_output := remote_sensor;
+  error_flag := FALSE;
+ELSE
+  (* Read failed - use safe default *)
+  local_output := 0;
+  error_flag := TRUE;
+END_IF;
+```
+
+#### Example: Control Remote Relay
+
+```structured-text
+VAR
+  temperature: INT;
+  heating_enabled: BOOL;
+  write_ok: BOOL;
+END_VAR
+
+(* Read local temperature from HR#10 *)
+temperature := 20;  (* Assume bound to reg:10 *)
+
+(* Control remote relay based on temperature *)
+IF temperature < 18 THEN
+  heating_enabled := TRUE;
+ELSE
+  heating_enabled := FALSE;
+END_IF;
+
+(* Write to remote coil #20 on slave ID 3 *)
+write_ok := MB_WRITE_COIL(3, 20, heating_enabled);
+
+(* Check result *)
+IF NOT write_ok THEN
+  (* Handle error: log, retry, or use fallback *)
+END_IF;
+```
+
+#### Example: Multi-Device Monitoring
+
+```structured-text
+VAR
+  device1_temp: INT;
+  device2_temp: INT;
+  device3_temp: INT;
+  max_temp: INT;
+  alarm: BOOL;
+END_VAR
+
+(* Read temperature from 3 remote devices *)
+device1_temp := MB_READ_HOLDING(1, 100);  (* Slave 1, HR#100 *)
+device2_temp := MB_READ_HOLDING(2, 100);  (* Slave 2, HR#100 *)
+device3_temp := MB_READ_HOLDING(3, 100);  (* Slave 3, HR#100 *)
+
+(* Find maximum temperature *)
+max_temp := MAX(device1_temp, device2_temp);
+max_temp := MAX(max_temp, device3_temp);
+
+(* Trigger alarm if any device exceeds 50°C *)
+IF max_temp > 50 THEN
+  alarm := TRUE;
+ELSE
+  alarm := FALSE;
+END_IF;
+```
+
+#### Rate Limiting
+
+**Important:** To prevent bus overload, Modbus Master functions are rate-limited.
+
+- Default: Max 10 requests per ST execution cycle (configurable)
+- Configure: `set modbus-master max-requests 20`
+- If exceeded, function returns error MB_MAX_REQUESTS_EXCEEDED (code 4)
+
+**Best Practice:**
+- Keep Modbus calls minimal per program
+- Use local variables to cache remote values
+- Check `mb_success` flag after critical operations
+
 ---
 
 ## Execution Flow (Unified Mapping Model)
@@ -478,4 +672,12 @@ Then check Modbus register #101 after executing the program.
 - **Feature:** Structured Text Logic Mode
 - **IEC Standard:** 61131-3 (ST-Light Profile)
 - **First Release:** v2.0.0 (2025-11-30)
+- **Current Version:** v4.4.0 (2025-12-24)
 - **Status:** Production Ready ✅
+
+### Feature History
+
+- **v2.0.0** - Initial ST Logic implementation
+- **v4.3.0** - Added REAL arithmetic support (SIN, COS, TAN)
+- **v4.4.0** - Added Modbus Master functions (MB_READ_*, MB_WRITE_*)
+- **v4.4.0** - Added LIMIT and SEL functions

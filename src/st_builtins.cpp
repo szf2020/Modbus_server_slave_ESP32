@@ -7,6 +7,7 @@
 
 #include "st_builtins.h"
 #include "st_builtin_persist.h"
+#include "st_builtin_modbus.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -263,6 +264,33 @@ st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_
       result = st_builtin_persist_load(arg1);  // arg1 = group_id
       break;
 
+    // Modbus Master (v4.4+)
+    case ST_BUILTIN_MB_READ_COIL:
+      result = st_builtin_mb_read_coil(arg1, arg2);
+      break;
+
+    case ST_BUILTIN_MB_READ_INPUT:
+      result = st_builtin_mb_read_input(arg1, arg2);
+      break;
+
+    case ST_BUILTIN_MB_READ_HOLDING:
+      result = st_builtin_mb_read_holding(arg1, arg2);
+      break;
+
+    case ST_BUILTIN_MB_READ_INPUT_REG:
+      result = st_builtin_mb_read_input_reg(arg1, arg2);
+      break;
+
+    case ST_BUILTIN_MB_WRITE_COIL:
+      // 3-argument function - handled in VM
+      result.int_val = 0;
+      break;
+
+    case ST_BUILTIN_MB_WRITE_HOLDING:
+      // 3-argument function - handled in VM
+      result.int_val = 0;
+      break;
+
     default:
       // Unknown function - return zero
       break;
@@ -299,6 +327,12 @@ const char *st_builtin_name(st_builtin_func_t func_id) {
     case ST_BUILTIN_INT_TO_DWORD:  return "INT_TO_DWORD";
     case ST_BUILTIN_PERSIST_SAVE:  return "SAVE";
     case ST_BUILTIN_PERSIST_LOAD:  return "LOAD";
+    case ST_BUILTIN_MB_READ_COIL:      return "MB_READ_COIL";
+    case ST_BUILTIN_MB_READ_INPUT:     return "MB_READ_INPUT";
+    case ST_BUILTIN_MB_READ_HOLDING:   return "MB_READ_HOLDING";
+    case ST_BUILTIN_MB_READ_INPUT_REG: return "MB_READ_INPUT_REG";
+    case ST_BUILTIN_MB_WRITE_COIL:     return "MB_WRITE_COIL";
+    case ST_BUILTIN_MB_WRITE_HOLDING:  return "MB_WRITE_HOLDING";
     default:                       return "UNKNOWN";
   }
 }
@@ -327,11 +361,17 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_MIN:
     case ST_BUILTIN_MAX:
     case ST_BUILTIN_SUM:
+    case ST_BUILTIN_MB_READ_COIL:      // MB_READ_COIL(slave_id, address)
+    case ST_BUILTIN_MB_READ_INPUT:     // MB_READ_INPUT(slave_id, address)
+    case ST_BUILTIN_MB_READ_HOLDING:   // MB_READ_HOLDING(slave_id, address)
+    case ST_BUILTIN_MB_READ_INPUT_REG: // MB_READ_INPUT_REG(slave_id, address)
       return 2;
 
     // 3-argument functions (v4.4+)
     case ST_BUILTIN_LIMIT:  // LIMIT(min, val, max)
     case ST_BUILTIN_SEL:     // SEL(g, in0, in1)
+    case ST_BUILTIN_MB_WRITE_COIL:     // MB_WRITE_COIL(slave_id, address, value)
+    case ST_BUILTIN_MB_WRITE_HOLDING:  // MB_WRITE_HOLDING(slave_id, address, value)
       return 3;
 
     // 1-argument functions (v4.0+)
@@ -356,6 +396,10 @@ st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
 
     // Returns BOOL
     case ST_BUILTIN_INT_TO_BOOL:
+    case ST_BUILTIN_MB_READ_COIL:      // MB_READ_COIL → BOOL
+    case ST_BUILTIN_MB_READ_INPUT:     // MB_READ_INPUT → BOOL
+    case ST_BUILTIN_MB_WRITE_COIL:     // MB_WRITE_COIL → BOOL (success flag)
+    case ST_BUILTIN_MB_WRITE_HOLDING:  // MB_WRITE_HOLDING → BOOL (success flag)
       return ST_TYPE_BOOL;
 
     // Returns DWORD
@@ -378,6 +422,8 @@ st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
     case ST_BUILTIN_DWORD_TO_INT:
     case ST_BUILTIN_PERSIST_SAVE:
     case ST_BUILTIN_PERSIST_LOAD:
+    case ST_BUILTIN_MB_READ_HOLDING:   // MB_READ_HOLDING → INT
+    case ST_BUILTIN_MB_READ_INPUT_REG: // MB_READ_INPUT_REG → INT
     default:
       return ST_TYPE_INT;
   }

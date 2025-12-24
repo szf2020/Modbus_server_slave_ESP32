@@ -22,6 +22,7 @@
 #include "cli_config_regs.h"
 #include "cli_config_coils.h"
 #include "cli_commands_logic.h"
+#include "cli_commands_modbus_master.h"
 #include "st_logic_config.h"
 #include "debug.h"
 #include <string.h>
@@ -206,6 +207,7 @@ static void print_show_help(void) {
   debug_println("  show debug           - Vis debug flags");
   debug_println("  show persist         - Vis persistence groups (v4.0+)");
   debug_println("  show watchdog        - Vis watchdog monitor status (v4.0+)");
+  debug_println("  show modbus-master   - Vis Modbus Master config (v4.4+)");
   debug_println("  show version         - Vis firmware version");
   debug_println("  show echo            - Vis echo status");
   debug_println("");
@@ -225,6 +227,7 @@ static void print_set_help(void) {
   debug_println("  set gpio ?              - Vis GPIO kommandoer");
   debug_println("  set debug ?             - Vis debug kommandoer");
   debug_println("  set persist ?           - Vis persistence kommandoer (v4.0+)");
+  debug_println("  set modbus-master ?     - Vis Modbus Master kommandoer (v4.4+)");
   debug_println("  set echo <on|off>       - Sæt remote echo");
   debug_println("");
 }
@@ -242,6 +245,34 @@ static void print_wifi_help(void) {
   debug_println("  set wifi port <port>       - Sæt Telnet port (default 23)");
   debug_println("  set wifi telnet_user <u>   - Sæt Telnet username");
   debug_println("  set wifi telnet_pass <p>   - Sæt Telnet password");
+  debug_println("");
+}
+
+static void print_modbus_master_help(void) {
+  debug_println("");
+  debug_println("Available 'set modbus-master' commands:");
+  debug_println("  set modbus-master enabled <on|off>        - Aktivér/deaktivér Modbus Master");
+  debug_println("  set modbus-master baudrate <rate>         - Sæt baudrate (default: 9600)");
+  debug_println("  set modbus-master parity <none|even|odd>  - Sæt parity (default: none)");
+  debug_println("  set modbus-master stop-bits <1|2>         - Sæt stop bits (default: 1)");
+  debug_println("  set modbus-master timeout <ms>            - Sæt timeout (default: 500ms)");
+  debug_println("  set modbus-master inter-frame-delay <ms>  - Sæt inter-frame delay (default: 10ms)");
+  debug_println("  set modbus-master max-requests <count>    - Sæt max requests per cycle (default: 10)");
+  debug_println("");
+  debug_println("Hardware:");
+  debug_println("  UART1: TX=GPIO25, RX=GPIO26, DE/RE=GPIO27");
+  debug_println("");
+  debug_println("ST Logic Functions:");
+  debug_println("  MB_READ_COIL(slave_id, address) → BOOL");
+  debug_println("  MB_READ_INPUT(slave_id, address) → BOOL");
+  debug_println("  MB_READ_HOLDING(slave_id, address) → INT");
+  debug_println("  MB_READ_INPUT_REG(slave_id, address) → INT");
+  debug_println("  MB_WRITE_COIL(slave_id, address, value) → BOOL");
+  debug_println("  MB_WRITE_HOLDING(slave_id, address, value) → BOOL");
+  debug_println("");
+  debug_println("Global ST Variables:");
+  debug_println("  mb_last_error (INT)  - Last error code (0=OK, 1=TIMEOUT, 2=CRC, 3=EXCEPTION, 4=MAX_REQ, 5=DISABLED)");
+  debug_println("  mb_success (BOOL)    - TRUE if last operation succeeded");
   debug_println("");
 }
 
@@ -504,6 +535,9 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "WATCHDOG")) {
       cli_cmd_show_watchdog();
       return true;
+    } else if (!strcmp(what, "MODBUS-MASTER") || !strcmp(what, "MB-MASTER")) {
+      cli_cmd_show_modbus_master();
+      return true;
     } else if (!strcmp(what, "REG")) {
       // show reg - Display register configuration
       cli_cmd_show_regs();
@@ -578,6 +612,10 @@ bool cli_parser_execute(char* line) {
           return false;
         }
       }
+    } else if (!strcmp(what, "MODBUS-MASTER") || !strcmp(what, "MB-MASTER")) {
+      // show modbus-master - Display Modbus Master configuration
+      cli_cmd_show_modbus_master();
+      return true;
     } else {
       debug_println("SHOW: unknown argument");
       return false;
@@ -895,6 +933,59 @@ bool cli_parser_execute(char* line) {
         return true;
       } else {
         debug_println("SET LOGIC: unknown subcommand");
+        return false;
+      }
+    } else if (!strcmp(what, "MODBUS-MASTER") || !strcmp(what, "MB-MASTER")) {
+      // Check for help request
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_modbus_master_help();
+          return true;
+        }
+      }
+
+      // set modbus-master <param> <value>
+      if (argc < 4) {
+        debug_println("SET MODBUS-MASTER: missing parameters");
+        debug_println("  Usage: set modbus-master <param> <value>");
+        debug_println("  Params: enabled, baudrate, parity, stop-bits, timeout, inter-frame-delay, max-requests");
+        debug_println("  Brug 'set modbus-master ?' for detaljeret hjælp");
+        return false;
+      }
+
+      const char* param = normalize_alias(argv[2]);
+      const char* value = argv[3];
+
+      if (!strcmp(param, "ENABLED")) {
+        bool enabled = (!strcmp(value, "on") || !strcmp(value, "ON") || !strcmp(value, "1") || !strcmp(value, "true"));
+        cli_cmd_set_modbus_master_enabled(enabled);
+        return true;
+      } else if (!strcmp(param, "BAUDRATE") || !strcmp(param, "BAUD")) {
+        uint32_t baudrate = atol(value);
+        cli_cmd_set_modbus_master_baudrate(baudrate);
+        return true;
+      } else if (!strcmp(param, "PARITY")) {
+        cli_cmd_set_modbus_master_parity(value);
+        return true;
+      } else if (!strcmp(param, "STOP-BITS")) {
+        uint8_t bits = atoi(value);
+        cli_cmd_set_modbus_master_stop_bits(bits);
+        return true;
+      } else if (!strcmp(param, "TIMEOUT")) {
+        uint16_t timeout = atoi(value);
+        cli_cmd_set_modbus_master_timeout(timeout);
+        return true;
+      } else if (!strcmp(param, "INTER-FRAME-DELAY") || !strcmp(param, "DELAY")) {
+        uint16_t delay = atoi(value);
+        cli_cmd_set_modbus_master_inter_frame_delay(delay);
+        return true;
+      } else if (!strcmp(param, "MAX-REQUESTS")) {
+        uint8_t count = atoi(value);
+        cli_cmd_set_modbus_master_max_requests(count);
+        return true;
+      } else {
+        debug_println("SET MODBUS-MASTER: unknown parameter");
         return false;
       }
     } else {

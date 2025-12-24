@@ -2,9 +2,9 @@
 
 **ESP32 Modbus RTU Server - Logic Mode Implementation**
 
-Version: 1.0.0
-Date: 2025-11-30
-Status: Initial Release
+Version: 2.0.0
+Date: 2025-12-24
+Status: Production Release (v4.4.0)
 
 ---
 
@@ -283,9 +283,11 @@ Implemented standard functions:
 **Conversion Functions:**
 ```
 INT_TO_REAL(i : INT) : REAL
-DWORD_TO_INT(d : DWORD) : INT
-BOOL_TO_INT(b : BOOL) : INT
 REAL_TO_INT(r : REAL) : INT  (* Truncates *)
+DWORD_TO_INT(d : DWORD) : INT
+INT_TO_DWORD(i : INT) : DWORD
+BOOL_TO_INT(b : BOOL) : INT
+INT_TO_BOOL(i : INT) : BOOL
 ```
 
 **Mathematical Functions:**
@@ -298,13 +300,49 @@ SQRT(x : REAL) : REAL
 MOD(a, b : INT) : INT
 ```
 
+**Rounding Functions (v4.3+):**
+```
+ROUND(x : REAL) : INT    (* Round to nearest integer *)
+TRUNC(x : REAL) : INT    (* Truncate fractional part *)
+FLOOR(x : REAL) : INT    (* Round down *)
+CEIL(x : REAL) : INT     (* Round up *)
+```
+
+**Trigonometric Functions (v4.3+):**
+```
+SIN(x : REAL) : REAL     (* Sine, x in radians *)
+COS(x : REAL) : REAL     (* Cosine, x in radians *)
+TAN(x : REAL) : REAL     (* Tangent, x in radians *)
+```
+
+**Clamping & Selection Functions (v4.4+):**
+```
+LIMIT(min : INT, value : INT, max : INT) : INT  (* Clamp value between min and max *)
+SEL(g : BOOL, in0 : T, in1 : T) : T            (* Select in0 if g=FALSE, in1 if g=TRUE *)
+```
+
+**Modbus Master Functions (v4.4+):**
+```
+(* Reading functions *)
+MB_READ_COIL(slave_id : INT, address : INT) : BOOL
+MB_READ_INPUT(slave_id : INT, address : INT) : BOOL
+MB_READ_HOLDING(slave_id : INT, address : INT) : INT
+MB_READ_INPUT_REG(slave_id : INT, address : INT) : INT
+
+(* Writing functions *)
+MB_WRITE_COIL(slave_id : INT, address : INT, value : BOOL) : BOOL
+MB_WRITE_HOLDING(slave_id : INT, address : INT, value : INT) : BOOL
+```
+
+**Note:** Modbus Master functions require separate RS485 hardware (UART1) and CLI configuration.
+
 **Bitwise Functions:**
 ```
 SHL(x : INT, count : INT) : INT
 SHR(x : INT, count : INT) : INT
 ```
 
-**User-defined functions:** Not yet supported (Phase 2).
+**User-defined functions:** Not yet supported (future enhancement).
 
 ---
 
@@ -470,15 +508,28 @@ while (modbus_running) {
 
 ---
 
-## 10. Future Extensions (Phase 2+)
+## 10. Implemented Enhancements (v4.3-v4.4)
 
-### Phase 2 Enhancements
+### v4.3.0 - REAL Arithmetic Support
+- ✅ Rounding functions (ROUND, TRUNC, FLOOR, CEIL)
+- ✅ Trigonometric functions (SIN, COS, TAN)
+- ✅ Type-aware stack operations for REAL values
+- ✅ Expression chaining with type conversions
+
+### v4.4.0 - Modbus Master Integration
+- ✅ Modbus Master protocol (FC01-06) on UART1
+- ✅ 6 built-in MB_* functions for remote I/O
+- ✅ Global status variables (mb_last_error, mb_success)
+- ✅ Rate limiting to prevent bus overload
+- ✅ Clamping function (LIMIT)
+- ✅ Selection function (SEL)
+
+## 11. Future Extensions (Phase 3+)
+
+### Phase 3 Enhancements
 - User-defined functions (FUNCTION ... END_FUNCTION)
 - Arrays and indexing (`var[0], var[1]`)
 - Global scope (VAR in PROGRAM)
-- More built-in functions (ROUND, TRUNC, SIN, COS, etc.)
-
-### Phase 3 Enhancements
 - Structured types (STRUCT ... END_STRUCT)
 - Pointers and dynamic allocation (restricted)
 - Time-based operations (TON, TOF timers)
@@ -486,7 +537,7 @@ while (modbus_running) {
 
 ---
 
-## 11. References
+## 12. References
 
 - **IEC 61131-3:2013** - International standard for PLC programming languages
   - Part 3: Programming languages
@@ -499,20 +550,21 @@ while (modbus_running) {
 
 ---
 
-## 12. Document History
+## 13. Document History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2025-11-30 | Initial release - Phase 1 (Lexer, Parser, Bytecode VM design) |
+| 2.0.0 | 2025-12-24 | Production release - v4.4.0 (REAL arithmetic, trigonometry, Modbus Master, LIMIT/SEL) |
 
 ---
 
-## 13. Sign-off
+## 14. Sign-off
 
 **Project:** ESP32 Modbus RTU Server - Logic Mode
 **Compliance Claim:** IEC 61131-3:2013 (ST-Light Profile)
 **Approved by:** Development Team
-**Date:** 2025-11-30
+**Date:** 2025-12-24
 
 This document certifies that the Structured Text implementation conforms to the IEC 61131-3 standard within the defined ST-Light profile constraints.
 

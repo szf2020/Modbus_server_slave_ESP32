@@ -1,19 +1,34 @@
 # ST Logic Functions - Implementation Roadmap
 
-**Last Updated:** 2025-12-21
-**Status:** Planning Phase
+**Last Updated:** 2025-12-24
+**Status:** Phase 1 Partially Complete (v4.4.0)
 **Goal:** Expand ST Logic engine with IEC 61131-3 standard functions
+
+---
+
+## ✅ Completed Functions (v4.3-v4.4)
+
+### v4.3.0 - Trigonometric Functions
+- ✅ **SIN/COS/TAN** - Fully implemented and tested
+- ✅ **ROUND/TRUNC/FLOOR/CEIL** - Rounding functions
+- ✅ **Type-aware stack** - REAL arithmetic support
+
+### v4.4.0 - Selection & Modbus Master
+- ✅ **LIMIT** - Clamping function (3-argument support)
+- ✅ **SEL** - Selection function (3-argument support)
+- ✅ **MB_READ_COIL/INPUT/HOLDING/INPUT_REG** - Modbus Master reads
+- ✅ **MB_WRITE_COIL/HOLDING** - Modbus Master writes
 
 ---
 
 ## 🎯 Implementation Priorities
 
-### 🔴 Phase 1: Critical Functions (IN PROGRESS)
+### 🔴 Phase 1: Critical Functions (PARTIALLY COMPLETE)
 
 #### 1. LIMIT(min, val, max) - Clamping Function
 **Priority:** 🔴 Critical
 **Complexity:** 🟢 Low (1-2 hours)
-**Status:** ⏳ Not Started
+**Status:** ✅ COMPLETED (v4.4.0)
 
 **Function Signature:**
 ```structured-text
@@ -159,7 +174,7 @@ END_IF;
 #### 4. SIN/COS/TAN - Trigonometric Functions
 **Priority:** 🔴 Critical (Motion Control)
 **Complexity:** 🟢 Low (2-3 hours)
-**Status:** ⏳ Not Started
+**Status:** ✅ COMPLETED (v4.3.0)
 
 **Function Signatures:**
 ```structured-text
@@ -208,7 +223,7 @@ angle := angle + 0.1;  (* Increment angle *)
 #### 5. SEL/MUX - Selection Functions
 **Priority:** 🔴 Critical
 **Complexity:** 🟢 Low (2-3 hours)
-**Status:** ⏳ Not Started
+**Status:** ⚠️ PARTIAL - SEL ✅ COMPLETED (v4.4.0), MUX ⏳ Not Started
 
 **Function Signatures:**
 ```structured-text
@@ -359,22 +374,25 @@ MID(s: STRING, pos: INT, n: INT) : STRING
 
 ## 📊 Implementation Status Summary
 
-| Phase | Function | Priority | Complexity | Status | Estimate |
-|-------|----------|----------|------------|--------|----------|
-| 1 | LIMIT | 🔴 | 🟢 | ⏳ | 1-2h |
-| 1 | TON/TOF | 🔴 | 🔴 | ⏳ | 8-12h |
-| 1 | R_TRIG/F_TRIG | 🔴 | 🟡 | ⏳ | 4-6h |
-| 1 | SIN/COS/TAN | 🔴 | 🟢 | ⏳ | 2-3h |
-| 1 | SEL/MUX | 🔴 | 🟢 | ⏳ | 2-3h |
-| 2 | EXP/LN/LOG/POW | 🟡 | 🟢 | ⏳ | 2h |
-| 2 | CTU/CTD | 🟡 | 🟡 | ⏳ | 4-6h |
-| 2 | ROL/ROR | 🟡 | 🟢 | ⏳ | 1h |
-| 2 | NOW() | 🟡 | 🟢 | ⏳ | 1h |
-| 3 | Arrays | 🟢 | 🔴 | ⏳ | 20-30h |
-| 3 | Strings | 🟢 | 🔴 | ⏳ | 12-16h |
-| 3 | Function Blocks | 🟢 | 🔴 | ⏳ | 40+h |
+| Phase | Function | Priority | Complexity | Status | Estimate | Actual |
+|-------|----------|----------|------------|--------|----------|--------|
+| 1 | LIMIT | 🔴 | 🟢 | ✅ DONE | 1-2h | v4.4.0 |
+| 1 | TON/TOF | 🔴 | 🔴 | ⏳ | 8-12h | - |
+| 1 | R_TRIG/F_TRIG | 🔴 | 🟡 | ⏳ | 4-6h | - |
+| 1 | SIN/COS/TAN | 🔴 | 🟢 | ✅ DONE | 2-3h | v4.3.0 |
+| 1 | SEL/MUX | 🔴 | 🟢 | ⚠️ PARTIAL (SEL done) | 2-3h | v4.4.0 |
+| 1 | MB_READ_* | 🔴 | 🟡 | ✅ DONE | - | v4.4.0 |
+| 1 | MB_WRITE_* | 🔴 | 🟡 | ✅ DONE | - | v4.4.0 |
+| 2 | EXP/LN/LOG/POW | 🟡 | 🟢 | ⏳ | 2h | - |
+| 2 | CTU/CTD | 🟡 | 🟡 | ⏳ | 4-6h | - |
+| 2 | ROL/ROR | 🟡 | 🟢 | ⏳ | 1h | - |
+| 2 | NOW() | 🟡 | 🟢 | ⏳ | 1h | - |
+| 3 | Arrays | 🟢 | 🔴 | ⏳ | 20-30h | - |
+| 3 | Strings | 🟢 | 🔴 | ⏳ | 12-16h | - |
+| 3 | Function Blocks | 🟢 | 🔴 | ⏳ | 40+h | - |
 
-**Total Estimate (Phase 1):** 17-26 hours
+**Phase 1 Progress:** 3/5 functions complete (LIMIT, SIN/COS/TAN, SEL), plus Modbus Master (6 functions)
+**Remaining Phase 1:** TON/TOF, R_TRIG/F_TRIG, MUX (12-21 hours)
 **Total Estimate (Phase 2):** 8-13 hours
 **Total Estimate (Phase 3):** 72-86 hours
 

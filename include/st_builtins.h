@@ -59,6 +59,14 @@ typedef enum {
   ST_BUILTIN_PERSIST_SAVE,  // SAVE() → save all persistent register groups to NVS
   ST_BUILTIN_PERSIST_LOAD,  // LOAD() → restore all groups from NVS
 
+  // Modbus Master (v4.4+)
+  ST_BUILTIN_MB_READ_COIL,      // MB_READ_COIL(slave_id, address) → BOOL
+  ST_BUILTIN_MB_READ_INPUT,     // MB_READ_INPUT(slave_id, address) → BOOL
+  ST_BUILTIN_MB_READ_HOLDING,   // MB_READ_HOLDING(slave_id, address) → INT
+  ST_BUILTIN_MB_READ_INPUT_REG, // MB_READ_INPUT_REG(slave_id, address) → INT
+  ST_BUILTIN_MB_WRITE_COIL,     // MB_WRITE_COIL(slave_id, address, value) → BOOL
+  ST_BUILTIN_MB_WRITE_HOLDING,  // MB_WRITE_HOLDING(slave_id, address, value) → BOOL
+
   ST_BUILTIN_COUNT          // Total number of built-ins
 } st_builtin_func_t;
 

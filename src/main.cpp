@@ -21,6 +21,7 @@
 #include "gpio_mapping.h"
 #include "uart_driver.h"
 #include "modbus_server.h"
+#include "modbus_master.h"
 #include "heartbeat.h"
 #include "config_load.h"
 #include "config_apply.h"
@@ -80,6 +81,7 @@ void setup() {
   timer_engine_init();      // Timer feature (4 modes)
   st_logic_init(st_logic_get_state());  // ST Logic Mode (4 independent programs)
   modbus_server_init(g_persist_config.slave_id);    // Modbus RTU server (UART1, from config)
+  modbus_master_init();     // Modbus RTU master (UART1, separate RS485 port)
   heartbeat_init();         // LED blink on GPIO2
 
   // Load ST Logic programs from persistent config
