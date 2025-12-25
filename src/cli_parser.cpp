@@ -143,6 +143,14 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
   if (!strcmp(s, "DEBUG") || !strcmp(s, "debug")) return "DEBUG";
   if (!strcmp(s, "WATCHDOG") || !strcmp(s, "watchdog")) return "WATCHDOG";
+  if (!strcmp(s, "MODBUS-MASTER") || !strcmp(s, "modbus-master") || !strcmp(s, "MB-MASTER") || !strcmp(s, "mb-master")) return "MODBUS-MASTER";
+  if (!strcmp(s, "ENABLED") || !strcmp(s, "enabled")) return "ENABLED";
+  if (!strcmp(s, "BAUDRATE") || !strcmp(s, "baudrate") || !strcmp(s, "BAUD") || !strcmp(s, "baud")) return "BAUDRATE";
+  if (!strcmp(s, "PARITY") || !strcmp(s, "parity")) return "PARITY";
+  if (!strcmp(s, "STOP-BITS") || !strcmp(s, "stop-bits") || !strcmp(s, "stopbits")) return "STOP-BITS";
+  if (!strcmp(s, "TIMEOUT") || !strcmp(s, "timeout")) return "TIMEOUT";
+  if (!strcmp(s, "INTER-FRAME-DELAY") || !strcmp(s, "inter-frame-delay") || !strcmp(s, "DELAY") || !strcmp(s, "delay")) return "INTER-FRAME-DELAY";
+  if (!strcmp(s, "MAX-REQUESTS") || !strcmp(s, "max-requests") || !strcmp(s, "maxrequests")) return "MAX-REQUESTS";
 
   // Logic subcommands
   if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
