@@ -504,9 +504,9 @@ set timer <id> enable on|off                             # Enable/disable
 
 **GPIO Mapping Commands:**
 ```bash
-set gpio <pin> static map input:<idx>    # GPIO input → discrete input
-set gpio <pin> static map coil:<idx>     # Coil → GPIO output
-no set gpio <pin>                        # Remove GPIO mapping
+set gpio <pin> input <idx>    # GPIO input → discrete input
+set gpio <pin> coil <idx>     # Coil → GPIO output
+no set gpio <pin>             # Remove GPIO mapping
 ```
 
 **ST Logic Commands:**

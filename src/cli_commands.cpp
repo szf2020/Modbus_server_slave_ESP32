@@ -823,17 +823,17 @@ void cli_cmd_no_set_gpio(uint8_t argc, char* argv[]) {
 }
 
 /**
- * set gpio <pin> static map input:<idx>   (INPUT mode: GPIO pin → discrete input)
- * set gpio <pin> static map coil:<idx>    (OUTPUT mode: coil → GPIO pin)
+ * set gpio <pin> input <idx>   (INPUT mode: GPIO pin → discrete input)
+ * set gpio <pin> coil <idx>    (OUTPUT mode: coil → GPIO pin)
  */
 void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
-  if (argc < 4) {
+  if (argc < 3) {
     debug_println("SET GPIO: missing arguments");
-    debug_println("  Usage: set gpio <pin> static map input:<idx>");
-    debug_println("         set gpio <pin> static map coil:<idx>");
+    debug_println("  Usage: set gpio <pin> input <idx>");
+    debug_println("         set gpio <pin> coil <idx>");
     debug_println("  Examples:");
-    debug_println("    set gpio 23 static map input:45   (GPIO23 input → discrete input 45)");
-    debug_println("    set gpio 12 static map coil:112   (Coil 112 → GPIO12 output)");
+    debug_println("    set gpio 23 input 45   (GPIO23 input → discrete input 45)");
+    debug_println("    set gpio 12 coil 112   (Coil 112 → GPIO12 output)");
     return;
   }
 
@@ -847,35 +847,15 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
     return;
   }
 
-  // Expect: set gpio <pin> static map input:<idx> OR set gpio <pin> static map coil:<idx>
-  if (strcmp(argv[1], "static") != 0) {
-    debug_println("SET GPIO: expected 'static'");
-    return;
-  }
-
-  if (strcmp(argv[2], "map") != 0) {
-    debug_println("SET GPIO: expected 'map'");
-    return;
-  }
-
-  // Parse mapping: input:<idx> or coil:<idx>
-  char* arg = argv[3];
-  char* colon = strchr(arg, ':');
-  if (!colon) {
-    debug_println("SET GPIO: invalid format (expected input:<idx> or coil:<idx>)");
-    return;
-  }
-
-  *colon = '\0';
-  const char* key = arg;
-  const char* value = colon + 1;
-  uint16_t index = atoi(value);
+  // New simplified syntax: set gpio <pin> input <idx> OR set gpio <pin> coil <idx>
+  const char* direction = argv[1];
+  uint16_t index = atoi(argv[2]);
 
   uint16_t input_index = 65535;
   uint16_t coil_index = 65535;
   uint8_t is_input = 0;
 
-  if (!strcmp(key, "input")) {
+  if (!strcmp(direction, "input")) {
     // INPUT mode: GPIO pin → discrete input
     if (index >= (DISCRETE_INPUTS_SIZE * 8)) {
       debug_print("SET GPIO: input index out of range (max ");
@@ -885,7 +865,7 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
     }
     input_index = index;
     is_input = 1;
-  } else if (!strcmp(key, "coil")) {
+  } else if (!strcmp(direction, "coil")) {
     // OUTPUT mode: coil → GPIO pin
     if (index >= (COILS_SIZE * 8)) {
       debug_print("SET GPIO: coil index out of range (max ");
@@ -896,8 +876,8 @@ void cli_cmd_set_gpio(uint8_t argc, char* argv[]) {
     coil_index = index;
     is_input = 0;
   } else {
-    debug_print("SET GPIO: unknown key '");
-    debug_print(key);
+    debug_print("SET GPIO: unknown direction '");
+    debug_print(direction);
     debug_println("' (expected 'input' or 'coil')");
     return;
   }
@@ -1529,7 +1509,7 @@ void cli_cmd_set_gpio2(uint8_t argc, char* argv[]) {
 
     debug_println("GPIO2 frigivet til bruger (heartbeat deaktiveret)");
     debug_println("OBS: GPIO2 kan nu bruges til andre formål");
-    debug_println("TIP: Brug 'set gpio 2 static map input:<idx>' eller 'coil:<idx>'");
+    debug_println("TIP: Brug 'set gpio 2 input <idx>' eller 'set gpio 2 coil <idx>'");
     debug_println("NOTE: Husk 'save' for at gemme indstillingen");
 
   } else if (!strcmp(action, "disable") || !strcmp(action, "DISABLE")) {
