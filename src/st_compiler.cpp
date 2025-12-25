@@ -47,7 +47,8 @@ uint8_t st_compiler_add_symbol(st_compiler_t *compiler, const char *name,
   }
 
   st_symbol_t *sym = &compiler->symbol_table.symbols[compiler->symbol_table.count];
-  strcpy(sym->name, name);
+  strncpy(sym->name, name, sizeof(sym->name) - 1);
+  sym->name[sizeof(sym->name) - 1] = '\0';
   sym->type = type;
   sym->is_input = is_input;
   sym->is_output = is_output;
@@ -767,7 +768,8 @@ st_bytecode_program_t *st_compiler_compile(st_compiler_t *compiler, st_program_t
   }
 
   memset(bytecode, 0, sizeof(*bytecode));
-  strcpy(bytecode->name, program->name);
+  strncpy(bytecode->name, program->name, sizeof(bytecode->name) - 1);
+  bytecode->name[sizeof(bytecode->name) - 1] = '\0';
   bytecode->enabled = 1;
   bytecode->instr_count = compiler->bytecode_ptr;
   bytecode->var_count = compiler->symbol_table.count;

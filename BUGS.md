@@ -4710,10 +4710,128 @@ Build #744 - "FIX: BUG-055 - Modbus Master CLI Commands Nu Virker"
 
 ---
 
+## § BUG-056: Buffer Overflow i Compiler Symbol Table (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🔴 CRITICAL
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+`st_compiler_add_symbol()` brugte `strcpy()` uden bounds check til at kopiere variabelnavn til symbol table. Hvis variabelnavn > 64 bytes, sker buffer overflow.
+
+**Lokation:** `src/st_compiler.cpp:50`
+
+### Fix
+Ændret til `strncpy()` med explicit null-termination (samme fix som BUG-032).
+
+---
+
+## § BUG-057: Buffer Overflow i Parser Program Name (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🟠 MEDIUM
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+`st_parser_parse_program()` brugte `strcpy()` til hardcoded string "Logic". Low risk, men inkonsistent med BUG-032 fix.
+
+**Lokation:** `src/st_parser.cpp:1002`
+
+### Fix
+Ændret til `strncpy()` for konsistens.
+
+---
+
+## § BUG-058: Buffer Overflow i Compiler Bytecode Name (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🟠 MEDIUM
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+`st_compiler_compile()` kopierede program name til bytecode uden bounds check.
+
+**Lokation:** `src/st_compiler.cpp:770`
+
+### Fix
+Ændret til `strncpy()` med explicit null-termination.
+
+---
+
+## § BUG-059: Comparison Operators Ignorerer REAL Type (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🔴 CRITICAL
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+Alle 6 comparison operators (EQ, NE, LT, GT, LE, GE) brugte kun `int_val` til sammenligning. BUG-050 fixede arithmetic operators, men comparison blev glemt.
+
+**Test case der fejlede:**
+```st
+VAR a: REAL; b: REAL; result: BOOL; END_VAR
+a := 1.9;
+b := 2.1;
+result := (a < b);  (* Expected: TRUE, Actual: FALSE (1 < 2) *)
+```
+
+**Lokation:** `src/st_vm.cpp:341-393`
+
+### Fix
+Implementeret type-aware comparison for alle 6 operators (samme pattern som BUG-050).
+
+---
+
+## § BUG-060: NEG Operator Ignorerer REAL Type (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🟠 MEDIUM
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+Unary minus operator brugte kun `int_val`. `-1.5` blev til `-1`.
+
+**Lokation:** `src/st_vm.cpp:290-296`
+
+### Fix
+Tilføjet type check og REAL support.
+
+---
+
+## § BUG-063: Function Argument Overflow Validation (v4.4.3)
+
+**Status:** ✅ FIXED
+**Priority:** 🟡 HIGH
+**Opdaget:** 2025-12-25
+**Fikset:** 2025-12-25
+**Version:** v4.4.3
+
+### Problem
+Parser tillod max 4 function argumenter, men brugte `break` i stedet for `return NULL` ved overflow. Funktion med 5+ argumenter compilede (men kun første 4 blev brugt).
+
+**Lokation:** `src/st_parser.cpp:239-240`
+
+### Fix
+Ændret `break` til `return NULL` så parsing fejler korrekt.
+
+---
+
 ## Opdateringslog
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-25 | BUG-056, BUG-057, BUG-058, BUG-059, BUG-060, BUG-063 FIXED - ST Logic Analysis & Fixes (v4.4.3) | Claude Code |
+| 2025-12-25 | 6 nye bugs identificeret og fixet i ST Logic implementering (buffer overflows, REAL type support) | Claude Code |
 | 2025-12-24 | BUG-055 FIXED - Modbus Master CLI commands now work (normalize_alias entries added) (v4.4.0, Build #744) | Claude Code |
 | 2025-12-24 | BUG-054 FIXED - FOR loop now executes body (comparison operator fixed GT→LT) (v4.3.8, Build #720) | Claude Code |
 | 2025-12-24 | BUG-053 FIXED - SHL/SHR operators now work (parser precedence chain fixed) (v4.3.7, Build #717) | Claude Code |

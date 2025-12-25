@@ -237,7 +237,7 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
             node->data.function_call.args[node->data.function_call.arg_count++] = arg;
           } else if (node->data.function_call.arg_count >= 4) {
             parser_error(parser, "Too many function arguments (max 4)");
-            break;
+            return NULL;  // BUG-063: Return NULL instead of break to fail parsing
           }
         }
       }
@@ -999,7 +999,8 @@ st_program_t *st_parser_parse_program(st_parser_t *parser) {
   if (!program) return NULL;
 
   memset(program, 0, sizeof(*program));
-  strcpy(program->name, "Logic");  // Default program name
+  strncpy(program->name, "Logic", sizeof(program->name) - 1);  // Default program name
+  program->name[sizeof(program->name) - 1] = '\0';
 
   bool has_program_keyword = false;
   bool has_begin_keyword = false;

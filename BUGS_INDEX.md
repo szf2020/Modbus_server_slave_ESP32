@@ -61,6 +61,12 @@
 | BUG-053 | SHL/SHR operators virker ikke | ✅ FIXED | 🔴 CRITICAL | v4.3.7 | Parser precedence chain mangler SHL/SHR tokens |
 | BUG-054 | FOR loop body aldrig eksekveret | ✅ FIXED | 🔴 CRITICAL | v4.3.8 | Compiler bruger GT i stedet for LT i loop condition check |
 | BUG-055 | Modbus Master CLI commands ikke virker | ✅ FIXED | 🔴 CRITICAL | v4.4.0 | normalize_alias() mangler parameter entries |
+| BUG-056 | Buffer overflow i compiler symbol table | ✅ FIXED | 🔴 CRITICAL | v4.4.3 | strcpy uden bounds check i st_compiler_add_symbol() |
+| BUG-057 | Buffer overflow i parser program name | ✅ FIXED | 🟠 MEDIUM | v4.4.3 | strcpy hardcoded string (low risk) |
+| BUG-058 | Buffer overflow i compiler bytecode name | ✅ FIXED | 🟠 MEDIUM | v4.4.3 | strcpy program name til bytecode uden bounds check |
+| BUG-059 | Comparison operators ignorerer REAL type | ✅ FIXED | 🔴 CRITICAL | v4.4.3 | EQ/NE/LT/GT/LE/GE bruger kun int_val, REAL comparison fejler |
+| BUG-060 | NEG operator ignorerer REAL type | ✅ FIXED | 🟠 MEDIUM | v4.4.3 | Unary minus bruger kun int_val, -1.5 bliver til -1 |
+| BUG-063 | Function argument overflow validation | ✅ FIXED | 🟡 HIGH | v4.4.3 | Parser bruger break i stedet for return NULL (compilation fejler ikke) |
 
 ## Quick Lookup by Category
 
@@ -88,6 +94,8 @@
 - **BUG-053:** SHL/SHR operators virker ikke (FIXED v4.3.7 Build #717)
 - **BUG-054:** FOR loop body aldrig eksekveret (FIXED v4.3.8 Build #720)
 - **BUG-055:** Modbus Master CLI commands ikke virker (FIXED v4.4.0 Build #744)
+- **BUG-056:** Buffer overflow i compiler symbol table (FIXED v4.4.3)
+- **BUG-059:** Comparison operators ignorerer REAL type (FIXED v4.4.3)
 
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-003:** Bounds checking on var index
@@ -106,6 +114,7 @@
 - **BUG-045:** Upload mode echo setting (FIXED v4.3.0)
 - **BUG-048:** Bind direction parameter ignored (FIXED v4.3.3 Build #698)
 - **BUG-051:** Expression chaining fejler for REAL (FIXED v4.3.5 Build #712)
+- **BUG-063:** Function argument overflow validation (FIXED v4.4.3)
 - **BUG-CLI-1:** Parameter keyword clarification
 - **BUG-CLI-2:** GPIO validation
 
@@ -118,6 +127,9 @@
 - **BUG-040:** Compare source configurability (FIXED v4.2.8)
 - **BUG-041:** Reset-on-read parameter structure (FIXED v4.2.9)
 - **BUG-044:** cli_cmd_set_persist_auto_load() case sensitive (FIXED v4.3.0)
+- **BUG-057:** Buffer overflow i parser program name (FIXED v4.4.3)
+- **BUG-058:** Buffer overflow i compiler bytecode name (FIXED v4.4.3)
+- **BUG-060:** NEG operator ignorerer REAL type (FIXED v4.4.3)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535

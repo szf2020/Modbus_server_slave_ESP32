@@ -289,10 +289,19 @@ static bool st_vm_exec_mod(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_neg(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t val, result;
-  if (!st_vm_pop(vm, &val)) return false;
+  st_datatype_t val_type;
 
-  result.int_val = -val.int_val;
-  return st_vm_push_typed(vm, result, ST_TYPE_INT);
+  // BUG-060: Pop with type information
+  if (!st_vm_pop_typed(vm, &val, &val_type)) return false;
+
+  // Negate based on type
+  if (val_type == ST_TYPE_REAL) {
+    result.real_val = -val.real_val;
+    return st_vm_push_typed(vm, result, ST_TYPE_REAL);
+  } else {
+    result.int_val = -val.int_val;
+    return st_vm_push_typed(vm, result, ST_TYPE_INT);
+  }
 }
 
 /* ============================================================================
@@ -340,55 +349,115 @@ static bool st_vm_exec_not(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_eq(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val == right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f == right_f);
+  } else {
+    result.bool_val = (left.int_val == right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
 static bool st_vm_exec_ne(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val != right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f != right_f);
+  } else {
+    result.bool_val = (left.int_val != right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
 static bool st_vm_exec_lt(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val < right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f < right_f);
+  } else {
+    result.bool_val = (left.int_val < right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
 static bool st_vm_exec_gt(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val > right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f > right_f);
+  } else {
+    result.bool_val = (left.int_val > right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
 static bool st_vm_exec_le(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val <= right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f <= right_f);
+  } else {
+    result.bool_val = (left.int_val <= right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
 static bool st_vm_exec_ge(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
 
-  result.bool_val = (left.int_val >= right.int_val);
+  // BUG-059: Pop with type information
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // If either operand is REAL, compare as REAL
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val : (float)left.int_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val : (float)right.int_val;
+    result.bool_val = (left_f >= right_f);
+  } else {
+    result.bool_val = (left.int_val >= right.int_val);
+  }
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
 }
 
