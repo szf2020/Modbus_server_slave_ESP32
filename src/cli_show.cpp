@@ -582,23 +582,25 @@ void cli_cmd_show_config(void) {
   debug_println("# Modbus Slave");
   debug_print("set modbus-slave enabled ");
   debug_println(g_persist_config.modbus_slave.enabled ? "on" : "off");
-  debug_print("set modbus-slave slave-id ");
-  debug_print_uint(g_persist_config.modbus_slave.slave_id);
-  debug_println("");
-  debug_print("set modbus-slave baudrate ");
-  debug_print_uint(g_persist_config.modbus_slave.baudrate);
-  debug_println("");
-  debug_print("set modbus-slave parity ");
-  if (g_persist_config.modbus_slave.parity == 0) debug_println("none");
-  else if (g_persist_config.modbus_slave.parity == 1) debug_println("even");
-  else if (g_persist_config.modbus_slave.parity == 2) debug_println("odd");
-  else debug_println("none");
-  debug_print("set modbus-slave stop-bits ");
-  debug_print_uint(g_persist_config.modbus_slave.stop_bits);
-  debug_println("");
-  debug_print("set modbus-slave inter-frame-delay ");
-  debug_print_uint(g_persist_config.modbus_slave.inter_frame_delay);
-  debug_println("");
+  if (g_persist_config.modbus_slave.enabled) {
+    debug_print("set modbus-slave slave-id ");
+    debug_print_uint(g_persist_config.modbus_slave.slave_id);
+    debug_println("");
+    debug_print("set modbus-slave baudrate ");
+    debug_print_uint(g_persist_config.modbus_slave.baudrate);
+    debug_println("");
+    debug_print("set modbus-slave parity ");
+    if (g_persist_config.modbus_slave.parity == 0) debug_println("none");
+    else if (g_persist_config.modbus_slave.parity == 1) debug_println("even");
+    else if (g_persist_config.modbus_slave.parity == 2) debug_println("odd");
+    else debug_println("none");
+    debug_print("set modbus-slave stop-bits ");
+    debug_print_uint(g_persist_config.modbus_slave.stop_bits);
+    debug_println("");
+    debug_print("set modbus-slave inter-frame-delay ");
+    debug_print_uint(g_persist_config.modbus_slave.inter_frame_delay);
+    debug_println("");
+  }
 
   // Modbus Master
   debug_println("\n# Modbus Master");
@@ -706,16 +708,17 @@ void cli_cmd_show_config(void) {
     }
   }
 
-  // Counters (enabled only)
-  bool any_counter_enabled = false;
+  // Counters (always show all 4)
+  debug_println("\n# Counters");
   for (uint8_t id = 1; id <= 4; id++) {
     CounterConfig cfg;
-    if (counter_config_get(id, &cfg) && cfg.enabled) {
-      if (!any_counter_enabled) {
-        debug_println("\n# Counters");
-        any_counter_enabled = true;
-      }
-
+    if (!counter_config_get(id, &cfg) || !cfg.enabled) {
+      // Counter disabled - show simple disable command
+      debug_print("set counter ");
+      debug_print_uint(id);
+      debug_println(" disable");
+    } else {
+      // Counter enabled - show full config
       debug_print("set counter ");
       debug_print_uint(id);
       debug_print(" mode 1 parameter");
@@ -787,16 +790,17 @@ void cli_cmd_show_config(void) {
     }
   }
 
-  // Timers (enabled only)
-  bool any_timer_enabled = false;
+  // Timers (always show all 4)
+  debug_println("\n# Timers");
   for (uint8_t id = 1; id <= 4; id++) {
     TimerConfig cfg;
-    if (timer_engine_get_config(id, &cfg) && cfg.enabled) {
-      if (!any_timer_enabled) {
-        debug_println("\n# Timers");
-        any_timer_enabled = true;
-      }
-
+    if (!timer_engine_get_config(id, &cfg) || !cfg.enabled) {
+      // Timer disabled - show simple disable command
+      debug_print("set timer ");
+      debug_print_uint(id);
+      debug_println(" disable");
+    } else {
+      // Timer enabled - show full config
       debug_print("set timer ");
       debug_print_uint(id);
       debug_print(" mode ");
