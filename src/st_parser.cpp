@@ -175,6 +175,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
   // Boolean literal
   if (parser_match(parser, ST_TOK_BOOL_TRUE)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
     node->data.literal.type = ST_TYPE_BOOL;
     node->data.literal.value.bool_val = true;
     parser_advance(parser);
@@ -183,6 +188,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
 
   if (parser_match(parser, ST_TOK_BOOL_FALSE)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
     node->data.literal.type = ST_TYPE_BOOL;
     node->data.literal.value.bool_val = false;
     parser_advance(parser);
@@ -192,6 +202,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
   // Integer literal
   if (parser_match(parser, ST_TOK_INT)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
     node->data.literal.type = ST_TYPE_INT;
     // BUG-069: Check for overflow
     errno = 0;
@@ -209,6 +224,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
   // Real literal
   if (parser_match(parser, ST_TOK_REAL)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
     node->data.literal.type = ST_TYPE_REAL;
     // BUG-070: Check for overflow/underflow
     errno = 0;
@@ -235,6 +255,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
       parser_advance(parser); // consume '('
 
       st_ast_node_t *node = ast_node_alloc(ST_AST_FUNCTION_CALL, line);
+      // BUG-066: Check malloc failure
+      if (!node) {
+        parser_error(parser, "Out of memory");
+        return NULL;
+      }
       strncpy(node->data.function_call.func_name, identifier, 63);
       node->data.function_call.func_name[63] = '\0';
       node->data.function_call.arg_count = 0;
@@ -269,6 +294,11 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
     } else {
       // It's a variable reference
       st_ast_node_t *node = ast_node_alloc(ST_AST_VARIABLE, line);
+      // BUG-066: Check malloc failure
+      if (!node) {
+        parser_error(parser, "Out of memory");
+        return NULL;
+      }
       strncpy(node->data.variable.var_name, identifier, 63);
       node->data.variable.var_name[63] = '\0';
       return node;
@@ -296,6 +326,11 @@ static st_ast_node_t *parser_parse_unary(st_parser_t *parser) {
     parser_advance(parser);
 
     st_ast_node_t *node = ast_node_alloc(ST_AST_UNARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
     node->data.unary_op.op = op;
     node->data.unary_op.operand = parser_parse_unary(parser);
     return node;
@@ -316,6 +351,13 @@ static st_ast_node_t *parser_parse_multiplicative(st_parser_t *parser) {
 
     st_ast_node_t *right = parser_parse_unary(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(left);
+      st_ast_node_free(right);
+      return NULL;
+    }
     node->data.binary_op.op = op;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
@@ -336,6 +378,13 @@ static st_ast_node_t *parser_parse_additive(st_parser_t *parser) {
 
     st_ast_node_t *right = parser_parse_multiplicative(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(left);
+      st_ast_node_free(right);
+      return NULL;
+    }
     node->data.binary_op.op = op;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
@@ -358,6 +407,13 @@ static st_ast_node_t *parser_parse_relational(st_parser_t *parser) {
 
     st_ast_node_t *right = parser_parse_additive(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(left);
+      st_ast_node_free(right);
+      return NULL;
+    }
     node->data.binary_op.op = op;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
@@ -377,6 +433,13 @@ static st_ast_node_t *parser_parse_logical_and(st_parser_t *parser) {
 
     st_ast_node_t *right = parser_parse_relational(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(left);
+      st_ast_node_free(right);
+      return NULL;
+    }
     node->data.binary_op.op = ST_TOK_AND;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
@@ -397,6 +460,13 @@ static st_ast_node_t *parser_parse_logical_or(st_parser_t *parser) {
 
     st_ast_node_t *right = parser_parse_logical_and(parser);
     st_ast_node_t *node = ast_node_alloc(ST_AST_BINARY_OP, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(left);
+      st_ast_node_free(right);
+      return NULL;
+    }
     node->data.binary_op.op = op;
     node->data.binary_op.left = left;
     node->data.binary_op.right = right;
@@ -447,6 +517,12 @@ static st_ast_node_t *parser_parse_assignment(st_parser_t *parser) {
   if (!expr) return NULL;
 
   st_ast_node_t *node = ast_node_alloc(ST_AST_ASSIGNMENT, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(expr);
+    return NULL;
+  }
   // BUG-032 FIX: Use strncpy to prevent buffer overflow
   strncpy(node->data.assignment.var_name, var_name, 63);
   node->data.assignment.var_name[63] = '\0';
@@ -510,6 +586,16 @@ static st_ast_node_t *parser_parse_if_statement(st_parser_t *parser) {
 
     // Create IF node for this ELSIF
     st_ast_node_t *elsif_node = ast_node_alloc(ST_AST_IF, elsif_condition->line);
+    // BUG-066: Check malloc failure
+    if (!elsif_node) {
+      parser_error(parser, "Out of memory");
+      st_ast_node_free(condition);
+      st_ast_node_free(then_body);
+      st_ast_node_free(else_body);
+      st_ast_node_free(elsif_condition);
+      st_ast_node_free(elsif_then);
+      return NULL;
+    }
     elsif_node->data.if_stmt.condition_expr = elsif_condition;
     elsif_node->data.if_stmt.then_body = elsif_then;
     elsif_node->data.if_stmt.else_body = NULL;
@@ -561,6 +647,14 @@ static st_ast_node_t *parser_parse_if_statement(st_parser_t *parser) {
   }
 
   st_ast_node_t *node = ast_node_alloc(ST_AST_IF, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(condition);
+    st_ast_node_free(then_body);
+    st_ast_node_free(else_body);
+    return NULL;
+  }
   node->data.if_stmt.condition_expr = condition;
   node->data.if_stmt.then_body = then_body;
   node->data.if_stmt.else_body = else_body;
@@ -585,6 +679,12 @@ static st_ast_node_t *parser_parse_case_statement(st_parser_t *parser) {
 
   // Create CASE node
   st_ast_node_t *node = ast_node_alloc(ST_AST_CASE, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(expr);
+    return NULL;
+  }
   node->data.case_stmt.expr = expr;
   node->data.case_stmt.branch_count = 0;
   node->data.case_stmt.else_body = NULL;
@@ -710,6 +810,15 @@ static st_ast_node_t *parser_parse_for_statement(st_parser_t *parser) {
   }
 
   st_ast_node_t *node = ast_node_alloc(ST_AST_FOR, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(start);
+    st_ast_node_free(end);
+    st_ast_node_free(step);
+    st_ast_node_free(body);
+    return NULL;
+  }
   // BUG-032 FIX: Use strncpy to prevent buffer overflow
   strncpy(node->data.for_stmt.var_name, var_name, 63);
   node->data.for_stmt.var_name[63] = '\0';
@@ -751,6 +860,13 @@ static st_ast_node_t *parser_parse_while_statement(st_parser_t *parser) {
   }
 
   st_ast_node_t *node = ast_node_alloc(ST_AST_WHILE, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(condition);
+    st_ast_node_free(body);
+    return NULL;
+  }
   node->data.while_stmt.condition = condition;
   node->data.while_stmt.body = body;
 
@@ -790,6 +906,13 @@ static st_ast_node_t *parser_parse_repeat_statement(st_parser_t *parser) {
   }
 
   st_ast_node_t *node = ast_node_alloc(ST_AST_REPEAT, line);
+  // BUG-066: Check malloc failure
+  if (!node) {
+    parser_error(parser, "Out of memory");
+    st_ast_node_free(body);
+    st_ast_node_free(condition);
+    return NULL;
+  }
   node->data.repeat_stmt.body = body;
   node->data.repeat_stmt.condition = condition;
 
@@ -816,7 +939,13 @@ st_ast_node_t *st_parser_parse_statement(st_parser_t *parser) {
     if (parser_match(parser, ST_TOK_SEMICOLON)) {
       parser_advance(parser);
     }
-    return ast_node_alloc(ST_AST_EXIT, line);
+    st_ast_node_t *node = ast_node_alloc(ST_AST_EXIT, line);
+    // BUG-066: Check malloc failure
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
+    return node;
   } else {
     return NULL;  // Not a statement
   }

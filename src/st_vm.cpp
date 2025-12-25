@@ -307,6 +307,12 @@ static bool st_vm_exec_neg(st_vm_t *vm, st_bytecode_instr_t *instr) {
     result.real_val = -val.real_val;
     return st_vm_push_typed(vm, result, ST_TYPE_REAL);
   } else {
+    // BUG-087: Handle INT_MIN negation (undefined behavior in C/C++)
+    if (val.int_val == INT32_MIN) {
+      // -INT_MIN overflows to INT_MAX+1, convert to REAL for safe negation
+      result.real_val = -(float)val.int_val;  // 2147483648.0
+      return st_vm_push_typed(vm, result, ST_TYPE_REAL);
+    }
     result.int_val = -val.int_val;
     return st_vm_push_typed(vm, result, ST_TYPE_INT);
   }
