@@ -26,12 +26,12 @@ bool config_apply(const PersistConfig* cfg) {
 
   // Display Modbus slave ID (NOTE: already set in main.cpp via modbus_server_init())
   debug_print("  Slave ID: ");
-  debug_print_uint(cfg->slave_id);
+  debug_print_uint(cfg->modbus_slave.slave_id);
   debug_println("");
 
   // Apply baudrate (NOTE: requires reboot for UART reinit)
   debug_print("  Baudrate: ");
-  debug_print_uint(cfg->baudrate);
+  debug_print_uint(cfg->modbus_slave.baudrate);
   debug_println(" (requires reboot)");
 
   // Apply GPIO2 heartbeat configuration

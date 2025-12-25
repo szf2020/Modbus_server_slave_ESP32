@@ -15,8 +15,15 @@ PersistConfig g_persist_config = {0};
 PersistConfig* config_struct_create_default(void) {
   memset(&g_persist_config, 0, sizeof(PersistConfig));
   g_persist_config.schema_version = CONFIG_SCHEMA_VERSION;  // Current schema version
-  g_persist_config.slave_id = 1;
-  g_persist_config.baudrate = 115200;
+
+  // Modbus Slave defaults (v4.4.1+)
+  g_persist_config.modbus_slave.enabled = true;
+  g_persist_config.modbus_slave.slave_id = 1;
+  g_persist_config.modbus_slave.baudrate = 115200;
+  g_persist_config.modbus_slave.parity = 0;  // None
+  g_persist_config.modbus_slave.stop_bits = 1;
+  g_persist_config.modbus_slave.inter_frame_delay = 10;
+
   strncpy(g_persist_config.hostname, "modbus-esp32", 31);
   g_persist_config.hostname[31] = '\0';
   g_persist_config.remote_echo = 1;  // Default: echo ON

@@ -709,7 +709,7 @@ void cli_cmd_set_baud(uint32_t baud) {
   }
 
   // Update configuration
-  g_persist_config.baudrate = baud;
+  g_persist_config.modbus_slave.baudrate = baud;
 
   debug_print("Baud rate set to: ");
   debug_print_uint(baud);
@@ -724,7 +724,7 @@ void cli_cmd_set_id(uint8_t id) {
   }
 
   // Update configuration
-  g_persist_config.slave_id = id;
+  g_persist_config.modbus_slave.slave_id = id;
 
   debug_print("Slave ID set to: ");
   debug_print_uint(id);
@@ -1332,8 +1332,14 @@ void cli_cmd_defaults(void) {
   // Reset config to defaults (zero out everything)
   memset(&g_persist_config, 0, sizeof(PersistConfig));
   g_persist_config.schema_version = 1;
-  g_persist_config.slave_id = 1;
-  g_persist_config.baudrate = 9600;
+
+  // Modbus Slave defaults
+  g_persist_config.modbus_slave.enabled = true;
+  g_persist_config.modbus_slave.slave_id = 1;
+  g_persist_config.modbus_slave.baudrate = 9600;
+  g_persist_config.modbus_slave.parity = 0;  // None
+  g_persist_config.modbus_slave.stop_bits = 1;
+  g_persist_config.modbus_slave.inter_frame_delay = 10;
 
   // Initialize all GPIO mappings as unused
   for (uint8_t i = 0; i < 8; i++) {

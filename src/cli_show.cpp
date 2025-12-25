@@ -57,18 +57,27 @@ void cli_cmd_show_config(void) {
   debug_print("Hostname: ");
   debug_println(g_persist_config.hostname[0] ? g_persist_config.hostname : "(NOT SET)");
 
-  // Show actual slave ID from config
-  debug_print("Unit-ID: ");
-  debug_print_uint(g_persist_config.slave_id);
-  debug_println(" (SLAVE)");
-
-  // Show actual baudrate from config
-  debug_print("Baud: ");
-  debug_print_uint(g_persist_config.baudrate);
+  // Show Modbus Slave configuration
+  debug_print("Modbus Slave: ");
+  debug_println(g_persist_config.modbus_slave.enabled ? "ENABLED" : "DISABLED");
+  debug_print("  Unit-ID: ");
+  debug_print_uint(g_persist_config.modbus_slave.slave_id);
   debug_println("");
+  debug_print("  Baud: ");
+  debug_print_uint(g_persist_config.modbus_slave.baudrate);
+  debug_println("");
+  debug_print("  Parity: ");
+  if (g_persist_config.modbus_slave.parity == 0) debug_println("NONE");
+  else if (g_persist_config.modbus_slave.parity == 1) debug_println("EVEN");
+  else if (g_persist_config.modbus_slave.parity == 2) debug_println("ODD");
+  else debug_println("UNKNOWN");
+  debug_print("  Stop Bits: ");
+  debug_print_uint(g_persist_config.modbus_slave.stop_bits);
+  debug_println("");
+  debug_print("  Inter-frame Delay: ");
+  debug_print_uint(g_persist_config.modbus_slave.inter_frame_delay);
+  debug_println(" ms");
 
-  debug_println("Server: RUNNING");
-  debug_println("Mode: SERVER");
   debug_println("=====================\n");
 
   // Counter configuration block (Mega2560 format)

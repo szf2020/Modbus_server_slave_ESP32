@@ -80,7 +80,7 @@ void setup() {
   counter_engine_init();    // Counter feature (SW/SW-ISR/HW modes)
   timer_engine_init();      // Timer feature (4 modes)
   st_logic_init(st_logic_get_state());  // ST Logic Mode (4 independent programs)
-  modbus_server_init(g_persist_config.slave_id);    // Modbus RTU server (UART1, from config)
+  modbus_server_init(g_persist_config.modbus_slave.slave_id);    // Modbus RTU server (UART0, from config)
   modbus_master_init();     // Modbus RTU master (UART1, separate RS485 port)
   heartbeat_init();         // LED blink on GPIO2
 

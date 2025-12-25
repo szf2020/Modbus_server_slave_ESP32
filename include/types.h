@@ -326,6 +326,25 @@ typedef struct {
 } modbus_master_config_t;
 
 /* ============================================================================
+ * MODBUS SLAVE CONFIGURATION
+ * ============================================================================ */
+
+typedef struct {
+  bool enabled;                  // Slave enabled/disabled
+  uint8_t slave_id;              // Modbus slave ID (1-247)
+  uint32_t baudrate;            // 9600, 19200, 38400, 57600, 115200
+  uint8_t parity;               // 0=none, 1=even, 2=odd
+  uint8_t stop_bits;            // 1 or 2
+  uint16_t inter_frame_delay;   // Inter-frame delay (default: 10ms)
+
+  // Runtime statistics
+  uint32_t total_requests;      // Total requests received
+  uint32_t successful_requests; // Successful responses
+  uint32_t crc_errors;          // CRC error count
+  uint32_t exception_errors;    // Modbus exception count
+} modbus_slave_config_t;
+
+/* ============================================================================
  * PERSISTENT CONFIGURATION (EEPROM/NVS)
  * ============================================================================ */
 
@@ -333,9 +352,9 @@ typedef struct __attribute__((packed)) {
   // Schema versioning
   uint8_t schema_version;
 
-  // Modbus configuration
-  uint8_t slave_id;
-  uint32_t baudrate;
+  // Modbus Slave configuration (v4.4.1+)
+  modbus_slave_config_t modbus_slave;
+
   char hostname[32];                // System hostname (max 31 chars + null)
 
   // CLI configuration (v3.2+)

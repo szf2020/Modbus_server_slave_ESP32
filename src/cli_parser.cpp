@@ -23,6 +23,7 @@
 #include "cli_config_coils.h"
 #include "cli_commands_logic.h"
 #include "cli_commands_modbus_master.h"
+#include "cli_commands_modbus_slave.h"
 #include "st_logic_config.h"
 #include "debug.h"
 #include <string.h>
@@ -143,8 +144,11 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
   if (!strcmp(s, "DEBUG") || !strcmp(s, "debug")) return "DEBUG";
   if (!strcmp(s, "WATCHDOG") || !strcmp(s, "watchdog")) return "WATCHDOG";
+  // Modbus Master/Slave commands
   if (!strcmp(s, "MODBUS-MASTER") || !strcmp(s, "modbus-master") || !strcmp(s, "MB-MASTER") || !strcmp(s, "mb-master")) return "MODBUS-MASTER";
+  if (!strcmp(s, "MODBUS-SLAVE") || !strcmp(s, "modbus-slave") || !strcmp(s, "MB-SLAVE") || !strcmp(s, "mb-slave")) return "MODBUS-SLAVE";
   if (!strcmp(s, "ENABLED") || !strcmp(s, "enabled")) return "ENABLED";
+  if (!strcmp(s, "SLAVE-ID") || !strcmp(s, "slave-id") || !strcmp(s, "SLAVEID") || !strcmp(s, "slaveid") || !strcmp(s, "ID") || !strcmp(s, "id")) return "SLAVE-ID";
   if (!strcmp(s, "BAUDRATE") || !strcmp(s, "baudrate") || !strcmp(s, "BAUD") || !strcmp(s, "baud")) return "BAUDRATE";
   if (!strcmp(s, "PARITY") || !strcmp(s, "parity")) return "PARITY";
   if (!strcmp(s, "STOP-BITS") || !strcmp(s, "stop-bits") || !strcmp(s, "stopbits")) return "STOP-BITS";
@@ -216,6 +220,7 @@ static void print_show_help(void) {
   debug_println("  show persist         - Vis persistence groups (v4.0+)");
   debug_println("  show watchdog        - Vis watchdog monitor status (v4.0+)");
   debug_println("  show modbus-master   - Vis Modbus Master config (v4.4+)");
+  debug_println("  show modbus-slave    - Vis Modbus Slave config (v4.4.1+)");
   debug_println("  show version         - Vis firmware version");
   debug_println("  show echo            - Vis echo status");
   debug_println("");
@@ -236,6 +241,7 @@ static void print_set_help(void) {
   debug_println("  set debug ?             - Vis debug kommandoer");
   debug_println("  set persist ?           - Vis persistence kommandoer (v4.0+)");
   debug_println("  set modbus-master ?     - Vis Modbus Master kommandoer (v4.4+)");
+  debug_println("  set modbus-slave ?      - Vis Modbus Slave kommandoer (v4.4.1+)");
   debug_println("  set echo <on|off>       - Sæt remote echo");
   debug_println("");
 }
@@ -281,6 +287,23 @@ static void print_modbus_master_help(void) {
   debug_println("Global ST Variables:");
   debug_println("  mb_last_error (INT)  - Last error code (0=OK, 1=TIMEOUT, 2=CRC, 3=EXCEPTION, 4=MAX_REQ, 5=DISABLED)");
   debug_println("  mb_success (BOOL)    - TRUE if last operation succeeded");
+  debug_println("");
+}
+
+static void print_modbus_slave_help(void) {
+  debug_println("");
+  debug_println("Available 'set modbus-slave' commands:");
+  debug_println("  set modbus-slave enabled <on|off>        - Aktivér/deaktivér Modbus Slave");
+  debug_println("  set modbus-slave slave-id <1-247>        - Sæt slave ID (default: 1)");
+  debug_println("  set modbus-slave baudrate <rate>         - Sæt baudrate (default: 115200)");
+  debug_println("  set modbus-slave parity <none|even|odd>  - Sæt parity (default: none)");
+  debug_println("  set modbus-slave stop-bits <1|2>         - Sæt stop bits (default: 1)");
+  debug_println("  set modbus-slave inter-frame-delay <ms>  - Sæt inter-frame delay (default: 10ms)");
+  debug_println("");
+  debug_println("Hardware:");
+  debug_println("  UART0: Serial (shared with CLI)");
+  debug_println("");
+  debug_println("NOTE: All changes require 'save' + 'reboot' to take effect");
   debug_println("");
 }
 
@@ -546,6 +569,9 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "MODBUS-MASTER") || !strcmp(what, "MB-MASTER")) {
       cli_cmd_show_modbus_master();
       return true;
+    } else if (!strcmp(what, "MODBUS-SLAVE") || !strcmp(what, "MB-SLAVE")) {
+      cli_cmd_show_modbus_slave();
+      return true;
     } else if (!strcmp(what, "REG")) {
       // show reg - Display register configuration
       cli_cmd_show_regs();
@@ -623,6 +649,10 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "MODBUS-MASTER") || !strcmp(what, "MB-MASTER")) {
       // show modbus-master - Display Modbus Master configuration
       cli_cmd_show_modbus_master();
+      return true;
+    } else if (!strcmp(what, "MODBUS-SLAVE") || !strcmp(what, "MB-SLAVE")) {
+      // show modbus-slave - Display Modbus Slave configuration
+      cli_cmd_show_modbus_slave();
       return true;
     } else {
       debug_println("SHOW: unknown argument");
@@ -994,6 +1024,55 @@ bool cli_parser_execute(char* line) {
         return true;
       } else {
         debug_println("SET MODBUS-MASTER: unknown parameter");
+        return false;
+      }
+    } else if (!strcmp(what, "MODBUS-SLAVE") || !strcmp(what, "MB-SLAVE")) {
+      // Check for help request
+      if (argc >= 3) {
+        const char* subwhat = normalize_alias(argv[2]);
+        if (!strcmp(subwhat, "HELP") || !strcmp(subwhat, "?")) {
+          print_modbus_slave_help();
+          return true;
+        }
+      }
+
+      // set modbus-slave <param> <value>
+      if (argc < 4) {
+        debug_println("SET MODBUS-SLAVE: missing parameters");
+        debug_println("  Usage: set modbus-slave <param> <value>");
+        debug_println("  Params: enabled, slave-id, baudrate, parity, stop-bits, inter-frame-delay");
+        debug_println("  Brug 'set modbus-slave ?' for detaljeret hjælp");
+        return false;
+      }
+
+      const char* param = normalize_alias(argv[2]);
+      const char* value = argv[3];
+
+      if (!strcmp(param, "ENABLED")) {
+        bool enabled = (!strcmp(value, "on") || !strcmp(value, "ON") || !strcmp(value, "1") || !strcmp(value, "true"));
+        cli_cmd_set_modbus_slave_enabled(enabled);
+        return true;
+      } else if (!strcmp(param, "SLAVE-ID") || !strcmp(param, "ID")) {
+        uint8_t id = atoi(value);
+        cli_cmd_set_modbus_slave_slave_id(id);
+        return true;
+      } else if (!strcmp(param, "BAUDRATE") || !strcmp(param, "BAUD")) {
+        uint32_t baudrate = atol(value);
+        cli_cmd_set_modbus_slave_baudrate(baudrate);
+        return true;
+      } else if (!strcmp(param, "PARITY")) {
+        cli_cmd_set_modbus_slave_parity(value);
+        return true;
+      } else if (!strcmp(param, "STOP-BITS")) {
+        uint8_t bits = atoi(value);
+        cli_cmd_set_modbus_slave_stop_bits(bits);
+        return true;
+      } else if (!strcmp(param, "INTER-FRAME-DELAY") || !strcmp(param, "DELAY")) {
+        uint16_t delay = atoi(value);
+        cli_cmd_set_modbus_slave_inter_frame_delay(delay);
+        return true;
+      } else {
+        debug_println("SET MODBUS-SLAVE: unknown parameter");
         return false;
       }
     } else {

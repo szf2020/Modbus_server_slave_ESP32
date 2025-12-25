@@ -27,8 +27,15 @@
 static void config_init_defaults(PersistConfig* cfg) {
   memset(cfg, 0, sizeof(PersistConfig));
   cfg->schema_version = CONFIG_SCHEMA_VERSION;  // Current schema version
-  cfg->slave_id = 1;
-  cfg->baudrate = 9600;
+
+  // Modbus Slave defaults (v4.4.1+)
+  cfg->modbus_slave.enabled = true;
+  cfg->modbus_slave.slave_id = 1;
+  cfg->modbus_slave.baudrate = 9600;
+  cfg->modbus_slave.parity = 0;  // None
+  cfg->modbus_slave.stop_bits = 1;
+  cfg->modbus_slave.inter_frame_delay = 10;
+
   strncpy(cfg->hostname, "modbus-esp32", 31);  // Default hostname (v3.2+)
   cfg->hostname[31] = '\0';
   cfg->remote_echo = 1;  // Default: echo ON (v3.2+)
@@ -201,9 +208,9 @@ bool config_load_from_nvs(PersistConfig* out) {
   debug_print("CONFIG LOADED: schema=");
   debug_print_uint(out->schema_version);
   debug_print(", slave_id=");
-  debug_print_uint(out->slave_id);
+  debug_print_uint(out->modbus_slave.slave_id);
   debug_print(", baudrate=");
-  debug_print_uint(out->baudrate);
+  debug_print_uint(out->modbus_slave.baudrate);
   debug_print(", var_maps=");
   debug_print_uint(out->var_map_count);
   debug_print(", static_regs=");

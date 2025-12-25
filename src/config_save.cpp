@@ -161,9 +161,9 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
   debug_print("CONFIG SAVED: schema=");
   debug_print_uint(cfg->schema_version);
   debug_print(", slave_id=");
-  debug_print_uint(cfg->slave_id);
+  debug_print_uint(cfg->modbus_slave.slave_id);
   debug_print(", baudrate=");
-  debug_print_uint(cfg->baudrate);
+  debug_print_uint(cfg->modbus_slave.baudrate);
   debug_print(", var_maps=");
   debug_print_uint(cfg->var_map_count);
   debug_print(", static_regs=");
