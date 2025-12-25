@@ -704,6 +704,192 @@ void cli_cmd_show_config(void) {
     }
   }
 
+  // Counters (enabled only)
+  bool any_counter_enabled = false;
+  for (uint8_t id = 1; id <= 4; id++) {
+    CounterConfig cfg;
+    if (counter_config_get(id, &cfg) && cfg.enabled) {
+      if (!any_counter_enabled) {
+        debug_println("\n# Counters");
+        any_counter_enabled = true;
+      }
+
+      debug_print("set counter ");
+      debug_print_uint(id);
+      debug_print(" mode 1 parameter");
+
+      // HW mode
+      debug_print(" hw-mode:");
+      if (cfg.hw_mode == COUNTER_HW_SW) debug_print("sw");
+      else if (cfg.hw_mode == COUNTER_HW_SW_ISR) debug_print("sw-isr");
+      else if (cfg.hw_mode == COUNTER_HW_PCNT) debug_print("hw");
+
+      // Edge type
+      debug_print(" edge:");
+      if (cfg.edge_type == COUNTER_EDGE_RISING) debug_print("rising");
+      else if (cfg.edge_type == COUNTER_EDGE_FALLING) debug_print("falling");
+      else if (cfg.edge_type == COUNTER_EDGE_BOTH) debug_print("both");
+
+      // Prescaler and resolution
+      debug_print(" prescaler:");
+      debug_print_uint(cfg.prescaler);
+      debug_print(" resolution:");
+      debug_print_uint(cfg.bit_width);
+
+      // Direction
+      debug_print(" direction:");
+      debug_print(cfg.direction == COUNTER_DIR_DOWN ? "down" : "up");
+
+      // Scale factor
+      debug_print(" scale:");
+      debug_print_float(cfg.scale_factor);
+
+      // Start value
+      debug_print(" start:");
+      debug_print_uint((uint32_t)cfg.start_value);
+
+      // Debounce
+      debug_print(" debounce:");
+      debug_print(cfg.debounce_enabled ? "on" : "off");
+      if (cfg.debounce_enabled) {
+        debug_print(" debounce-time:");
+        debug_print_uint(cfg.debounce_ms);
+      }
+
+      // Input/Pin based on hw_mode
+      if (cfg.hw_mode == COUNTER_HW_PCNT && cfg.hw_gpio > 0) {
+        debug_print(" hw-gpio:");
+        debug_print_uint(cfg.hw_gpio);
+      } else if (cfg.hw_mode == COUNTER_HW_SW_ISR && cfg.interrupt_pin > 0) {
+        debug_print(" interrupt-pin:");
+        debug_print_uint(cfg.interrupt_pin);
+      } else if (cfg.hw_mode == COUNTER_HW_SW && cfg.input_dis > 0) {
+        debug_print(" input-dis:");
+        debug_print_uint(cfg.input_dis);
+      }
+
+      // Compare feature
+      if (cfg.compare_enabled) {
+        debug_print(" compare:enable");
+        debug_print(" compare-mode:");
+        debug_print_uint(cfg.compare_mode);
+        debug_print(" compare-source:");
+        debug_print_uint(cfg.compare_source);
+        debug_print(" compare-value:");
+        debug_print_uint((uint32_t)cfg.compare_value);
+        debug_print(" reset-on-read:");
+        debug_print(cfg.reset_on_read ? "on" : "off");
+      }
+
+      debug_println("");
+    }
+  }
+
+  // Timers (enabled only)
+  bool any_timer_enabled = false;
+  for (uint8_t id = 1; id <= 4; id++) {
+    TimerConfig cfg;
+    if (timer_engine_get_config(id, &cfg) && cfg.enabled) {
+      if (!any_timer_enabled) {
+        debug_println("\n# Timers");
+        any_timer_enabled = true;
+      }
+
+      debug_print("set timer ");
+      debug_print_uint(id);
+      debug_print(" mode ");
+      debug_print_uint(cfg.mode);
+      debug_print(" parameter");
+
+      // Mode-specific parameters
+      switch (cfg.mode) {
+        case TIMER_MODE_1_ONESHOT:
+          debug_print(" p1-duration:");
+          debug_print_uint(cfg.phase1_duration_ms);
+          debug_print(" p1-output:");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-duration:");
+          debug_print_uint(cfg.phase2_duration_ms);
+          debug_print(" p2-output:");
+          debug_print_uint(cfg.phase2_output_state);
+          debug_print(" p3-duration:");
+          debug_print_uint(cfg.phase3_duration_ms);
+          debug_print(" p3-output:");
+          debug_print_uint(cfg.phase3_output_state);
+          break;
+
+        case TIMER_MODE_2_MONOSTABLE:
+          debug_print(" pulse-ms:");
+          debug_print_uint(cfg.pulse_duration_ms);
+          debug_print(" p1-output:");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-output:");
+          debug_print_uint(cfg.phase2_output_state);
+          break;
+
+        case TIMER_MODE_3_ASTABLE:
+          debug_print(" on-ms:");
+          debug_print_uint(cfg.on_duration_ms);
+          debug_print(" off-ms:");
+          debug_print_uint(cfg.off_duration_ms);
+          debug_print(" p1-output:");
+          debug_print_uint(cfg.phase1_output_state);
+          debug_print(" p2-output:");
+          debug_print_uint(cfg.phase2_output_state);
+          break;
+
+        case TIMER_MODE_4_INPUT_TRIGGERED:
+          debug_print(" input-dis:");
+          debug_print_uint(cfg.input_dis);
+          debug_print(" trigger-edge:");
+          debug_print_uint(cfg.trigger_edge);
+          debug_print(" delay-ms:");
+          debug_print_uint(cfg.delay_ms);
+          debug_print(" output:");
+          debug_print_uint(cfg.phase1_output_state);
+          break;
+      }
+
+      // Output coil
+      debug_print(" output-coil:");
+      debug_print_uint(cfg.output_coil);
+
+      // Control register
+      debug_print(" ctrl-reg:");
+      debug_print_uint(cfg.ctrl_reg);
+
+      debug_println("");
+    }
+  }
+
+  // GPIO mappings (only GPIO source type, not ST Logic bindings)
+  bool any_gpio_mapping = false;
+  for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
+    const VariableMapping* map = &g_persist_config.var_maps[i];
+    if (map->source_type != MAPPING_SOURCE_GPIO) continue;
+
+    // Skip counter/timer associated pins (they are configured via counter/timer commands)
+    if (map->associated_counter != 0xff || map->associated_timer != 0xff) continue;
+
+    if (!any_gpio_mapping) {
+      debug_println("\n# GPIO Mappings");
+      any_gpio_mapping = true;
+    }
+
+    debug_print("set gpio ");
+    debug_print_uint(map->gpio_pin);
+
+    if (map->is_input) {
+      debug_print(" input ");
+      debug_print_uint(map->input_reg);
+    } else {
+      debug_print(" coil ");
+      debug_print_uint(map->coil_reg);
+    }
+
+    debug_println("");
+  }
+
   debug_println("\n# Note: Remember to run 'save' after making changes!");
   debug_println("");
 }
