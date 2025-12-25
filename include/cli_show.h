@@ -46,8 +46,9 @@ void cli_cmd_show_counters(void);
 /**
  * @brief Handle "show counter <id>" command (specific counter status)
  * @param id Counter ID (1-4)
+ * @param verbose Show extended runtime details (default: false)
  */
-void cli_cmd_show_counter(uint8_t id);
+void cli_cmd_show_counter(uint8_t id, bool verbose = false);
 
 /**
  * @brief Handle "show timers" command (timer status)
@@ -57,8 +58,9 @@ void cli_cmd_show_timers(void);
 /**
  * @brief Handle "show timer <id>" command (specific timer status)
  * @param id Timer ID (1-4)
+ * @param verbose Show extended runtime state (default: false)
  */
-void cli_cmd_show_timer(uint8_t id);
+void cli_cmd_show_timer(uint8_t id, bool verbose = false);
 
 /**
  * @brief Handle "show registers" command

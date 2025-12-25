@@ -111,39 +111,41 @@ static const char* normalize_alias(const char* s) {
   if (!s) return "";
 
   // Verbs
-  if (!strcmp(s, "SHOW") || !strcmp(s, "show") || !strcmp(s, "SH") || !strcmp(s, "sh")) return "SHOW";
-  if (!strcmp(s, "SET") || !strcmp(s, "set") || !strcmp(s, "CONF")) return "SET";
+  if (!strcmp(s, "SHOW") || !strcmp(s, "show") || !strcmp(s, "SH") || !strcmp(s, "sh") || !strcmp(s, "S") || !strcmp(s, "s")) return "SHOW";
+  if (!strcmp(s, "SET") || !strcmp(s, "set") || !strcmp(s, "CONF") || !strcmp(s, "conf")) return "SET";
   if (!strcmp(s, "NO") || !strcmp(s, "no")) return "NO";
-  if (!strcmp(s, "RESET") || !strcmp(s, "reset")) return "RESET";
-  if (!strcmp(s, "CLEAR") || !strcmp(s, "clear")) return "CLEAR";
-  if (!strcmp(s, "SAVE") || !strcmp(s, "save") || !strcmp(s, "SV")) return "SAVE";
-  if (!strcmp(s, "LOAD") || !strcmp(s, "load") || !strcmp(s, "LD")) return "LOAD";
-  if (!strcmp(s, "DEFAULTS") || !strcmp(s, "defaults") || !strcmp(s, "DEF")) return "DEFAULTS";
-  if (!strcmp(s, "REBOOT") || !strcmp(s, "reboot")) return "REBOOT";
-  if (!strcmp(s, "EXIT") || !strcmp(s, "exit") || !strcmp(s, "QUIT") || !strcmp(s, "quit")) return "EXIT";
-  if (!strcmp(s, "CONNECT") || !strcmp(s, "connect") || !strcmp(s, "CONN")) return "CONNECT";
-  if (!strcmp(s, "DISCONNECT") || !strcmp(s, "disconnect") || !strcmp(s, "DISC")) return "DISCONNECT";
-  if (!strcmp(s, "HELP") || !strcmp(s, "help") || !strcmp(s, "?")) return "HELP";
-  if (!strcmp(s, "READ") || !strcmp(s, "read") || !strcmp(s, "RD")) return "READ";
-  if (!strcmp(s, "WRITE") || !strcmp(s, "write") || !strcmp(s, "WR")) return "WRITE";
+  if (!strcmp(s, "RESET") || !strcmp(s, "reset") || !strcmp(s, "RST") || !strcmp(s, "rst")) return "RESET";
+  if (!strcmp(s, "CLEAR") || !strcmp(s, "clear") || !strcmp(s, "CLR") || !strcmp(s, "clr")) return "CLEAR";
+  if (!strcmp(s, "SAVE") || !strcmp(s, "save") || !strcmp(s, "SV") || !strcmp(s, "sv")) return "SAVE";
+  if (!strcmp(s, "LOAD") || !strcmp(s, "load") || !strcmp(s, "LD") || !strcmp(s, "ld")) return "LOAD";
+  if (!strcmp(s, "DEFAULTS") || !strcmp(s, "defaults") || !strcmp(s, "DEF") || !strcmp(s, "def")) return "DEFAULTS";
+  if (!strcmp(s, "REBOOT") || !strcmp(s, "reboot") || !strcmp(s, "RST") || !strcmp(s, "rst") || !strcmp(s, "RESTART") || !strcmp(s, "restart")) return "REBOOT";
+  if (!strcmp(s, "EXIT") || !strcmp(s, "exit") || !strcmp(s, "QUIT") || !strcmp(s, "quit") || !strcmp(s, "Q") || !strcmp(s, "q")) return "EXIT";
+  if (!strcmp(s, "CONNECT") || !strcmp(s, "connect") || !strcmp(s, "CONN") || !strcmp(s, "conn") || !strcmp(s, "CON") || !strcmp(s, "con")) return "CONNECT";
+  if (!strcmp(s, "DISCONNECT") || !strcmp(s, "disconnect") || !strcmp(s, "DISC") || !strcmp(s, "disc") || !strcmp(s, "DC") || !strcmp(s, "dc")) return "DISCONNECT";
+  if (!strcmp(s, "HELP") || !strcmp(s, "help") || !strcmp(s, "?") || !strcmp(s, "H") || !strcmp(s, "h")) return "HELP";
+  if (!strcmp(s, "READ") || !strcmp(s, "read") || !strcmp(s, "RD") || !strcmp(s, "rd") || !strcmp(s, "R") || !strcmp(s, "r")) return "READ";
+  if (!strcmp(s, "WRITE") || !strcmp(s, "write") || !strcmp(s, "WR") || !strcmp(s, "wr") || !strcmp(s, "W") || !strcmp(s, "w")) return "WRITE";
+  if (!strcmp(s, "COMMANDS") || !strcmp(s, "commands") || !strcmp(s, "CMDS") || !strcmp(s, "cmds")) return "COMMANDS";
 
   // Nouns
-  if (!strcmp(s, "COUNTER") || !strcmp(s, "counter")) return "COUNTER";
-  if (!strcmp(s, "COUNTERS") || !strcmp(s, "counters")) return "COUNTERS";
-  if (!strcmp(s, "TIMER") || !strcmp(s, "timer")) return "TIMER";
-  if (!strcmp(s, "TIMERS") || !strcmp(s, "timers")) return "TIMERS";
-  if (!strcmp(s, "LOGIC") || !strcmp(s, "logic")) return "LOGIC";
-  if (!strcmp(s, "CONFIG") || !strcmp(s, "config")) return "CONFIG";
-  if (!strcmp(s, "REGISTERS") || !strcmp(s, "registers")) return "REGISTERS";
+  if (!strcmp(s, "COUNTER") || !strcmp(s, "counter") || !strcmp(s, "CNT") || !strcmp(s, "cnt") || !strcmp(s, "CNTR") || !strcmp(s, "cntr")) return "COUNTER";
+  if (!strcmp(s, "COUNTERS") || !strcmp(s, "counters") || !strcmp(s, "CNTS") || !strcmp(s, "cnts")) return "COUNTERS";
+  if (!strcmp(s, "TIMER") || !strcmp(s, "timer") || !strcmp(s, "TMR") || !strcmp(s, "tmr")) return "TIMER";
+  if (!strcmp(s, "TIMERS") || !strcmp(s, "timers") || !strcmp(s, "TMRS") || !strcmp(s, "tmrs")) return "TIMERS";
+  if (!strcmp(s, "LOGIC") || !strcmp(s, "logic") || !strcmp(s, "LOG") || !strcmp(s, "log")) return "LOGIC";
+  if (!strcmp(s, "CONFIG") || !strcmp(s, "config") || !strcmp(s, "CFG") || !strcmp(s, "cfg")) return "CONFIG";
+  if (!strcmp(s, "REGISTERS") || !strcmp(s, "registers") || !strcmp(s, "REGS") || !strcmp(s, "regs")) return "REGISTERS";
   if (!strcmp(s, "COILS") || !strcmp(s, "coils")) return "COILS";
-  if (!strcmp(s, "INPUTS") || !strcmp(s, "inputs")) return "INPUTS";
-  if (!strcmp(s, "INPUT") || !strcmp(s, "input")) return "INPUT";
+  if (!strcmp(s, "INPUTS") || !strcmp(s, "inputs") || !strcmp(s, "INS") || !strcmp(s, "ins")) return "INPUTS";
+  if (!strcmp(s, "INPUT") || !strcmp(s, "input") || !strcmp(s, "IN") || !strcmp(s, "in")) return "INPUT";
   if (!strcmp(s, "INPUT-REG") || !strcmp(s, "input-reg") || !strcmp(s, "INPUT_REG") || !strcmp(s, "input_reg")) return "INPUT-REG";
-  if (!strcmp(s, "VERSION") || !strcmp(s, "version")) return "VERSION";
+  if (!strcmp(s, "VERSION") || !strcmp(s, "version") || !strcmp(s, "VER") || !strcmp(s, "ver") || !strcmp(s, "V") || !strcmp(s, "v")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
-  if (!strcmp(s, "DEBUG") || !strcmp(s, "debug")) return "DEBUG";
-  if (!strcmp(s, "WATCHDOG") || !strcmp(s, "watchdog")) return "WATCHDOG";
+  if (!strcmp(s, "DEBUG") || !strcmp(s, "debug") || !strcmp(s, "DBG") || !strcmp(s, "dbg")) return "DEBUG";
+  if (!strcmp(s, "WATCHDOG") || !strcmp(s, "watchdog") || !strcmp(s, "WDG") || !strcmp(s, "wdg")) return "WATCHDOG";
+  if (!strcmp(s, "VERBOSE") || !strcmp(s, "verbose") || !strcmp(s, "VERB") || !strcmp(s, "verb")) return "VERBOSE";
   // Modbus Master/Slave commands
   if (!strcmp(s, "MODBUS-MASTER") || !strcmp(s, "modbus-master") || !strcmp(s, "MB-MASTER") || !strcmp(s, "mb-master")) return "MODBUS-MASTER";
   if (!strcmp(s, "MODBUS-SLAVE") || !strcmp(s, "modbus-slave") || !strcmp(s, "MB-SLAVE") || !strcmp(s, "mb-slave")) return "MODBUS-SLAVE";
@@ -205,9 +207,9 @@ static void print_show_help(void) {
   debug_println("  show config          - Vis fuld konfiguration");
   debug_println("  show wifi            - Vis Wi-Fi status og IP");
   debug_println("  show counters        - Vis alle counters");
-  debug_println("  show counter <id>    - Vis specifik counter (1-4)");
+  debug_println("  show counter <id> [verbose] - Vis specifik counter (1-4)");
   debug_println("  show timers          - Vis alle timers");
-  debug_println("  show timer <id>      - Vis specifik timer (1-4)");
+  debug_println("  show timer <id> [verbose] - Vis specifik timer (1-4)");
   debug_println("  show logic           - Vis alle ST Logic programmer");
   debug_println("  show logic <id>      - Vis specifikt program (1-4)");
   debug_println("  show logic <id> code - Vis compiled bytecode");
@@ -514,25 +516,35 @@ bool cli_parser_execute(char* line) {
       cli_cmd_show_counters();
       return true;
     } else if (!strcmp(what, "COUNTER")) {
-      // show counter <id>
+      // show counter <id> [verbose]
       if (argc < 3) {
-        debug_println("SHOW COUNTER: missing ID (use: show counter 1-4)");
+        debug_println("SHOW COUNTER: missing ID (use: show counter 1-4 [verbose])");
         return false;
       }
       uint8_t id = atoi(argv[2]);
-      cli_cmd_show_counter(id);
+      bool verbose = false;
+      if (argc >= 4) {
+        const char* flag = normalize_alias(argv[3]);
+        verbose = (!strcmp(flag, "VERBOSE") || !strcmp(flag, "VERB"));
+      }
+      cli_cmd_show_counter(id, verbose);
       return true;
     } else if (!strcmp(what, "TIMERS")) {
       cli_cmd_show_timers();
       return true;
     } else if (!strcmp(what, "TIMER")) {
-      // show timer <id>
+      // show timer <id> [verbose]
       if (argc < 3) {
-        debug_println("SHOW TIMER: missing ID (use: show timer 1-4)");
+        debug_println("SHOW TIMER: missing ID (use: show timer 1-4 [verbose])");
         return false;
       }
       uint8_t id = atoi(argv[2]);
-      cli_cmd_show_timer(id);
+      bool verbose = false;
+      if (argc >= 4) {
+        const char* flag = normalize_alias(argv[3]);
+        verbose = (!strcmp(flag, "VERBOSE") || !strcmp(flag, "VERB"));
+      }
+      cli_cmd_show_timer(id, verbose);
       return true;
     } else if (!strcmp(what, "REGISTERS")) {
       uint16_t start = 0, count = 0;
@@ -1215,6 +1227,99 @@ bool cli_parser_execute(char* line) {
 
   } else if (!strcmp(cmd, "HELP")) {
     cli_parser_print_help();
+    return true;
+
+  } else if (!strcmp(cmd, "COMMANDS")) {
+    // Print compact list of all available commands
+    debug_println("\n=== AVAILABLE COMMANDS ===\n");
+    debug_println("Quick reference - use 'help' for detailed info\n");
+
+    debug_println("System:");
+    debug_println("  help, ?, h              - Show detailed help");
+    debug_println("  commands, cmds          - Show this command list");
+    debug_println("  save, sv                - Save config to NVS");
+    debug_println("  load, ld                - Load config from NVS");
+    debug_println("  defaults, def           - Reset to defaults");
+    debug_println("  reboot, restart         - Reboot ESP32");
+    debug_println("  exit, quit, q           - Exit telnet session\n");
+
+    debug_println("Show/Display (sh, s):");
+    debug_println("  show config, cfg        - Full configuration");
+    debug_println("  show version, ver, v    - Firmware version");
+    debug_println("  show wifi               - WiFi status + RSSI + MAC");
+    debug_println("  show counters, cnts     - All counters table");
+    debug_println("  show counter <id> [verbose] - Counter 1-4 details");
+    debug_println("  show timers, tmrs       - All timers table");
+    debug_println("  show timer <id> [verbose]   - Timer 1-4 details");
+    debug_println("  show logic, log         - ST Logic programs");
+    debug_println("  show gpio [pin]         - GPIO mappings");
+    debug_println("  show registers, regs    - Holding registers");
+    debug_println("  show inputs, ins        - Discrete inputs");
+    debug_println("  show coils              - Coils");
+    debug_println("  show debug, dbg         - Debug flags");
+    debug_println("  show watchdog, wdg      - Watchdog status");
+    debug_println("  show persist            - Persistence groups");
+    debug_println("  show modbus-master, mb-master - Modbus master config");
+    debug_println("  show modbus-slave, mb-slave   - Modbus slave config\n");
+
+    debug_println("Set/Configure:");
+    debug_println("  set counter <id> ?      - Counter help");
+    debug_println("  set timer <id> ?        - Timer help");
+    debug_println("  set gpio ?              - GPIO help");
+    debug_println("  set wifi ?              - WiFi help");
+    debug_println("  set debug ?             - Debug help");
+    debug_println("  set persist ?           - Persistence help");
+    debug_println("  set modbus-master ?     - Modbus master help");
+    debug_println("  set modbus-slave ?      - Modbus slave help");
+    debug_println("  set hostname <name>     - Set hostname");
+    debug_println("  set echo on|off         - Remote echo\n");
+
+    debug_println("Modbus Read/Write (r, w):");
+    debug_println("  read reg <addr> [count]      - Read holding registers");
+    debug_println("  read coil <addr> [count]     - Read coils");
+    debug_println("  read input <addr> [count]    - Read discrete inputs");
+    debug_println("  read input-reg <addr> [count] - Read input registers");
+    debug_println("  write reg <addr> <value>     - Write holding register");
+    debug_println("  write coil <addr> <0|1>      - Write coil\n");
+
+    debug_println("Network:");
+    debug_println("  connect wifi, con       - Connect to WiFi");
+    debug_println("  disconnect wifi, dc     - Disconnect WiFi\n");
+
+    debug_println("Reset/Clear (rst, clr):");
+    debug_println("  reset counter <id>      - Reset counter value");
+    debug_println("  clear counters          - Reset all counters\n");
+
+    debug_println("Delete:");
+    debug_println("  no set counter <id>     - Delete counter config");
+    debug_println("  no set timer <id>       - Delete timer config");
+    debug_println("  no set gpio <pin>       - Delete GPIO mapping\n");
+
+    debug_println("Aliases:");
+    debug_println("  sh|s → show");
+    debug_println("  cnt|cntr → counter");
+    debug_println("  tmr → timer");
+    debug_println("  cfg → config");
+    debug_println("  ver|v → version");
+    debug_println("  regs → registers");
+    debug_println("  ins → inputs");
+    debug_println("  log → logic");
+    debug_println("  dbg → debug");
+    debug_println("  wdg → watchdog");
+    debug_println("  verb → verbose");
+    debug_println("  sv → save");
+    debug_println("  ld → load");
+    debug_println("  def → defaults");
+    debug_println("  rst → reset/reboot");
+    debug_println("  clr → clear");
+    debug_println("  con → connect");
+    debug_println("  dc → disconnect");
+    debug_println("  rd|r → read");
+    debug_println("  wr|w → write");
+    debug_println("  q → quit\n");
+
+    debug_println("Type 'help' for detailed command documentation.");
+    debug_println("");
     return true;
 
   } else if (!strcmp(cmd, "READ")) {

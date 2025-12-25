@@ -1187,7 +1187,7 @@ void cli_cmd_show_counters(void) {
  * SHOW COUNTER (SPECIFIC ID)
  * ============================================================================ */
 
-void cli_cmd_show_counter(uint8_t id) {
+void cli_cmd_show_counter(uint8_t id, bool verbose) {
   if (id < 1 || id > 4) {
     debug_printf("SHOW COUNTER: invalid ID %d (expected 1-4)\n", id);
     return;
@@ -1202,6 +1202,9 @@ void cli_cmd_show_counter(uint8_t id) {
   debug_println("");
   debug_print("=== COUNTER ");
   debug_print_uint(id);
+  if (verbose) {
+    debug_print(" (VERBOSE MODE)");
+  }
   debug_println(" ===\n");
 
   if (!cfg.enabled) {
@@ -1351,6 +1354,96 @@ void cli_cmd_show_counter(uint8_t id) {
     debug_println(cfg.reset_on_read ? "ON" : "OFF");
   }
 
+  // VERBOSE MODE: Extended runtime statistics
+  if (verbose) {
+    debug_println("");
+    debug_println("=== EXTENDED RUNTIME DETAILS ===");
+    debug_println("");
+
+    // Control register details (if available)
+    if (cfg.ctrl_reg < 1000) {
+      uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+      debug_println("Control Register Status:");
+      debug_print("  Running: ");
+      debug_println((ctrl_val & 0x80) ? "YES (bit 7 set)" : "NO (bit 7 clear)");
+      debug_print("  Auto-Start: ");
+      debug_println((ctrl_val & 0x40) ? "YES (bit 6 set)" : "NO (bit 6 clear)");
+      debug_print("  Compare Match: ");
+      debug_println((ctrl_val & 0x10) ? "YES (bit 4 set)" : "NO (bit 4 clear)");
+      debug_print("  Counter Reset on Read: ");
+      debug_println((ctrl_val & 0x08) ? "YES (bit 3 set)" : "NO (bit 3 clear)");
+      debug_print("  Compare Reset on Read: ");
+      debug_println((ctrl_val & 0x04) ? "YES (bit 2 set)" : "NO (bit 2 clear)");
+      debug_println("");
+    }
+
+    // Overflow status (if available)
+    if (cfg.overload_reg < 1000) {
+      uint16_t overflow_val = registers_get_holding_register(cfg.overload_reg);
+      debug_println("Overflow Status:");
+      debug_print("  Overflow Flag: ");
+      debug_println(overflow_val ? "YES (overflow detected)" : "NO");
+      debug_println("");
+    }
+
+    // Hardware-specific details
+    if (cfg.hw_mode == COUNTER_HW_PCNT) {
+      debug_println("Hardware Counter (PCNT) Details:");
+      debug_print("  PCNT Unit: ");
+      debug_print_uint(id - 1);  // Unit 0-3
+      debug_println("");
+      debug_print("  GPIO Pin: ");
+      debug_print_uint(cfg.hw_gpio);
+      debug_println("");
+      debug_println("  Note: PCNT runs independently in hardware");
+      debug_println("");
+    }
+
+    // Performance hints
+    debug_println("Performance Notes:");
+    if (cfg.hw_mode == COUNTER_HW_SW) {
+      debug_println("  - SW mode: Polled every cycle (~10ms typical)");
+      debug_println("  - Max frequency: ~50 Hz reliably");
+    } else if (cfg.hw_mode == COUNTER_HW_SW_ISR) {
+      debug_println("  - SW-ISR mode: Interrupt-driven, no polling delay");
+      debug_println("  - Max frequency: ~10 kHz typical");
+    } else if (cfg.hw_mode == COUNTER_HW_PCNT) {
+      debug_println("  - HW mode: Hardware PCNT, zero CPU overhead");
+      debug_println("  - Max frequency: 40 MHz (ESP32 spec)");
+    }
+    debug_println("");
+
+    // Register mapping summary
+    debug_println("Full Register Map:");
+    debug_print("  HR");
+    debug_print_uint(cfg.index_reg);
+    debug_print("-HR");
+    debug_print_uint(cfg.index_reg + 3);
+    debug_println(": Scaled value (1-4 words, LSB first)");
+    if (cfg.raw_reg > 0) {
+      debug_print("  HR");
+      debug_print_uint(cfg.raw_reg);
+      debug_print("-HR");
+      debug_print_uint(cfg.raw_reg + 3);
+      debug_println(": Raw value (prescaled, 1-4 words)");
+    }
+    if (cfg.freq_reg > 0) {
+      debug_print("  HR");
+      debug_print_uint(cfg.freq_reg);
+      debug_println(": Frequency (Hz, 1 word)");
+    }
+    if (cfg.overload_reg < 1000) {
+      debug_print("  HR");
+      debug_print_uint(cfg.overload_reg);
+      debug_println(": Overflow flag (1=overflow)");
+    }
+    if (cfg.ctrl_reg < 1000) {
+      debug_print("  HR");
+      debug_print_uint(cfg.ctrl_reg);
+      debug_println(": Control bits (see above)");
+    }
+  }
+
   debug_println("");
 }
 
@@ -1460,7 +1553,7 @@ void cli_cmd_show_timers(void) {
  * SHOW TIMER (SPECIFIC ID)
  * ============================================================================ */
 
-void cli_cmd_show_timer(uint8_t id) {
+void cli_cmd_show_timer(uint8_t id, bool verbose) {
   if (id < 1 || id > 4) {
     debug_printf("SHOW TIMER: invalid ID %d (expected 1-4)\n", id);
     return;
@@ -1475,6 +1568,9 @@ void cli_cmd_show_timer(uint8_t id) {
   debug_println("");
   debug_print("=== TIMER ");
   debug_print_uint(id);
+  if (verbose) {
+    debug_print(" (VERBOSE MODE)");
+  }
   debug_println(" ===\n");
 
   if (!cfg.enabled) {
@@ -1575,6 +1671,86 @@ void cli_cmd_show_timer(uint8_t id) {
   debug_print("Control Register: ");
   debug_print_uint(cfg.ctrl_reg);
   debug_println("");
+
+  // VERBOSE MODE: Extended runtime state
+  if (verbose) {
+    debug_println("");
+    debug_println("=== EXTENDED RUNTIME DETAILS ===");
+    debug_println("");
+
+    // Read control register and show runtime state
+    uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+    debug_println("Control Register Runtime State:");
+    debug_print("  Running: ");
+    debug_println((ctrl_val & 0x01) ? "YES (bit 0 set)" : "NO (bit 0 clear)");
+    debug_print("  Stop Requested: ");
+    debug_println((ctrl_val & 0x02) ? "YES (bit 1 set)" : "NO (bit 1 clear)");
+    debug_print("  Reset Requested: ");
+    debug_println((ctrl_val & 0x04) ? "YES (bit 2 set)" : "NO (bit 2 clear)");
+    debug_println("");
+
+    // Read output coil current state
+    uint16_t coil_state = registers_get_coil(cfg.output_coil);
+    debug_println("Output Coil Current State:");
+    debug_print("  Coil ");
+    debug_print_uint(cfg.output_coil);
+    debug_print(": ");
+    debug_println(coil_state ? "ON (1)" : "OFF (0)");
+    debug_println("");
+
+    // Mode-specific hints
+    debug_println("Mode-Specific Performance Notes:");
+    switch (cfg.mode) {
+      case TIMER_MODE_1_ONESHOT:
+        debug_println("  - ONE-SHOT: Executes once per START command");
+        debug_println("  - Total duration: p1 + p2 + p3 ms");
+        debug_print("  - Calculated: ");
+        debug_print_uint(cfg.phase1_duration_ms + cfg.phase2_duration_ms + cfg.phase3_duration_ms);
+        debug_println(" ms per cycle");
+        break;
+      case TIMER_MODE_2_MONOSTABLE:
+        debug_println("  - MONOSTABLE: Retriggerable pulse timer");
+        debug_println("  - Trigger extends pulse duration (does not queue)");
+        debug_print("  - Pulse width: ");
+        debug_print_uint(cfg.pulse_duration_ms);
+        debug_println(" ms");
+        break;
+      case TIMER_MODE_3_ASTABLE: {
+        debug_println("  - ASTABLE: Free-running oscillator");
+        debug_print("  - Period: ");
+        debug_print_uint(cfg.on_duration_ms + cfg.off_duration_ms);
+        debug_println(" ms");
+        float freq_hz = 1000.0f / (float)(cfg.on_duration_ms + cfg.off_duration_ms);
+        debug_print("  - Frequency: ");
+        debug_print_float(freq_hz);
+        debug_println(" Hz");
+        break;
+      }
+      case TIMER_MODE_4_INPUT_TRIGGERED:
+        debug_println("  - INPUT-TRIGGERED: Responds to discrete input changes");
+        debug_print("  - Monitors DI ");
+        debug_print_uint(cfg.input_dis);
+        debug_println("");
+        debug_println("  - Edge detection: Checked every cycle (~10ms)");
+        break;
+      default:
+        break;
+    }
+    debug_println("");
+
+    // Control commands
+    debug_println("Runtime Control Commands:");
+    debug_print("  write reg ");
+    debug_print_uint(cfg.ctrl_reg);
+    debug_println(" 1  - START timer");
+    debug_print("  write reg ");
+    debug_print_uint(cfg.ctrl_reg);
+    debug_println(" 2  - STOP timer");
+    debug_print("  write reg ");
+    debug_print_uint(cfg.ctrl_reg);
+    debug_println(" 4  - RESET timer");
+    debug_println("");
+  }
 
   debug_println("");
 }
