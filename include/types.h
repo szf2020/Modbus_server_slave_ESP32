@@ -305,7 +305,9 @@ typedef enum {
   MB_CRC_ERROR = 2,
   MB_EXCEPTION = 3,
   MB_MAX_REQUESTS_EXCEEDED = 4,
-  MB_NOT_ENABLED = 5
+  MB_NOT_ENABLED = 5,
+  MB_INVALID_SLAVE = 6,       // BUG-084: Invalid slave ID (not 1-247)
+  MB_INVALID_ADDRESS = 7      // BUG-085: Invalid address (not 0-65535)
 } mb_error_code_t;
 
 typedef struct {

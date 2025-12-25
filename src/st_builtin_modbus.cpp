@@ -42,6 +42,20 @@ st_value_t st_builtin_mb_read_coil(st_value_t slave_id, st_value_t address) {
     return result;
   }
 
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
+    return result;
+  }
+
   bool coil_value = false;
   mb_error_code_t err = modbus_master_read_coil(
     (uint8_t)slave_id.int_val,
@@ -66,6 +80,20 @@ st_value_t st_builtin_mb_read_input(st_value_t slave_id, st_value_t address) {
   result.bool_val = false;
 
   if (!check_request_limit()) {
+    return result;
+  }
+
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
     return result;
   }
 
@@ -95,6 +123,20 @@ st_value_t st_builtin_mb_read_holding(st_value_t slave_id, st_value_t address) {
     return result;
   }
 
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
+    return result;
+  }
+
   uint16_t register_value = 0;
   mb_error_code_t err = modbus_master_read_holding(
     (uint8_t)slave_id.int_val,
@@ -118,6 +160,20 @@ st_value_t st_builtin_mb_read_input_reg(st_value_t slave_id, st_value_t address)
   result.int_val = 0;
 
   if (!check_request_limit()) {
+    return result;
+  }
+
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
     return result;
   }
 
@@ -147,6 +203,20 @@ st_value_t st_builtin_mb_write_coil(st_value_t slave_id, st_value_t address, st_
     return result;
   }
 
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
+    return result;
+  }
+
   mb_error_code_t err = modbus_master_write_coil(
     (uint8_t)slave_id.int_val,
     (uint16_t)address.int_val,
@@ -169,6 +239,20 @@ st_value_t st_builtin_mb_write_holding(st_value_t slave_id, st_value_t address, 
   result.bool_val = false;
 
   if (!check_request_limit()) {
+    return result;
+  }
+
+  // BUG-084: Validate slave ID (Modbus valid range: 1-247)
+  if (slave_id.int_val < 1 || slave_id.int_val > 247) {
+    g_mb_last_error = MB_INVALID_SLAVE;
+    g_mb_success = false;
+    return result;
+  }
+
+  // BUG-085: Validate address (Modbus valid range: 0-65535)
+  if (address.int_val < 0 || address.int_val > 65535) {
+    g_mb_last_error = MB_INVALID_ADDRESS;
+    g_mb_success = false;
     return result;
   }
 

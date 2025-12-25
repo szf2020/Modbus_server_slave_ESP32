@@ -73,6 +73,11 @@
 | BUG-072 | DUP operator mister type information | ✅ FIXED | 🟠 MEDIUM | v4.4.4 | REAL værdier duplikeres som INT → forkerte beregninger |
 | BUG-073 | SHL/SHR mangler shift amount validation | ✅ FIXED | 🟠 MEDIUM | v4.4.4 | Shift >= 32 er undefined behavior på ESP32 |
 | BUG-074 | Jump patch silent failure | ✅ FIXED | 🟠 MEDIUM | v4.4.4 | Bounds check returnerer uden fejlmelding → bytecode korruption |
+| BUG-069 | INT literal parsing overflow | ✅ FIXED | 🟠 MEDIUM | v4.4.5 | strtol kan overflow uden errno check → undefined values |
+| BUG-070 | REAL literal parsing overflow | ✅ FIXED | 🟠 MEDIUM | v4.4.5 | strtof kan overflow uden errno check → undefined values |
+| BUG-083 | Modulo INT_MIN overflow | ✅ FIXED | 🔵 LOW | v4.4.5 | INT_MIN % -1 er undefined behavior i C/C++ |
+| BUG-084 | Modbus slave_id mangler validation | ✅ FIXED | 🟠 MEDIUM | v4.4.5 | Kan sende requests til invalid slave (0, 248-255) |
+| BUG-085 | Modbus address mangler validation | ✅ FIXED | 🟠 MEDIUM | v4.4.5 | Kan sende requests med negative addresser |
 
 ## Quick Lookup by Category
 

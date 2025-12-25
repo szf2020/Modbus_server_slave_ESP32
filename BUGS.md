@@ -4830,6 +4830,8 @@ Parser tillod max 4 function argumenter, men brugte `break` i stedet for `return
 
 | Dato | Ændring | Af |
 |------|---------|-----|
+| 2025-12-25 | BUG-069, BUG-070, BUG-083, BUG-084, BUG-085 FIXED - Additional ST Logic Robustness (v4.4.5, Build #768) | Claude Code |
+| 2025-12-25 | 5 bugs fixet: INT/REAL overflow detection, Modulo INT_MIN, Modbus parameter validation | Claude Code |
 | 2025-12-25 | BUG-056, BUG-057, BUG-058, BUG-059, BUG-060, BUG-063 FIXED - ST Logic Analysis & Fixes (v4.4.3) | Claude Code |
 | 2025-12-25 | 6 nye bugs identificeret og fixet i ST Logic implementering (buffer overflows, REAL type support) | Claude Code |
 | 2025-12-24 | BUG-055 FIXED - Modbus Master CLI commands now work (normalize_alias entries added) (v4.4.0, Build #744) | Claude Code |

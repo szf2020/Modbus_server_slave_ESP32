@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdint.h>
 
 /* ============================================================================
  * INITIALIZATION & RESET
@@ -282,6 +283,12 @@ static bool st_vm_exec_mod(st_vm_t *vm, st_bytecode_instr_t *instr) {
     snprintf(vm->error_msg, sizeof(vm->error_msg), "Modulo by zero");
     vm->error = 1;
     return false;
+  }
+
+  // BUG-083: Handle INT_MIN % -1 overflow (undefined behavior in C/C++)
+  if (left.int_val == INT32_MIN && right.int_val == -1) {
+    result.int_val = 0;  // Mathematically correct (INT_MIN % -1 = 0)
+    return st_vm_push_typed(vm, result, ST_TYPE_INT);
   }
 
   result.int_val = left.int_val % right.int_val;

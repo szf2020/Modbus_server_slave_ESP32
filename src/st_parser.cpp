@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>     // BUG-069/070: For overflow detection
+#include <stdint.h>    // BUG-069: For INT32_MAX/MIN
 
 /* ============================================================================
  * PARSER UTILITIES
@@ -191,7 +193,15 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
   if (parser_match(parser, ST_TOK_INT)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
     node->data.literal.type = ST_TYPE_INT;
-    node->data.literal.value.int_val = (int32_t)strtol(parser->current_token.value, NULL, 0);
+    // BUG-069: Check for overflow
+    errno = 0;
+    long val = strtol(parser->current_token.value, NULL, 0);
+    if (errno == ERANGE || val > INT32_MAX || val < INT32_MIN) {
+      parser_error(parser, "Integer literal overflow");
+      free(node);
+      return NULL;
+    }
+    node->data.literal.value.int_val = (int32_t)val;
     parser_advance(parser);
     return node;
   }
@@ -200,7 +210,15 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
   if (parser_match(parser, ST_TOK_REAL)) {
     st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
     node->data.literal.type = ST_TYPE_REAL;
-    node->data.literal.value.real_val = (float)strtof(parser->current_token.value, NULL);
+    // BUG-070: Check for overflow/underflow
+    errno = 0;
+    float fval = strtof(parser->current_token.value, NULL);
+    if (errno == ERANGE) {
+      parser_error(parser, "Real literal overflow/underflow");
+      free(node);
+      return NULL;
+    }
+    node->data.literal.value.real_val = fval;
     parser_advance(parser);
     return node;
   }
