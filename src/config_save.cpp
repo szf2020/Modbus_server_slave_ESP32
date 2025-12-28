@@ -157,22 +157,24 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
     return false;
   }
 
-  // Print summary
-  debug_print("CONFIG SAVED: schema=");
-  debug_print_uint(cfg->schema_version);
-  debug_print(", slave_id=");
-  debug_print_uint(cfg->modbus_slave.slave_id);
-  debug_print(", baudrate=");
-  debug_print_uint(cfg->modbus_slave.baudrate);
-  debug_print(", var_maps=");
-  debug_print_uint(cfg->var_map_count);
-  debug_print(", static_regs=");
-  debug_print_uint(cfg->static_reg_count);
-  debug_print(", static_coils=");
-  debug_print_uint(cfg->static_coil_count);
-  debug_print(", CRC=");
-  debug_print_uint(cfg_with_crc->crc16);
-  debug_println("");
+  // Print summary (only if debug enabled)
+  if (dbg->config_save) {
+    debug_print("CONFIG SAVED: schema=");
+    debug_print_uint(cfg->schema_version);
+    debug_print(", slave_id=");
+    debug_print_uint(cfg->modbus_slave.slave_id);
+    debug_print(", baudrate=");
+    debug_print_uint(cfg->modbus_slave.baudrate);
+    debug_print(", var_maps=");
+    debug_print_uint(cfg->var_map_count);
+    debug_print(", static_regs=");
+    debug_print_uint(cfg->static_reg_count);
+    debug_print(", static_coils=");
+    debug_print_uint(cfg->static_coil_count);
+    debug_print(", CRC=");
+    debug_print_uint(cfg_with_crc->crc16);
+    debug_println("");
+  }
 
   return true;
 }

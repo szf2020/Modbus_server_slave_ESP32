@@ -8,6 +8,7 @@
 #include "st_compiler.h"
 #include "register_allocator.h"
 #include "debug.h"
+#include "debug_flags.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -270,16 +271,21 @@ void st_logic_reset_cycle_stats(st_logic_engine_state_t *state) {
 bool st_logic_save_to_nvs(void) {
   st_logic_engine_state_t *state = st_logic_get_state();
   nvs_handle_t handle;
+  DebugFlags* dbg = debug_flags_get();
 
   esp_err_t err = nvs_open("st_logic", NVS_READWRITE, &handle);
   if (err != ESP_OK) {
-    debug_print("ST_LOGIC SAVE: NVS open failed: ");
-    debug_print_uint(err);
-    debug_println("");
+    if (dbg->config_save) {
+      debug_print("ST_LOGIC SAVE: NVS open failed: ");
+      debug_print_uint(err);
+      debug_println("");
+    }
     return false;
   }
 
-  debug_println("ST_LOGIC SAVE: Saving programs to NVS");
+  if (dbg->config_save) {
+    debug_println("ST_LOGIC SAVE: Saving programs to NVS");
+  }
 
   // Save each program
   uint8_t saved_count = 0;
@@ -303,31 +309,37 @@ bool st_logic_save_to_nvs(void) {
     uint32_t total_size = 5 + prog->source_size;
     err = nvs_set_blob(handle, key, data, total_size);
     if (err == ESP_OK) {
-      debug_print("  Program ");
-      debug_print_uint(i);
-      debug_print(": saved ");
-      debug_print_uint(prog->source_size);
-      debug_print(" bytes (enabled=");
-      debug_print_uint(prog->enabled);
-      debug_println(")");
+      if (dbg->config_save) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_print(": saved ");
+        debug_print_uint(prog->source_size);
+        debug_print(" bytes (enabled=");
+        debug_print_uint(prog->enabled);
+        debug_println(")");
+      }
       saved_count++;
     } else {
-      debug_print("  Program ");
-      debug_print_uint(i);
-      debug_print(": FAILED - error ");
-      debug_print_uint(err);
-      debug_println("");
+      if (dbg->config_save) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_print(": FAILED - error ");
+        debug_print_uint(err);
+        debug_println("");
+      }
     }
   }
 
   err = nvs_commit(handle);
   nvs_close(handle);
 
-  debug_print("ST_LOGIC SAVE: Saved ");
-  debug_print_uint(saved_count);
-  debug_print(" programs (commit=");
-  debug_print_uint(err);
-  debug_println(")");
+  if (dbg->config_save) {
+    debug_print("ST_LOGIC SAVE: Saved ");
+    debug_print_uint(saved_count);
+    debug_print(" programs (commit=");
+    debug_print_uint(err);
+    debug_println(")");
+  }
 
   return (err == ESP_OK);
 }
@@ -339,14 +351,19 @@ bool st_logic_save_to_nvs(void) {
 bool st_logic_load_from_nvs(void) {
   st_logic_engine_state_t *state = st_logic_get_state();
   nvs_handle_t handle;
+  DebugFlags* dbg = debug_flags_get();
 
   esp_err_t err = nvs_open("st_logic", NVS_READONLY, &handle);
   if (err != ESP_OK) {
-    debug_println("ST_LOGIC LOAD: No saved programs found (namespace not created yet)");
+    if (dbg->config_load) {
+      debug_println("ST_LOGIC LOAD: No saved programs found (namespace not created yet)");
+    }
     return true;  // No saved programs yet - OK
   }
 
-  debug_println("ST_LOGIC LOAD: Loading programs from NVS");
+  if (dbg->config_load) {
+    debug_println("ST_LOGIC LOAD: Loading programs from NVS");
+  }
 
   // Load each program
   uint8_t loaded_count = 0;
@@ -369,44 +386,56 @@ bool st_logic_load_from_nvs(void) {
         memcpy(prog->source_code, &data[5], prog->source_size);
         prog->compiled = 0;  // Mark as needing recompilation
 
-        debug_print("  Program ");
-        debug_print_uint(i);
-        debug_print(": loaded ");
-        debug_print_uint(prog->source_size);
-        debug_print(" bytes, enabled=");
-        debug_print_uint(prog->enabled);
-        debug_print(", compiling...");
+        if (dbg->config_load) {
+          debug_print("  Program ");
+          debug_print_uint(i);
+          debug_print(": loaded ");
+          debug_print_uint(prog->source_size);
+          debug_print(" bytes, enabled=");
+          debug_print_uint(prog->enabled);
+          debug_print(", compiling...");
+        }
 
         // Immediately compile the program
         if (st_logic_compile(state, i)) {
-          debug_println(" OK");
+          if (dbg->config_load) {
+            debug_println(" OK");
+          }
           loaded_count++;
         } else {
-          debug_print(" FAILED: ");
-          debug_println(prog->last_error);
+          if (dbg->config_load) {
+            debug_print(" FAILED: ");
+            debug_println(prog->last_error);
+          }
         }
       } else {
-        debug_print("  Program ");
-        debug_print_uint(i);
-        debug_print(": invalid size ");
-        debug_print_uint(prog->source_size);
-        debug_println("");
+        if (dbg->config_load) {
+          debug_print("  Program ");
+          debug_print_uint(i);
+          debug_print(": invalid size ");
+          debug_print_uint(prog->source_size);
+          debug_println("");
+        }
       }
     } else if (err != ESP_ERR_NVS_NOT_FOUND) {
-      debug_print("  Program ");
-      debug_print_uint(i);
-      debug_print(": read error ");
-      debug_print_uint(err);
-      debug_println("");
+      if (dbg->config_load) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_print(": read error ");
+        debug_print_uint(err);
+        debug_println("");
+      }
     }
     // ESP_ERR_NVS_NOT_FOUND is normal (program slot empty)
   }
 
   nvs_close(handle);
 
-  debug_print("ST_LOGIC LOAD: Loaded ");
-  debug_print_uint(loaded_count);
-  debug_println(" programs");
+  if (dbg->config_load) {
+    debug_print("ST_LOGIC LOAD: Loaded ");
+    debug_print_uint(loaded_count);
+    debug_println(" programs");
+  }
 
   // BUG-005 FIX: Update binding count cache after loading programs
   st_logic_update_binding_counts(state);
