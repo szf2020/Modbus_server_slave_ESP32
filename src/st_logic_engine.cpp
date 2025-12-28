@@ -56,12 +56,6 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
   uint32_t elapsed_us = micros() - start_us;
   uint32_t elapsed_ms = elapsed_us / 1000;
 
-  // BUG-038 FIX: Use critical section to prevent race with gpio_mapping I/O
-  // Copy variables back from VM to program config
-  portENTER_CRITICAL(&st_var_spinlock);
-  memcpy(prog->bytecode.variables, vm.variables, vm.var_count * sizeof(st_value_t));
-  portEXIT_CRITICAL(&st_var_spinlock);
-
   // BUG-007 FIX: Log warning if execution took too long (>100ms threshold)
   if (elapsed_ms > 100) {
     debug_printf("[WARN] Logic%d execution took %ums (slow!)\n",
@@ -89,11 +83,19 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
     prog->overrun_count++;
   }
 
+  // BUG-106 FIX: Check for errors BEFORE copying variables back
   if (!success || vm.error) {
     prog->error_count++;
     snprintf(prog->last_error, sizeof(prog->last_error), "%s", vm.error_msg);
     return false;
   }
+
+  // BUG-038 FIX: Use critical section to prevent race with gpio_mapping I/O
+  // BUG-106 FIX: Only copy variables back if execution was successful
+  // This prevents division-by-zero or other errors from writing garbage values
+  portENTER_CRITICAL(&st_var_spinlock);
+  memcpy(prog->bytecode.variables, vm.variables, vm.var_count * sizeof(st_value_t));
+  portEXIT_CRITICAL(&st_var_spinlock);
 
   return true;
 }
