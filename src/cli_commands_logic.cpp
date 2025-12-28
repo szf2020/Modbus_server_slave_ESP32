@@ -17,6 +17,7 @@
 #include <stdbool.h>
 
 #include "debug.h"
+#include "debug_flags.h"
 
 /* ST Logic Engine includes */
 #include "st_logic_config.h"
@@ -392,8 +393,11 @@ static void cleanup_counters_using_register(uint16_t old_reg) {
     );
 
     if (uses_register) {
-      debug_printf("[CLEANUP] Counter %d uses HR%d - resetting to defaults to avoid boot conflict\n",
-                   counter_id, old_reg);
+      DebugFlags* dbg = debug_flags_get();
+      if (dbg->config_save) {
+        debug_printf("[CLEANUP] Counter %d uses HR%d - resetting to defaults to avoid boot conflict\n",
+                     counter_id, old_reg);
+      }
 
       // Reset counter to defaults (clears register allocations)
       // This ensures persistent config doesn't contain stale register values
