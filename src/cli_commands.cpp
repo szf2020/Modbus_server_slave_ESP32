@@ -1396,16 +1396,19 @@ void cli_cmd_set_echo(uint8_t argc, char* argv[]) {
  * ============================================================================ */
 
 void cli_cmd_write_reg(uint8_t argc, char* argv[]) {
-  // write reg <id> value uint|int <v\u00e6rdi>
+  // write reg <id> value uint|int|real <v\u00e6rdi>
   // Formats:
   //   write reg <addr> value uint <0-65535>    - unsigned (0 til 65535)
   //   write reg <addr> value int <-32768-32767> - signed (konverteres til two's complement)
+  //   write reg <addr> value real <float>       - REAL (32-bit float, bruger 2 registers)
   if (argc < 4) {
     debug_println("WRITE REG: manglende parametre");
     debug_println("  Brug: write reg <addr> value uint <v\u00e6rdi>");
     debug_println("        write reg <addr> value int <v\u00e6rdi>");
+    debug_println("        write reg <addr> value real <v\u00e6rdi>");
     debug_println("  Eksempel: write reg 100 value uint 223");
     debug_println("            write reg 112 value int -10");
+    debug_println("            write reg 100 value real 3.14");
     return;
   }
 
@@ -1414,7 +1417,7 @@ void cli_cmd_write_reg(uint8_t argc, char* argv[]) {
   // argv[1] should be "value"
   if (strcmp(argv[1], "value")) {
     debug_println("WRITE REG: forventet 'value' som 2. parameter");
-    debug_println("  Brug: write reg <addr> value uint|int <v\u00e6rdi>");
+    debug_println("  Brug: write reg <addr> value uint|int|real <v\u00e6rdi>");
     return;
   }
 
@@ -1452,10 +1455,47 @@ void cli_cmd_write_reg(uint8_t argc, char* argv[]) {
     // Convert to two's complement representation
     value = (uint16_t)signed_val;
     is_signed = true;
+  } else if (!strcmp(type, "real")) {
+    // BUG-108 FIX: REAL value (32-bit float, uses 2 consecutive registers)
+    float real_val = atof(value_str);
+
+    // Validate address (need 2 consecutive registers)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      debug_print("WRITE REG: REAL kr\u00e6ver 2 registers, adresse ");
+      debug_print_uint(addr);
+      debug_print(" udenfor omr\u00e5de (max ");
+      debug_print_uint(HOLDING_REGS_SIZE - 2);
+      debug_println(")");
+      return;
+    }
+
+    // Convert float to IEEE 754 bit representation
+    uint32_t bits;
+    memcpy(&bits, &real_val, sizeof(float));
+
+    uint16_t high_word = (uint16_t)((bits >> 16) & 0xFFFF);
+    uint16_t low_word = (uint16_t)(bits & 0xFFFF);
+
+    // Write to 2 consecutive registers
+    registers_set_holding_register(addr, high_word);
+    registers_set_holding_register(addr + 1, low_word);
+
+    debug_print("Register ");
+    debug_print_uint(addr);
+    debug_print("-");
+    debug_print_uint(addr + 1);
+    debug_print(" = ");
+    debug_print(value_str);
+    debug_print(" (real, lagret som 0x");
+    char hex_str[16];
+    snprintf(hex_str, sizeof(hex_str), "%04X%04X", high_word, low_word);
+    debug_print(hex_str);
+    debug_println(")");
+    return;
   } else {
     debug_print("WRITE REG: ukendt type '");
     debug_print(type);
-    debug_println("' (brug: uint eller int)");
+    debug_println("' (brug: uint, int, eller real)");
     return;
   }
 
