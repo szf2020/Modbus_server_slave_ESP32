@@ -2965,7 +2965,7 @@ set logic 1 enabled:true
 write reg 120 value int 1000
 write reg 122 value dint 200000
 read reg 124 2
-# Forventet: HR124=18536, HR125=3 (LSW, MSW) = 201000
+# Forventet: HR124=4392, HR125=3 (LSW, MSW) = 201000
 
 # Test 2: INT (-100) + DINT (50000) = DINT (49900)
 write reg 120 value int -100
