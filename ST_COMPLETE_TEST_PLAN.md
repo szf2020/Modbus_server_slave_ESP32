@@ -2905,32 +2905,33 @@ set logic 1 enabled:true
 **Test Cases:**
 ```bash
 # Test 1: Large DINT values (100000 + 200000 = 300000)
-# Skrive 100000 til 2 registers (high word, low word)
-# 100000 = 0x000186A0 → high=0x0001, low=0x86A0
-write reg 110 value uint 1
-write reg 111 value uint 34464
-write reg 112 value uint 3
-write reg 113 value uint 3392
+write reg 110 value dint 100000
+write reg 112 value dint 200000
 # Læs resultat (2 registers)
-read reg 114 int
-read reg 115 int
-# Forventet: HR114=4 (high word), HR115=37856 (low word) = 300000
+read reg 114 2
+# Forventet: HR114=4, HR115=37856 (LSW, MSW) = 300000
 
-# Test 2: DINT negative values
-# -500000 = 0xFFF85EE0 → high=0xFFF8, low=0x5EE0
-write reg 110 value uint 65528
-write reg 111 value uint 24288
-write reg 112 value uint 0
-write reg 113 value uint 100
-# Forventet: result ≈ -499900
+# Test 2: DINT negative values (-500000 + 100 = -499900)
+write reg 110 value dint -500000
+write reg 112 value dint 100
+read reg 114 2
+# Forventet: HR114=24416, HR115=65527 (LSW, MSW) = -499900
+
+# Test 3: Simple DINT addition (1 + 3 = 4)
+write reg 110 value dint 1
+write reg 112 value dint 3
+read reg 114 2
+# Forventet: HR114=4, HR115=0 (LSW, MSW) = 4
 ```
 
 **Forventet Resultat:**
 ```
-✅ DINT uses 2 consecutive registers (multi-register I/O)
+✅ DINT uses 2 consecutive registers (LSW first, MSW second)
 ✅ DINT supports values beyond INT16 range (-32768 to 32767)
 ✅ Large positive values (100000 + 200000 = 300000)
-✅ Negative DINT values work correctly
+✅ Negative DINT values work correctly (-500000 + 100 = -499900)
+✅ Simple DINT addition works (1 + 3 = 4)
+✅ CLI command 'write reg <addr> value dint <value>' automatically calculates LSW/MSW
 ```
 
 ---
@@ -2960,21 +2961,27 @@ set logic 1 enabled:true
 
 **Test Cases:**
 ```bash
-# Test: INT (1000) + DINT (200000) = DINT (201000)
+# Test 1: INT (1000) + DINT (200000) = DINT (201000)
 write reg 120 value int 1000
-# 200000 = 0x00030D40 → high=0x0003, low=0x0D40
-write reg 122 value uint 3
-write reg 123 value uint 3392
-read reg 124 int
-read reg 125 int
-# Forventet: result = 201000 (HR124=3, HR125=7232)
+write reg 122 value dint 200000
+read reg 124 2
+# Forventet: HR124=18536, HR125=3 (LSW, MSW) = 201000
+
+# Test 2: INT (-100) + DINT (50000) = DINT (49900)
+write reg 120 value int -100
+write reg 122 value dint 50000
+read reg 124 2
+# Forventet: HR124=49900, HR125=0 (LSW, MSW) = 49900
 ```
 
 **Forventet Resultat:**
 ```
 ✅ INT automatically promoted to DINT when mixed with DINT
 ✅ Result uses DINT (32-bit) arithmetic
-✅ Multi-register I/O works for DINT result
+✅ Multi-register I/O works for DINT result (LSW first, MSW second)
+✅ Positive INT + large DINT (1000 + 200000 = 201000)
+✅ Negative INT + positive DINT (-100 + 50000 = 49900)
+✅ CLI command 'write reg <addr> value dint <value>' simplifies testing
 ```
 
 ---
