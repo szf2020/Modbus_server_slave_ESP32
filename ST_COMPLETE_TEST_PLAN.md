@@ -1713,30 +1713,27 @@ set logic 1 enabled:true
 ```
 
 **Test Cases:**
-```python
+```bash
 # Test 1: COS(0) = 1.0
-write_real(100, 0.0)
-time.sleep(0.1)
-result = read_real(102)
-print(f"COS(0) = {result:.3f}")  # Expected: 1.0
+write reg 100 value real 0.0
+read reg 102 real
+# Forventet: 1.000000 (0x3F800000)
 
 # Test 2: COS(π/2) ≈ 0.0
-write_real(100, 1.5708)  # π/2
-time.sleep(0.1)
-result = read_real(102)
-print(f"COS(π/2) = {result:.3f}")  # Expected: ~0.0
+write reg 100 value real 1.5708
+read reg 102 real
+# Forventet: ~0.000000 (meget tæt på 0)
 
 # Test 3: COS(π) ≈ -1.0
-write_real(100, 3.1416)  # π
-time.sleep(0.1)
-result = read_real(102)
-print(f"COS(π) = {result:.3f}")  # Expected: ~-1.0
+write reg 100 value real 3.1416
+read reg 102 real
+# Forventet: -1.000000 (0xBF800000)
 ```
 
 **Forventet Resultat:**
 ```
-✅ COS(0) = 1.0
-✅ COS(π/2) ≈ 0.0
+✅ COS(0) = 1.000000
+✅ COS(π/2) ≈ 0.000000
 ✅ COS(π) ≈ -1.0
 ```
 
@@ -1763,24 +1760,22 @@ set logic 1 enabled:true
 ```
 
 **Test Cases:**
-```python
+```bash
 # Test 1: TAN(0) = 0.0
-write_real(100, 0.0)
-time.sleep(0.1)
-result = read_real(102)
-print(f"TAN(0) = {result:.3f}")  # Expected: 0.0
+write reg 100 value real 0.0
+read reg 102 real
+# Forventet: 0.000000 (0x00000000)
 
 # Test 2: TAN(π/4) ≈ 1.0
-write_real(100, 0.7854)  # π/4
-time.sleep(0.1)
-result = read_real(102)
-print(f"TAN(π/4) = {result:.3f}")  # Expected: ~1.0
+write reg 100 value real 0.7854
+read reg 102 real
+# Forventet: 1.000000 (0x3F800000)
 ```
 
 **Forventet Resultat:**
 ```
-✅ TAN(0) = 0.0
-✅ TAN(π/4) ≈ 1.0
+✅ TAN(0) = 0.000000
+✅ TAN(π/4) ≈ 1.000000
 ```
 
 ---
@@ -1808,18 +1803,16 @@ set logic 1 enabled:true
 ```
 
 **Test Cases:**
-```python
+```bash
 # Test 1: INT_TO_REAL(10) = 10.0
-client.write_register(100, 10)
-time.sleep(0.1)
-result = read_real(101)
-print(f"INT_TO_REAL(10) = {result:.1f}")  # Expected: 10.0
+write reg 100 value int 10
+read reg 101 real
+# Forventet: 10.000000 (0x41200000)
 
 # Test 2: INT_TO_REAL(-5) = -5.0
-client.write_register(100, -5)
-time.sleep(0.1)
-result = read_real(101)
-print(f"INT_TO_REAL(-5) = {result:.1f}")  # Expected: -5.0
+write reg 100 value int -5
+read reg 101 real
+# Forventet: -5.000000 (0xC0A00000)
 ```
 
 **Forventet Resultat:**
@@ -1851,18 +1844,16 @@ set logic 1 enabled:true
 ```
 
 **Test Cases:**
-```python
+```bash
 # Test 1: REAL_TO_INT(10.7) = 10
-write_real(100, 10.7)
-time.sleep(0.1)
-result = client.read_holding_registers(102, 1).registers[0]
-print(f"REAL_TO_INT(10.7) = {result}")  # Expected: 10
+write reg 100 value real 10.7
+read reg 102 int
+# Forventet: 10
 
 # Test 2: REAL_TO_INT(-5.3) = -5
-write_real(100, -5.3)
-time.sleep(0.1)
-result = client.read_holding_registers(102, 1).registers[0]
-print(f"REAL_TO_INT(-5.3) = {result}")  # Expected: -5
+write reg 100 value real -5.3
+read reg 102 int
+# Forventet: -5
 ```
 
 **Forventet Resultat:**
@@ -3181,27 +3172,25 @@ BEGIN
   magnitude := SQRT(sum_squares);
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind x reg:100 output
-set logic 1 bind y reg:102 output
+set logic 1 bind x reg:100 input
+set logic 1 bind y reg:102 input
 set logic 1 bind magnitude reg:104 output
 set logic 1 enabled:true
 ```
 
-**Test Cases (Python):**
-```python
+**Test Cases:**
+```bash
 # Test 1: magnitude(3.0, 4.0) = 5.0
-write_real(100, 3.0)
-write_real(102, 4.0)
-time.sleep(0.1)
-result = read_real(104)
-print(f"magnitude(3, 4) = {result:.1f}")  # Expected: 5.0
+write reg 100 value real 3.0
+write reg 102 value real 4.0
+read reg 104 real
+# Forventet: 5.000000 (0x40A00000)
 
 # Test 2: magnitude(5.0, 12.0) = 13.0
-write_real(100, 5.0)
-write_real(102, 12.0)
-time.sleep(0.1)
-result = read_real(104)
-print(f"magnitude(5, 12) = {result:.1f}")  # Expected: 13.0
+write reg 100 value real 5.0
+write reg 102 value real 12.0
+read reg 104 real
+# Forventet: 13.000000 (0x41500000)
 ```
 
 **Forventet Resultat:**
@@ -3366,10 +3355,10 @@ BEGIN
 END_PROGRAM
 END_UPLOAD
 
-set logic 1 bind start_button coil:0 output
-set logic 1 bind stop_button coil:1 output
-set logic 1 bind sensor_count reg:100 output
-set logic 1 bind temperature reg:101 output
+set logic 1 bind start_button coil:0 input
+set logic 1 bind stop_button coil:1 input
+set logic 1 bind sensor_count reg:100 input
+set logic 1 bind temperature reg:101 input
 set logic 1 bind motor_running coil:10 output
 set logic 1 bind alarm coil:11 output
 set logic 1 bind production_count reg:110 output
@@ -3378,39 +3367,37 @@ set logic 1 enabled:true
 
 **Test Cases:**
 ```bash
+# Setup initial values
 write reg 100 value int 50
-write_real(101, 25.0)  # temperature
+write reg 101 value real 25.0
 
 # Test 1: Start sequence
 write coil 0 value 1
-# Wait 100ms
 read coil 10
-# Forventet: 1
+# Forventet: 1 (motor running)
 read coil 11
-# Forventet: 0
-read HR110 → Forventet: > 0 (production counting)
+# Forventet: 0 (no alarm)
+read reg 110 int
+# Forventet: > 0 (production counting)
 
 # Test 2: Stop sequence
 write coil 0 value 0
-# Wait 100ms
 read coil 10
-# Forventet: 0
+# Forventet: 0 (motor stopped)
 
 # Test 3: Temperature alarm
-write_real(101, 90.0)  # temperature too high
+write reg 101 value real 90.0
 write coil 0 value 1
-# Wait 100ms
 read coil 10
-# Forventet: 0
+# Forventet: 0 (motor not starting)
 read coil 11
-# Forventet: 1
+# Forventet: 1 (alarm active)
 
 # Test 4: Count alarm
-write_real(101, 25.0)  # temperature OK
+write reg 101 value real 25.0
 write reg 100 value int 1500
-# Wait 100ms
 read coil 11
-# Forventet: 1
+# Forventet: 1 (alarm active)
 ```
 
 **Forventet Resultat:**
@@ -3589,29 +3576,51 @@ Følg samme workflow som Fase 1, men forvent:
 
 ## Test Automation Script Template
 
-```python
-#!/usr/bin/env python3
-"""
-ST Logic Test Automation Script
-Usage: python st_test_runner.py
-"""
+**BEMÆRK (v5.0.0):** Python automation scripts er ikke længere nødvendige!
 
+Alle test cases er nu opdateret til **CLI kommandoer** der kan kopieres direkte til telnet session.
+
+### CLI Commands for REAL/INT/UINT Values
+
+Brug de indbyggede CLI kommandoer i stedet for Python helpers:
+
+```bash
+# SKRIVE VÆRDIER
+write reg <addr> value int <value>     # 16-bit signed INT
+write reg <addr> value uint <value>    # 16-bit unsigned
+write reg <addr> value real <value>    # 32-bit REAL (2 registers)
+
+# LÆSE VÆRDIER
+read reg <addr> int                    # Læs som signed INT
+read reg <addr> uint                   # Læs som unsigned
+read reg <addr> real                   # Læs som REAL (2 registers)
+
+# EKSEMPLER
+write reg 100 value real 3.14159
+read reg 102 real
+write reg 100 value int -5
+read reg 100 int
+```
+
+### Legacy Python Helpers (Deprecated)
+
+**Python helpers er nu DEPRECATED** - brug CLI kommandoer i stedet.
+
+Hvis du stadig ønsker at bruge Python automation:
+
+```python
 from pymodbus.client import ModbusSerialClient
 import time
 import struct
 
-# ============================
-# Helper Functions
-# ============================
-
 def write_real(client, address, value):
-    """Write IEEE 754 float to 2 holding registers"""
+    """DEPRECATED: Brug 'write reg X value real Y' CLI kommando"""
     bytes_val = struct.pack('!f', value)
     words = struct.unpack('!HH', bytes_val)
     client.write_registers(address, list(words))
 
 def read_real(client, address):
-    """Read IEEE 754 float from 2 holding registers"""
+    """DEPRECATED: Brug 'read reg X real' CLI kommando"""
     result = client.read_holding_registers(address, 2)
     bytes_val = struct.pack('!HH', *result.registers)
     return struct.unpack('!f', bytes_val)[0]
