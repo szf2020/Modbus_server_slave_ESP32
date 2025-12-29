@@ -286,10 +286,13 @@ typedef enum {
  * ============================================================================ */
 
 #define PROJECT_NAME        "Modbus RTU Server (ESP32)"
-#define PROJECT_VERSION     "4.4.2"
+#define PROJECT_VERSION     "5.0.0"
 // BUILD_DATE and BUILD_NUMBER now in build_version.h (auto-generated)
 
 /* Version history:
+ * v5.0.0 (2025-12-29): IEC 61131-3 Type System - INT=16-bit, DINT=32-bit, REAL=32-bit float
+ *                      Multi-register I/O, type-aware operators, CLI read/write int/uint/real
+ *                      Fixed: BUG-105 to BUG-110 (division by zero, SUM function, multi-register delete)
  * v4.4.2 (2025-12-25): Config mode now displays all SET commands (copy/paste ready)
  * v4.4.1 (2025-12-24): Modbus Slave CLI commands (set modbus-slave ...)
  * v4.4.0 (2025-12-24): Modbus Master implementation (UART1)
