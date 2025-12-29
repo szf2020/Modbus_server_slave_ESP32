@@ -30,7 +30,7 @@
  * the compare status bit (bit 4) is automatically cleared for next comparison cycle.
  *
  * ISSUE-3 ENHANCEMENT: Also handles reset-on-read for counter VALUE registers
- * If index_reg or raw_reg is read and reset-on-read is enabled, resets counter to start_value.
+ * If value_reg or raw_reg is read and reset-on-read is enabled, resets counter to start_value.
  *
  * PUBLIC: Can be called from CLI commands (read reg) and Modbus FC03
  */
@@ -61,7 +61,7 @@ void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity) {
       }
     }
 
-    // BUG-041: Reset counter if index_reg or raw_reg was read
+    // BUG-041: Reset counter if value_reg or raw_reg was read
     // Check ctrl-reg bit 0 (counter-reg-reset-on-read flag)
     uint16_t ctrl_val = (cfg.ctrl_reg < HOLDING_REGS_SIZE) ? registers_get_holding_register(cfg.ctrl_reg) : 0;
     uint8_t counter_reset_on_read = (ctrl_val & 0x01) != 0;
@@ -69,12 +69,12 @@ void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity) {
     if (counter_reset_on_read && cfg.enabled) {
       uint8_t reset_counter = 0;
 
-      // Check if index register was read (could be 1-4 words depending on bit_width)
-      if (cfg.index_reg < HOLDING_REGS_SIZE) {
-        uint8_t index_words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
-        uint16_t index_end = cfg.index_reg + index_words;
-        if (cfg.index_reg < ending_address && index_end > starting_address) {
-          reset_counter = 1;  // Index register was in read range
+      // Check if value register was read (could be 1-4 words depending on bit_width)
+      if (cfg.value_reg < HOLDING_REGS_SIZE) {
+        uint8_t value_words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
+        uint16_t value_end = cfg.value_reg + value_words;
+        if (cfg.value_reg < ending_address && value_end > starting_address) {
+          reset_counter = 1;  // Value register was in read range
         }
       }
 

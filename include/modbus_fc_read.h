@@ -65,10 +65,10 @@ bool modbus_fc04_read_input_registers(const ModbusFrame* request_frame, ModbusFr
  * @param starting_address First register address that was read
  * @param quantity Number of registers that were read
  *
- * Checks if any counter has reset_on_read enabled and if the ctrl_reg/index_reg/raw_reg
+ * Checks if any counter has reset_on_read enabled and if the ctrl_reg/value_reg/raw_reg
  * was in the read range. If so:
  * - Clears bit 4 (compare status) in ctrl_reg
- * - Resets counter value to start_value if index/raw reg was read
+ * - Resets counter value to start_value if value/raw reg was read
  *
  * Should be called after register read operations (Modbus FC03 or CLI read reg)
  */

@@ -47,13 +47,12 @@ CounterConfig counter_config_defaults(uint8_t id) {
   // IMPROVEMENT: Smart register defaults (v4.2.4 - BUG-030 fix)
   // Assign 4-word spacing to support 64-bit counters (4 registers per value)
   // Counter 1: 100-114, Counter 2: 120-134, Counter 3: 140-154, Counter 4: 160-174
-  // Each counter gets 20 registers total (enough for 64-bit index+raw+compare)
+  // Each counter gets 20 registers total (enough for 64-bit value+raw+compare)
   uint16_t base = 100 + ((id - 1) * 20);
-  cfg.index_reg = base + 0;          // 100, 120, 140, 160 (uses +0,+1,+2,+3 for 64-bit)
+  cfg.value_reg = base + 0;          // 100, 120, 140, 160 (uses +0,+1,+2,+3 for 64-bit)
   cfg.raw_reg = base + 4;            // 104, 124, 144, 164 (uses +4,+5,+6,+7 for 64-bit)
   cfg.freq_reg = base + 8;           // 108, 128, 148, 168 (16-bit, uses 1 reg)
-  cfg.overload_reg = base + 9;       // 109, 129, 149, 169 (16-bit, uses 1 reg)
-  cfg.ctrl_reg = base + 10;          // 110, 130, 150, 170 (16-bit, uses 1 reg)
+  cfg.ctrl_reg = base + 10;          // 110, 130, 150, 170 (16-bit, uses 1 reg, bit 3 = overflow)
   cfg.compare_value_reg = base + 11; // 111, 131, 151, 171 (uses +11,+12,+13,+14 for 64-bit)
 
   cfg.start_value = 0;
@@ -84,7 +83,7 @@ bool counter_config_validate(const CounterConfig* cfg) {
 
   // Basic validation
   if (cfg->prescaler < 1) return false;
-  if (cfg->index_reg >= HOLDING_REGS_SIZE && cfg->index_reg != 0) return false;
+  if (cfg->value_reg >= HOLDING_REGS_SIZE && cfg->value_reg != 0) return false;
 
   return true;
 }

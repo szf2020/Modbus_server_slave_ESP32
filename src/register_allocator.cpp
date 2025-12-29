@@ -63,15 +63,15 @@ void register_allocator_init(void) {
       // Calculate word count based on bit width
       uint8_t words = (cfg.bit_width <= 16) ? 1 : (cfg.bit_width == 32) ? 2 : 4;
 
-      // Allocate index register range (1-4 words depending on bit_width)
-      register_allocator_allocate_range(cfg.index_reg, words, REG_OWNER_COUNTER, id, "idx");
+      // Allocate value register range (1-4 words depending on bit_width)
+      register_allocator_allocate_range(cfg.value_reg, words, REG_OWNER_COUNTER, id, "val");
 
       // Allocate raw register range (1-4 words depending on bit_width)
       register_allocator_allocate_range(cfg.raw_reg, words, REG_OWNER_COUNTER, id, "raw");
 
       // Allocate single-word registers (always 16-bit)
+      // Note: overflow flag is now in ctrl_reg bit 3, no separate register needed
       register_allocator_allocate(cfg.freq_reg, REG_OWNER_COUNTER, id, "frq");
-      register_allocator_allocate(cfg.overload_reg, REG_OWNER_COUNTER, id, "ovl");
       register_allocator_allocate(cfg.ctrl_reg, REG_OWNER_COUNTER, id, "ctl");
 
       // Allocate compare_value register range (1-4 words depending on bit_width)

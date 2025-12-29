@@ -245,9 +245,11 @@ void counter_engine_reset(uint8_t id) {
   // Reset frequency tracking
   counter_frequency_reset(id);
 
-  // Clear overflow register
-  if (cfg.overload_reg < HOLDING_REGS_SIZE) {
-    registers_set_holding_register(cfg.overload_reg, 0);
+  // Clear overflow flag in ctrl_reg bit 3
+  if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
+    uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+    ctrl_val &= ~(1 << 3);  // Clear bit 3 (overflow flag)
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val);
   }
 
   // BUG-035 FIX: Reset compare runtime state (last_value) to prevent false trigger
@@ -433,12 +435,12 @@ void counter_engine_store_value_to_registers(uint8_t id) {
   uint8_t lock_id = id - 1;  // Array is 0-indexed
   counter_write_lock[lock_id] = 1;
 
-  // Write scaled value to index register (multi-word if 32/64 bit)
-  if (cfg.index_reg < HOLDING_REGS_SIZE) {
+  // Write scaled value to value register (multi-word if 32/64 bit)
+  if (cfg.value_reg < HOLDING_REGS_SIZE) {
     uint8_t words = (bw <= 16) ? 1 : (bw == 32) ? 2 : 4;
-    for (uint8_t w = 0; w < words && cfg.index_reg + w < HOLDING_REGS_SIZE; w++) {
+    for (uint8_t w = 0; w < words && cfg.value_reg + w < HOLDING_REGS_SIZE; w++) {
       uint16_t word = (uint16_t)((scaled_value >> (16 * w)) & 0xFFFF);
-      registers_set_holding_register(cfg.index_reg + w, word);
+      registers_set_holding_register(cfg.value_reg + w, word);
     }
   }
 
@@ -460,8 +462,8 @@ void counter_engine_store_value_to_registers(uint8_t id) {
     registers_set_holding_register(cfg.freq_reg, freq_hz);
   }
 
-  // Write overflow flag to overflow register
-  if (cfg.overload_reg < HOLDING_REGS_SIZE) {
+  // Write overflow flag to ctrl_reg bit 3
+  if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
     uint8_t overflow = 0;
     switch (cfg.hw_mode) {
       case COUNTER_HW_SW:
@@ -477,7 +479,15 @@ void counter_engine_store_value_to_registers(uint8_t id) {
       default:
         break;
     }
-    registers_set_holding_register(cfg.overload_reg, overflow ? 1 : 0);
+
+    // Set or clear bit 3 in ctrl_reg
+    uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+    if (overflow) {
+      ctrl_val |= (1 << 3);  // Set bit 3
+    } else {
+      ctrl_val &= ~(1 << 3);  // Clear bit 3
+    }
+    registers_set_holding_register(cfg.ctrl_reg, ctrl_val);
   }
 
   // BUG-030: Write compare_value to register (for Modbus read/write)

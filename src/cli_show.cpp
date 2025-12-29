@@ -144,8 +144,8 @@ void cli_cmd_show_config(void) {
       // Register indices
       debug_print(" input-dis:");
       debug_print_uint(cfg.input_dis);
-      debug_print(" index-reg:");
-      debug_print_uint(cfg.index_reg);
+      debug_print(" value-reg:");
+      debug_print_uint(cfg.value_reg);
 
       if (cfg.raw_reg > 0) {
         debug_print(" raw-reg:");
@@ -155,10 +155,6 @@ void cli_cmd_show_config(void) {
         debug_print(" freq-reg:");
         debug_print_uint(cfg.freq_reg);
       }
-
-      debug_print(" overload-reg:");
-      if (cfg.overload_reg < 1000) debug_print_uint(cfg.overload_reg);
-      else debug_print("n/a");
 
       debug_print(" ctrl-reg:");
       if (cfg.ctrl_reg < 1000) debug_print_uint(cfg.ctrl_reg);
@@ -912,14 +908,14 @@ void cli_cmd_show_config(void) {
 void cli_cmd_show_counters(void) {
   // Header med forkortelser (3 linjer)
   debug_println("───────────────────────────────────────────────────────────────────---------------─────────────────────────────────────────────────────────────────────────────────────────────────────────────");
-  debug_println("co = count-on, sv = startValue, res = resolution, ps = prescaler, ir = index-reg, rr = raw-reg, fr = freq-reg");
-  debug_println("or = overload-reg, cr = ctrl-reg, dir = direction, sf = scaleFloat, d = debounce, dt = debounce-ms");
+  debug_println("co = count-on, sv = startValue, res = resolution, ps = prescaler, vr = value-reg, rr = raw-reg, fr = freq-reg");
+  debug_println("cr = ctrl-reg (bit3=overflow), dir = direction, sf = scaleFloat, d = debounce, dt = debounce-ms");
   debug_println("hw = HW/SW mode (SW|ISR|HW), hz = measured freq (Hz), value = scaled value, raw = prescaled counter value");
   debug_println("cmp-en = compare enabled, cmp-mode = 0:≥ 1:> 2:exact, cmp-src = 0:raw 1:prescaled 2:scaled, cmp-val = threshold, ror = reset-on-read");
   debug_println("─────────────────────────────────────────────────────────────---------------───────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
 
   // Kolonne headers
-  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  ir  |  rr  |  fr  |   or |  cr  |  dir  |   sf   | d   |  dt  |  hz   |     val     |    raw    | cmp-en | cmp-md | cmp-src | cmp-val | ror");
+  debug_println("counter |  en  | hw  | pin  |    co   |    sv    | res |  ps  |  vr  |  rr  |  fr  |  cr  |  dir  |   sf   | d   |  dt  |  hz   |     val     |    raw    | cmp-en | cmp-md | cmp-src | cmp-val | ror");
 
   // Data rækker for hver counter
   for (uint8_t id = 1; id <= 4; id++) {
@@ -978,8 +974,8 @@ void cli_cmd_show_counters(void) {
     p += snprintf(p, sizeof(line) - (p - line), "%4u ", cfg.prescaler);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
-    // index-reg (4 chars right-aligned)
-    p += snprintf(p, sizeof(line) - (p - line), "%4u ", cfg.index_reg);
+    // value-reg (4 chars right-aligned)
+    p += snprintf(p, sizeof(line) - (p - line), "%4u ", cfg.value_reg);
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // raw-reg (4 chars right-aligned)
@@ -988,14 +984,6 @@ void cli_cmd_show_counters(void) {
 
     // freq-reg (4 chars right-aligned)
     p += snprintf(p, sizeof(line) - (p - line), "%4u ", cfg.freq_reg);
-    p += snprintf(p, sizeof(line) - (p - line), "| ");
-
-    // overload-reg (4 chars right-aligned)
-    if (cfg.overload_reg < 1000) {
-      p += snprintf(p, sizeof(line) - (p - line), "%4u ", cfg.overload_reg);
-    } else {
-      p += snprintf(p, sizeof(line) - (p - line), " n/a ");
-    }
     p += snprintf(p, sizeof(line) - (p - line), "| ");
 
     // ctrl-reg (4 chars right-aligned)
@@ -1264,8 +1252,8 @@ void cli_cmd_show_counter(uint8_t id, bool verbose) {
 
   // Register mappings
   debug_println("Register Mappings:");
-  debug_print("  Index Register (scaled value): ");
-  debug_print_uint(cfg.index_reg);
+  debug_print("  Value Register (scaled value): ");
+  debug_print_uint(cfg.value_reg);
   debug_println("");
 
   if (cfg.raw_reg > 0) {
@@ -1281,14 +1269,8 @@ void cli_cmd_show_counter(uint8_t id, bool verbose) {
   }
 
   if (cfg.ctrl_reg < 1000) {
-    debug_print("  Control Register: ");
+    debug_print("  Control Register (bit 3 = overflow): ");
     debug_print_uint(cfg.ctrl_reg);
-    debug_println("");
-  }
-
-  if (cfg.overload_reg < 1000) {
-    debug_print("  Overload Register: ");
-    debug_print_uint(cfg.overload_reg);
     debug_println("");
   }
 
@@ -1377,12 +1359,13 @@ void cli_cmd_show_counter(uint8_t id, bool verbose) {
       debug_println("");
     }
 
-    // Overflow status (if available)
-    if (cfg.overload_reg < 1000) {
-      uint16_t overflow_val = registers_get_holding_register(cfg.overload_reg);
+    // Overflow status (read from ctrl_reg bit 3)
+    if (cfg.ctrl_reg < 1000) {
+      uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+      uint8_t overflow_flag = (ctrl_val & (1 << 3)) ? 1 : 0;
       debug_println("Overflow Status:");
-      debug_print("  Overflow Flag: ");
-      debug_println(overflow_val ? "YES (overflow detected)" : "NO");
+      debug_print("  Overflow Flag (ctrl_reg bit 3): ");
+      debug_println(overflow_flag ? "YES (overflow detected)" : "NO");
       debug_println("");
     }
 
@@ -1416,9 +1399,9 @@ void cli_cmd_show_counter(uint8_t id, bool verbose) {
     // Register mapping summary
     debug_println("Full Register Map:");
     debug_print("  HR");
-    debug_print_uint(cfg.index_reg);
+    debug_print_uint(cfg.value_reg);
     debug_print("-HR");
-    debug_print_uint(cfg.index_reg + 3);
+    debug_print_uint(cfg.value_reg + 3);
     debug_println(": Scaled value (1-4 words, LSB first)");
     if (cfg.raw_reg > 0) {
       debug_print("  HR");
@@ -1432,15 +1415,10 @@ void cli_cmd_show_counter(uint8_t id, bool verbose) {
       debug_print_uint(cfg.freq_reg);
       debug_println(": Frequency (Hz, 1 word)");
     }
-    if (cfg.overload_reg < 1000) {
-      debug_print("  HR");
-      debug_print_uint(cfg.overload_reg);
-      debug_println(": Overflow flag (1=overflow)");
-    }
     if (cfg.ctrl_reg < 1000) {
       debug_print("  HR");
       debug_print_uint(cfg.ctrl_reg);
-      debug_println(": Control bits (see above)");
+      debug_println(": Control bits (bit 3 = overflow, see above)");
     }
   }
 

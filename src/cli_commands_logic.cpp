@@ -383,12 +383,11 @@ static void cleanup_counters_using_register(uint16_t old_reg) {
     // that will conflict on next boot
 
     // Check if this counter uses the register we're freeing
-    // Each counter uses 5 registers: index_reg, raw_reg, freq_reg, overload_reg, ctrl_reg
+    // Each counter uses 4 registers: value_reg, raw_reg, freq_reg, ctrl_reg (overflow in ctrl_reg bit 3)
     bool uses_register = (
-      cfg.index_reg == old_reg ||
+      cfg.value_reg == old_reg ||
       cfg.raw_reg == old_reg ||
       cfg.freq_reg == old_reg ||
-      cfg.overload_reg == old_reg ||
       cfg.ctrl_reg == old_reg
     );
 

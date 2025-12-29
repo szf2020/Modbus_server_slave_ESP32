@@ -63,12 +63,20 @@ typedef struct __attribute__((packed)) {
   float scale_factor;
 
   // Register addresses
-  uint16_t index_reg;        // Scaled value register
+  uint16_t value_reg;        // Computed/scaled value register (renamed from index_reg)
   uint16_t raw_reg;          // Prescaled value register
   uint16_t freq_reg;         // Frequency (Hz) register
-  uint16_t overload_reg;     // Overflow flag register
-  uint16_t ctrl_reg;         // Control register
+  uint16_t ctrl_reg;         // Control register (bit layout below)
   uint16_t compare_value_reg; // Compare threshold register (BUG-030, v4.2.4)
+
+  // ctrl_reg bit layout:
+  //   Bit 0: Reset command (write 1 to reset counter)
+  //   Bit 1: Start/Stop command (write 1 to start, 0 to stop)
+  //   Bit 2: Running status (read-only: 1=counting, 0=stopped)
+  //   Bit 3: Overflow flag (read-only: 1=overflow occurred)
+  //   Bit 4: Compare triggered (read-only: 1=compare threshold reached)
+  //   Bit 5-6: Reserved (available for future use)
+  //   Bit 7: Direction indicator (read-only: 0=up, 1=down)
 
   // Mode-specific
   uint16_t start_value;   // For reset-on-read

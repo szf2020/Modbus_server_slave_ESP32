@@ -209,8 +209,8 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
     uint16_t overlap_reg = 0;
     const char* overlap_type = "";
 
-    if (cfg.index_reg > 0 && cfg.index_reg == other_cfg.index_reg) {
-      overlap = true; overlap_reg = cfg.index_reg; overlap_type = "index-reg";
+    if (cfg.value_reg > 0 && cfg.value_reg == other_cfg.value_reg) {
+      overlap = true; overlap_reg = cfg.value_reg; overlap_type = "value-reg";
     }
     else if (cfg.raw_reg > 0 && cfg.raw_reg == other_cfg.raw_reg) {
       overlap = true; overlap_reg = cfg.raw_reg; overlap_type = "raw-reg";
@@ -220,9 +220,6 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
     }
     else if (cfg.ctrl_reg > 0 && cfg.ctrl_reg < 1000 && cfg.ctrl_reg == other_cfg.ctrl_reg) {
       overlap = true; overlap_reg = cfg.ctrl_reg; overlap_type = "ctrl-reg";
-    }
-    else if (cfg.overload_reg > 0 && cfg.overload_reg < 1000 && cfg.overload_reg == other_cfg.overload_reg) {
-      overlap = true; overlap_reg = cfg.overload_reg; overlap_type = "overload-reg";
     }
 
     if (overlap) {
@@ -241,11 +238,11 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
   }
 
   // BUG-025 FIX: Check register overlap with other subsystems (Timer, ST Logic)
-  // Check all 5 counter registers: index, raw, freq, overload, ctrl
-  uint16_t counter_regs[5] = {cfg.index_reg, cfg.raw_reg, cfg.freq_reg, cfg.overload_reg, cfg.ctrl_reg};
-  const char* counter_reg_names[5] = {"index-reg", "raw-reg", "freq-reg", "overload-reg", "ctrl-reg"};
+  // Check all 4 counter registers: value, raw, freq, ctrl (overflow in ctrl_reg bit 3)
+  uint16_t counter_regs[4] = {cfg.value_reg, cfg.raw_reg, cfg.freq_reg, cfg.ctrl_reg};
+  const char* counter_reg_names[4] = {"value-reg", "raw-reg", "freq-reg", "ctrl-reg"};
 
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 4; i++) {
     if (counter_regs[i] > 0 && counter_regs[i] < HOLDING_REGS_SIZE) {
       RegisterOwner owner;
       if (!register_allocator_check(counter_regs[i], &owner)) {
