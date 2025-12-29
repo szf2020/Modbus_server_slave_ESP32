@@ -9,6 +9,7 @@
 
 // Global debug flags (default: all disabled for production)
 DebugFlags g_debug_flags = {
+  .all = 0,
   .config_save = 0,
   .config_load = 0,
   .wifi_connect = 0,
@@ -36,6 +37,7 @@ void debug_flags_set_network_validate(uint8_t enabled) {
 }
 
 void debug_flags_set_all(uint8_t enabled) {
+  g_debug_flags.all = enabled ? 1 : 0;
   g_debug_flags.config_save = enabled ? 1 : 0;
   g_debug_flags.config_load = enabled ? 1 : 0;
   g_debug_flags.wifi_connect = enabled ? 1 : 0;

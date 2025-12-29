@@ -591,7 +591,7 @@ static bool st_vm_exec_lt(st_vm_t *vm, st_bytecode_instr_t *instr) {
   } else if (left_type == ST_TYPE_DINT || right_type == ST_TYPE_DINT) {
     // DINT comparison (promote INT to DINT)
     int32_t left_d = (left_type == ST_TYPE_DINT) ? left.dint_val : (int32_t)left.int_val;
-    int32_t right_d = (right_type == ST_TYPE_DINT) ? right.dint_val : (int32_t)right.int_val;
+    int32_t right_d = (right_type == ST_TYPE_DINT) ? right.dint_val : (int32_t)right.dint_val;
     result.bool_val = (left_d < right_d);
   } else {
     // INT comparison (16-bit)

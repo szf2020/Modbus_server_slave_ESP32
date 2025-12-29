@@ -54,6 +54,9 @@ uint8_t st_compiler_add_symbol(st_compiler_t *compiler, const char *name,
   sym->is_output = is_output;
   sym->index = compiler->symbol_table.count;
 
+  debug_printf("[COMPILER] Added symbol[%d]: name='%s' type=%d input=%d output=%d\n",
+               sym->index, sym->name, sym->type, sym->is_input, sym->is_output);
+
   return compiler->symbol_table.count++;
 }
 
@@ -122,6 +125,15 @@ void st_compiler_patch_jump(st_compiler_t *compiler, uint16_t jump_addr, uint16_
     st_compiler_error(compiler, "Jump patch address out of bounds");
     return;
   }
+
+  // BUG-120: Detect self-loop (jump to same address)
+  if (jump_addr == target_addr) {
+    snprintf(compiler->error_msg, sizeof(compiler->error_msg),
+             "Compiler bug: self-loop detected at address %u", jump_addr);
+    compiler->error_count++;
+    return;
+  }
+
   compiler->bytecode[jump_addr].arg.int_arg = target_addr;
 }
 
@@ -420,6 +432,8 @@ static bool st_compiler_compile_case(st_compiler_t *compiler, st_ast_node_t *nod
 }
 
 static bool st_compiler_compile_if(st_compiler_t *compiler, st_ast_node_t *node) {
+  debug_printf("[IF] Starting IF compilation at PC %d\n", compiler->bytecode_ptr);
+
   // Compile condition (result on stack)
   if (!st_compiler_compile_expr(compiler, node->data.if_stmt.condition_expr)) {
     return false;
@@ -427,9 +441,11 @@ static bool st_compiler_compile_if(st_compiler_t *compiler, st_ast_node_t *node)
 
   // Emit JMP_IF_FALSE (skip THEN block if condition false)
   uint16_t jump_then = st_compiler_emit_jump(compiler, ST_OP_JMP_IF_FALSE);
+  debug_printf("[IF] Emitted JMP_IF_FALSE at PC %d (placeholder)\n", jump_then);
 
   // Compile THEN block
   if (node->data.if_stmt.then_body) {
+    debug_printf("[IF] Compiling THEN block at PC %d\n", compiler->bytecode_ptr);
     if (!st_compiler_compile_node(compiler, node->data.if_stmt.then_body)) {
       return false;
     }
@@ -439,20 +455,27 @@ static bool st_compiler_compile_if(st_compiler_t *compiler, st_ast_node_t *node)
   uint16_t jump_else = 0;
   if (node->data.if_stmt.else_body) {
     jump_else = st_compiler_emit_jump(compiler, ST_OP_JMP);
+    debug_printf("[IF] Emitted JMP (skip ELSE) at PC %d (placeholder)\n", jump_else);
   }
 
   // Patch THEN jump to here
-  st_compiler_patch_jump(compiler, jump_then, st_compiler_current_addr(compiler));
+  uint16_t patch_addr = st_compiler_current_addr(compiler);
+  st_compiler_patch_jump(compiler, jump_then, patch_addr);
+  debug_printf("[IF] Patching JMP_IF_FALSE[%d] to PC %d\n", jump_then, patch_addr);
 
   // Compile ELSE block if present
   if (node->data.if_stmt.else_body) {
+    debug_printf("[IF] Compiling ELSE block at PC %d\n", compiler->bytecode_ptr);
     if (!st_compiler_compile_node(compiler, node->data.if_stmt.else_body)) {
       return false;
     }
     // Patch ELSE jump to here
-    st_compiler_patch_jump(compiler, jump_else, st_compiler_current_addr(compiler));
+    uint16_t patch_addr_else = st_compiler_current_addr(compiler);
+    st_compiler_patch_jump(compiler, jump_else, patch_addr_else);
+    debug_printf("[IF] Patching JMP[%d] to PC %d\n", jump_else, patch_addr_else);
   }
 
+  debug_printf("[IF] IF compilation complete at PC %d\n", compiler->bytecode_ptr);
   return true;
 }
 
@@ -797,6 +820,8 @@ st_bytecode_program_t *st_compiler_compile(st_compiler_t *compiler, st_program_t
     strncpy(bytecode->var_names[i], sym->name, sizeof(bytecode->var_names[i]) - 1);
     bytecode->var_names[i][sizeof(bytecode->var_names[i]) - 1] = '\0';
     bytecode->var_types[i] = sym->type;  // Store variable type (BOOL, INT, etc.)
+    debug_printf("[COMPILER] Copied to bytecode: var[%d] name='%s' type=%d\n",
+                 i, bytecode->var_names[i], bytecode->var_types[i]);
   }
 
   if (compiler->error_count > 0) {
