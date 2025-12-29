@@ -173,17 +173,23 @@ show logic 1
 |------|------|-------|---------|
 | **BOOL** | 1 bit | TRUE/FALSE | `led := TRUE` |
 | **INT** | 16-bit | -32768 to 32767 | `counter := 100` |
-| **DWORD** | 32-bit | 0 to 4294967295 | `value := 1000000` |
+| **DINT** | 32-bit | -2147483648 to 2147483647 | `large_value := 100000` |
+| **DWORD** | 32-bit | 0 to 4294967295 | `flags := 4000000000` |
 | **REAL** | 32-bit float | IEEE 754 | `temp := 25.5` |
+
+**Multi-Register Types:**
+- DINT, DWORD, REAL use 2 consecutive Modbus registers (LSW first, MSW second)
+- Example: DINT value 100000 stored in HR100-101 → HR100=34464 (LSW), HR101=1 (MSW)
 
 ### Variable Declaration
 
 ```structured-text
 VAR
-  counter: INT;           (* Input counter *)
+  counter: INT;           (* Input counter -32768 to 32767 *)
   led: BOOL;              (* Output LED state *)
   temperature: REAL;      (* Sensor temperature *)
-  flags: DWORD;           (* Status flags *)
+  large_count: DINT;      (* Large counter -2147483648 to 2147483647 *)
+  flags: DWORD;           (* Status flags 0 to 4294967295 *)
 END_VAR
 ```
 
