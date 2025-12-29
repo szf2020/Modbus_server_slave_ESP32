@@ -18,7 +18,9 @@ Dette dokument beskriver **ALLE** Modbus registre, coils og discrete inputs som 
 
 **Addressing:**
 - Alle adresser er 0-baserede (Modbus standard)
-- 32-bit værdier bruger 2 på hinanden følgende registre (HIGH word, LOW word)
+- 32-bit værdier bruger 2 på hinanden følgende registre (LSW first, MSW second)
+  - DINT/DWORD/REAL: Register N = LSW (Least Significant Word), Register N+1 = MSW (Most Significant Word)
+  - Eksempel: Value 100000 (0x000186A0) → HR100=0x86A0 (34464), HR101=0x0001 (1)
 
 ---
 

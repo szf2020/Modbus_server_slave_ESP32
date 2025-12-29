@@ -681,6 +681,8 @@ read coil <addr>                         # Read coil
 # WRITE COMMANDS
 write reg <addr> value int <val>         # Write signed 16-bit INT (-32768 to 32767)
 write reg <addr> value uint <val>        # Write unsigned 16-bit (0 to 65535)
+write reg <addr> value dint <val>        # Write signed 32-bit DINT (-2147483648 to 2147483647, uses 2 registers)
+write reg <addr> value dword <val>       # Write unsigned 32-bit DWORD (0 to 4294967295, uses 2 registers)
 write reg <addr> value real <val>        # Write 32-bit REAL/float (uses 2 consecutive registers)
 write coil <addr> value <on|off>         # Write coil
 
@@ -691,6 +693,8 @@ read reg 100 real                        # Read reg 100-101 as REAL (32-bit floa
 
 write reg 100 value int -500             # Write -500 as signed INT
 write reg 100 value uint 65000           # Write 65000 as unsigned
+write reg 100 value dint 100000          # Write 100000 as DINT (reg 100-101, LSW first)
+write reg 100 value dword 3000000000     # Write 3000000000 as DWORD (reg 100-101, LSW first)
 write reg 100 value real 3.14159         # Write 3.14159 as REAL (reg 100-101)
 ```
 
