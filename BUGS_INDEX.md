@@ -99,6 +99,7 @@
 | BUG-121 | LIMIT return type mangler DINT håndtering | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | LIMIT(DINT_min, val, DINT_max) returnerer INT type |
 | BUG-122 | CLI show logic timing og reset logic stats ikke tilgængelige | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | Funktioner implementeret men ikke eksponeret i parser/header |
 | BUG-123 | Parser accepterer syntax fejl (reserved keywords i statement position) | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | "THEN THEN", "END_IF x := 5" accepteres uden fejl |
+| BUG-124 | Counter 32/64-bit værdier truncates til 16-bit | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | registers_update_dynamic_registers overskriver med 16-bit |
 
 ## Quick Lookup by Category
 

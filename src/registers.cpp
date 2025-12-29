@@ -170,77 +170,21 @@ uint32_t registers_get_millis(void) {
  * 2. Writes to specified holding register
  *
  * Called once per main loop iteration
+ *
+ * NOTE (BUG-124 FIX): Counter registers are now handled directly by counter_engine_loop()
+ * which writes multi-register values correctly for 32/64-bit counters.
+ * This function now ONLY handles TIMER sources to avoid overwriting with truncated values.
  */
 void registers_update_dynamic_registers(void) {
   for (uint8_t i = 0; i < g_persist_config.dynamic_reg_count; i++) {
     const DynamicRegisterMapping* dyn = &g_persist_config.dynamic_regs[i];
     uint16_t reg_addr = dyn->register_address;
-    uint16_t value = 0;
 
+    // BUG-124 FIX: Skip counter sources - counter_engine handles multi-register writes
     if (dyn->source_type == DYNAMIC_SOURCE_COUNTER) {
-      uint8_t counter_id = dyn->source_id;
-      CounterConfig cfg;
-      memset(&cfg, 0, sizeof(cfg));
-
-      if (!counter_engine_get_config(counter_id, &cfg) || !cfg.enabled) {
-        continue;  // Counter not configured or disabled
-      }
-
-      // Get counter value based on function type
-      uint64_t raw_value = counter_engine_get_value(counter_id);
-
-      switch (dyn->source_function) {
-        case COUNTER_FUNC_INDEX:
-          // Scaled value = counterValue × scale_factor
-          value = (uint16_t)(raw_value * cfg.scale_factor);
-          break;
-
-        case COUNTER_FUNC_RAW:
-          // Prescaled value = counterValue / prescaler
-          if (cfg.prescaler > 0) {
-            value = (uint16_t)(raw_value / cfg.prescaler);
-          } else {
-            value = (uint16_t)raw_value;
-          }
-          break;
-
-        case COUNTER_FUNC_FREQ:
-          // Frequency in Hz (already updated by counter_frequency_update)
-          // Read from freq_reg if configured
-          if (cfg.freq_reg < HOLDING_REGS_SIZE) {
-            value = registers_get_holding_register(cfg.freq_reg);
-          } else {
-            value = 0;
-          }
-          break;
-
-        case COUNTER_FUNC_OVERFLOW:
-          // Overflow flag (1 if overflow occurred)
-          // Read from overload_reg if configured
-          if (cfg.overload_reg < HOLDING_REGS_SIZE) {
-            value = registers_get_holding_register(cfg.overload_reg);
-          } else {
-            value = 0;
-          }
-          break;
-
-        case COUNTER_FUNC_CTRL:
-          // Control register (read current value)
-          if (cfg.ctrl_reg < HOLDING_REGS_SIZE) {
-            value = registers_get_holding_register(cfg.ctrl_reg);
-          } else {
-            value = 0;
-          }
-          break;
-
-        default:
-          continue;
-      }
-
-      // Write value to holding register
-      registers_set_holding_register(reg_addr, value);
-
+      continue;  // Counter values are written by counter_engine_loop()
     } else if (dyn->source_type == DYNAMIC_SOURCE_TIMER) {
+      uint16_t value = 0;
       uint8_t timer_id = dyn->source_id;
       TimerConfig cfg;
       memset(&cfg, 0, sizeof(cfg));
@@ -250,8 +194,6 @@ void registers_update_dynamic_registers(void) {
       }
 
       // Get timer value based on function type
-      uint16_t value = 0;
-
       switch (dyn->source_function) {
         case TIMER_FUNC_OUTPUT:
           // Timer output state (0 or 1)
