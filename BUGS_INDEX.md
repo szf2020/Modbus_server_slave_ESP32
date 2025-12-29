@@ -98,6 +98,7 @@
 | BUG-120 | SEL return type mangler DINT håndtering | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | SEL(cond, DINT1, DINT2) returnerer INT type |
 | BUG-121 | LIMIT return type mangler DINT håndtering | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | LIMIT(DINT_min, val, DINT_max) returnerer INT type |
 | BUG-122 | CLI show logic timing og reset logic stats ikke tilgængelige | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | Funktioner implementeret men ikke eksponeret i parser/header |
+| BUG-123 | Parser accepterer syntax fejl (reserved keywords i statement position) | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | "THEN THEN", "END_IF x := 5" accepteres uden fejl |
 
 ## Quick Lookup by Category
 

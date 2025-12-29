@@ -1002,6 +1002,18 @@ st_ast_node_t *st_parser_parse_statement(st_parser_t *parser) {
       return NULL;
     }
     return node;
+  } else if (parser_match(parser, ST_TOK_THEN) || parser_match(parser, ST_TOK_ELSIF) ||
+             parser_match(parser, ST_TOK_ELSE) || parser_match(parser, ST_TOK_END_IF) ||
+             parser_match(parser, ST_TOK_END_CASE) || parser_match(parser, ST_TOK_END_FOR) ||
+             parser_match(parser, ST_TOK_END_WHILE) || parser_match(parser, ST_TOK_END_REPEAT) ||
+             parser_match(parser, ST_TOK_DO) || parser_match(parser, ST_TOK_TO) ||
+             parser_match(parser, ST_TOK_BY) || parser_match(parser, ST_TOK_UNTIL)) {
+    // BUG-123 FIX: Reserved keywords not allowed in statement position
+    char error_msg[128];
+    snprintf(error_msg, sizeof(error_msg), "Unexpected keyword '%s' (not a valid statement)",
+             st_token_type_to_string(parser->current_token.type));
+    parser_error(parser, error_msg);
+    return NULL;
   } else {
     return NULL;  // Not a statement
   }
@@ -1057,6 +1069,7 @@ st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
          !parser_match(parser, ST_TOK_END_IF) &&
          !parser_match(parser, ST_TOK_ELSE) &&
          !parser_match(parser, ST_TOK_ELSIF) &&
+         !parser_match(parser, ST_TOK_THEN) &&     // BUG-123: Stop on unexpected THEN
          !parser_match(parser, ST_TOK_END_CASE) &&
          !parser_match(parser, ST_TOK_END_FOR) &&
          !parser_match(parser, ST_TOK_END_WHILE) &&
@@ -1066,7 +1079,12 @@ st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
 
     st_ast_node_t *stmt = st_parser_parse_statement(parser);
     if (!stmt) {
-      // Skip to next semicolon to recover
+      // BUG-123: If error_count increased, break instead of continuing
+      // This prevents silent skip of syntax errors
+      if (parser->error_count > 0) {
+        break;
+      }
+      // Skip to next semicolon to recover from non-error NULL returns
       while (!parser_match(parser, ST_TOK_SEMICOLON) && !parser_match(parser, ST_TOK_EOF)) {
         parser_advance(parser);
       }

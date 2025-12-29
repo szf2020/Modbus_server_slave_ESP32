@@ -2053,22 +2053,25 @@ show persist
 
 **CLI Kommandoer (Copy/Paste):**
 ```bash
-set logic 1 delete
-set logic 1 upload
-PROGRAM test
-VAR
-  trigger: BOOL;
-  save_result: INT;  (* Vigtigt: INT, ikke BOOL! *)
-END_VAR
-BEGIN
-  IF trigger THEN
-    save_result := SAVE(0);  (* 0 = gem alle grupper *)
-  END_IF;
-END_PROGRAM
-END_UPLOAD
-set logic 1 bind trigger coil:0 input
-set logic 1 bind save_result reg:110 output
-set logic 1 enabled:true
+  set logic 1 delete
+  set logic 1 upload
+  PROGRAM test
+  VAR
+    trigger: BOOL;
+    trigger_prev: BOOL;
+    save_result: INT;
+  END_VAR
+  BEGIN
+    IF trigger AND NOT trigger_prev THEN
+      (* Rising edge - kun kald SAVE én gang *)
+      save_result := SAVE(0);
+    END_IF;
+    trigger_prev := trigger;
+  END_PROGRAM
+  END_UPLOAD
+  set logic 1 bind trigger coil:0 input
+  set logic 1 bind save_result reg:110 output
+  set logic 1 enabled:true
 ```
 
 **Test Cases:**
