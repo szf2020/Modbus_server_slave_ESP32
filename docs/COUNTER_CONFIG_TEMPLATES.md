@@ -9,16 +9,23 @@
 
 Dette dokument indeholder **pre-konfigurerede CLI templates** til almindelige counter setups. Kopier og tilpas efter dine behov.
 
-### Smart Register Defaults (v4.2.0+)
+### Smart Register Defaults (v4.4.3+)
 
-Starting with v4.2.0, counters får **automatiske logiske register adresser** hvis ikke specificeret:
+Starting with v4.4.3, counters får **automatiske logiske register adresser** (optimeret layout):
 
-| Counter | Index Reg | Raw Reg | Freq Reg | Overload Reg | Ctrl Reg |
-|---------|-----------|---------|----------|--------------|----------|
-| 1       | HR100     | HR101   | HR102    | HR103        | HR104    |
-| 2       | HR110     | HR111   | HR112    | HR113        | HR114    |
-| 3       | HR120     | HR121   | HR122    | HR123        | HR124    |
-| 4       | HR130     | HR131   | HR132    | HR133        | HR134    |
+| Counter | Value Reg | Raw Reg | Freq Reg | Ctrl Reg | Compare Reg |
+|---------|-----------|---------|----------|----------|-------------|
+| 1       | HR100-103 | HR104-107 | HR108  | HR110    | HR111-114   |
+| 2       | HR120-123 | HR124-127 | HR128  | HR130    | HR131-134   |
+| 3       | HR140-143 | HR144-147 | HR148  | HR150    | HR151-154   |
+| 4       | HR160-163 | HR164-167 | HR168  | HR170    | HR171-174   |
+
+**Note:** Value/Raw/Compare bruger 1-4 registre baseret på bit_width (16-bit=1, 32-bit=2, 64-bit=4).
+
+**Ctrl Reg bit layout:**
+- Bit 0: Reset (W), Bit 1: Start (W), Bit 2: Running (R)
+- Bit 3: **Overflow (R)** - konsolideret fra separat register
+- Bit 4: Compare match (R), Bit 7: Direction (R)
 
 **Du behøver IKKE specificere disse**, men kan override hvis ønsket.
 
@@ -209,7 +216,7 @@ save
 **Eksempel:**
 - 100 pulses tælt
 - Scale factor: 0.5
-- HR100 (index register): 100 × 0.5 = 50 (scaled)
+- HR100 (value register): 100 × 0.5 = 50 (scaled)
 - HR101 (raw register): 100 / 1 = 100 (prescaled)
 
 **Use case:**
@@ -259,9 +266,9 @@ save
 
 ```
 COUNTER CONFIGURATION
-Counter 1: HW (PCNT) on GPIO25, index-reg=100, running, auto-start enabled
-Counter 2: SW-ISR on GPIO26, index-reg=110, stopped
-Counter 3: SW on DI#45, index-reg=120, stopped
+Counter 1: HW (PCNT) on GPIO25, value-reg=100, running, auto-start enabled
+Counter 2: SW-ISR on GPIO26, value-reg=120, stopped
+Counter 3: SW on DI#45, value-reg=140, stopped
 Counter 4: Not configured
 ```
 
@@ -336,23 +343,27 @@ set counter 1 mode 2 reset-on-read:1
 
 ---
 
-## 📊 Register Map Reference
+## 📊 Register Map Reference (v4.4.3+)
 
-Hver counter bruger **5 Holding Registers:**
+Hver counter bruger **4 basis registers** (plus multi-word for 32/64-bit):
 
 ```
-Counter 1: HR100 (index) - HR101 (raw) - HR102 (freq) - HR103 (overload) - HR104 (ctrl)
-Counter 2: HR110 (index) - HR111 (raw) - HR112 (freq) - HR113 (overload) - HR114 (ctrl)
-Counter 3: HR120 (index) - HR121 (raw) - HR122 (freq) - HR123 (overload) - HR124 (ctrl)
-Counter 4: HR130 (index) - HR131 (raw) - HR132 (freq) - HR133 (overload) - HR134 (ctrl)
+Counter 1: HR100 (value) - HR104 (raw) - HR108 (freq) - HR110 (ctrl)
+Counter 2: HR120 (value) - HR124 (raw) - HR128 (freq) - HR130 (ctrl)
+Counter 3: HR140 (value) - HR144 (raw) - HR148 (freq) - HR150 (ctrl)
+Counter 4: HR160 (value) - HR164 (raw) - HR168 (freq) - HR170 (ctrl)
 ```
 
 **Register typer:**
-- **Index Register (HR100, HR110, HR120, HR130):** Scaled counter value (value × scale_factor)
-- **Raw Register (HR101, HR111, HR121, HR131):** Prescaled counter value (value / prescaler)
-- **Frequency Register (HR102, HR112, HR122, HR132):** Measured frequency in Hz (updated ~1/sec)
-- **Overload Register (HR103, HR113, HR123, HR133):** Overflow flag (1 = overflow occurred)
-- **Control Register (HR104, HR114, HR124, HR134):** Bit-mapped control flags
+- **Value Register (HR100/120/140/160):** Scaled counter value (value × scale_factor)
+  - 16-bit: 1 register, 32-bit: 2 registers (LSW first), 64-bit: 4 registers
+- **Raw Register (HR104/124/144/164):** Prescaled counter value (value / prescaler)
+  - Same multi-word layout as value_reg
+- **Frequency Register (HR108/128/148/168):** Measured frequency in Hz (1 register, updated ~1/sec)
+- **Control Register (HR110/130/150/170):** Bit-mapped control/status flags (1 register)
+  - Bit 0: Reset (W), Bit 1: Start (W), Bit 2: Running (R)
+  - Bit 3: **Overflow (R)** - replaces separate overload_reg
+  - Bit 4: Compare match (R), Bit 7: Direction (R)
 
 ---
 

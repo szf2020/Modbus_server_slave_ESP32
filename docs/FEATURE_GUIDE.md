@@ -498,7 +498,7 @@ Divide tæller-værdi uden at miste præcision.
 **Formler:**
 ```
 raw-register = counterValue / prescaler
-index-register = counterValue × scale_factor
+value-register = counterValue × scale_factor
 freq-register = pulses per second (Hz)
 ```
 
@@ -529,7 +529,7 @@ Fysisk måling: Pulstæller × 2.5 = Liter
 set counter 1 mode 3 hw-gpio:19 scale:2.5
 
 Hvis counter = 1000 pulser
-index-register = 1000 × 2.5 = 2500 (liter)
+value-register = 1000 × 2.5 = 2500 (liter)
 ```
 
 #### Frequency Measurement
@@ -575,15 +575,22 @@ set counter 1 control auto-start:on running:on reset-on-read:off
 
 #### Per-Counter Registers
 
-Hver tæller bruger **5 holding-registre**:
+Hver tæller bruger **4 basis holding-registre** (plus multi-word for 32/64-bit):
 
-| Offset | Navn | Indhold |
-|--------|------|---------|
-| +0 | index-register | Skaleret værdi (counter × scale) |
-| +1 | raw-register | Rå værdi (counter / prescaler) |
-| +2 | freq-register | Frekvens i Hz |
-| +3 | ctrl-register | Control bits |
-| +4 | overflow-register | Overflow-flag |
+| Offset | Navn | Indhold | Multi-Word |
+|--------|------|---------|------------|
+| +0 | value-register | Skaleret værdi (counter × scale) | 1-4 words (bit_width) |
+| +4 | raw-register | Rå værdi (counter / prescaler) | 1-4 words (bit_width) |
+| +8 | freq-register | Frekvens i Hz | 1 word |
+| +10 | ctrl-register | Control/status bitfield | 1 word |
+
+**ctrl-register bit layout:**
+- Bit 0: Reset command (W, auto-clears)
+- Bit 1: Start command (W, auto-clears)
+- Bit 2: Running status (R, 1=active)
+- Bit 3: Overflow flag (R, 1=overflow)
+- Bit 4: Compare match (R, 1=threshold reached)
+- Bit 7: Direction (R, 0=up, 1=down)
 
 **Eksempel for Counter 1:**
 ```

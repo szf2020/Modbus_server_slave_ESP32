@@ -1,7 +1,7 @@
 # Modbus Register Map - ESP32 Modbus RTU Server
 
-**Version:** v4.1.0
-**Dato:** 2025-12-12
+**Version:** v4.4.3
+**Dato:** 2025-12-29
 **Hardware:** ESP32-WROOM-32
 
 ---
@@ -362,48 +362,156 @@ Disse registre har **INGEN faste adresser**. Brugeren konfigurerer dem via CLI k
 
 ### Counter Registers
 
-Hver counter kan bruge op til **5 registre** (alle bruger-definerede adresser):
+Hver counter kan bruge op til **4 registre** (alle bruger-definerede adresser):
 
 | Register Type | CLI Parameter | Type | Beskrivelse | Eksempel |
 |---------------|---------------|------|-------------|----------|
-| **index_reg** | `index-reg:X` | 16-bit | Scaled counter value = value × scale | `index-reg:100` |
-| **raw_reg** | `raw-reg:Y` | 16-bit | Prescaled value = value / prescaler | `raw-reg:101` |
-| **freq_reg** | `freq-reg:Z` | 16-bit | Measured frequency in Hz (0-20000 Hz) | `freq-reg:102` |
-| **overload_reg** | `overload-reg:W` | 16-bit | Overflow flag (0 or 1) | `overload-reg:103` |
-| **ctrl_reg** | `ctrl-reg:V` | 16-bit | Control/status register (bits) | `ctrl-reg:104` |
+| **value_reg** | `value-reg:X` | 16/32/64-bit | Scaled counter value = value × scale_factor | `value-reg:100` |
+| **raw_reg** | `raw-reg:Y` | 16/32/64-bit | Prescaled value = value / prescaler | `raw-reg:104` |
+| **freq_reg** | `freq-reg:Z` | 16-bit | Measured frequency in Hz (0-20000 Hz) | `freq-reg:108` |
+| **ctrl_reg** | `ctrl-reg:V` | 16-bit | Control/status register (bitfield) | `ctrl-reg:110` |
 
-**Control Register Bits (ctrl_reg):**
-- Bit 0: Counter enabled (read-only)
-- Bit 1: Direction (0=up, 1=down, read-only)
-- Bit 2: Overflow detected (read-only)
-- Bit 3: Reset counter (write 1 to reset)
-- Bit 4: Compare match (read-only, if compare_val configured)
+**Multi-Register Support:**
+- 8-bit counters: 1 register (value_reg uses HR X only)
+- 16-bit counters: 1 register (value_reg uses HR X only)
+- 32-bit counters: 2 registers (value_reg uses HR X-X+1, LSW first)
+- 64-bit counters: 4 registers (value_reg uses HR X-X+3, LSW first)
+
+**Note:** raw_reg følger samme multi-register layout som value_reg baseret på bit_width.
+
+---
+
+### Control Register Detaljeret Specifikation (ctrl_reg)
+
+**ctrl_reg** er en 16-bit bitfield der indeholder både **kommandoer** (write) og **status** (read).
+
+#### Bit Layout (alle 16 bits)
+
+| Bit | Navn | Type | Beskrivelse | Detaljer |
+|-----|------|------|-------------|----------|
+| **0** | `RESET_CMD` | W | Reset command | Write 1 → nulstil counter til start_value. Auto-clears. |
+| **1** | `START_CMD` | W | Start command | Write 1 → start counting (one-shot). Auto-clears. |
+| **2** | `RUNNING_STATUS` | R | Running flag | Read-only: 1 = counting aktiv, 0 = stoppet |
+| **3** | `OVERFLOW_FLAG` | R | Overflow detected | Read-only: 1 = overflow (værdi > max), 0 = normal |
+| **4** | `COMPARE_MATCH` | R | Compare triggered | Read-only: 1 = værdi ≥ threshold, 0 = below |
+| **5** | Reserved | - | Fremtidig brug | Altid 0 |
+| **6** | Reserved | - | Fremtidig brug | Altid 0 |
+| **7** | `DIRECTION_IND` | R | Direction | Read-only: 0 = counting up, 1 = counting down |
+| **8-15** | Reserved | - | Fremtidig brug | Altid 0 |
+
+#### Bit 0: RESET_CMD (Write-Only Command)
+- **Funktionalitet:**
+  - Write `1` → Reset counter værdi til `start_value`
+  - Clearer overflow flag (bit 3) og compare match flag (bit 4)
+  - Auto-clears: Næste read viser bit 0 = 0
+- **Eksempel:**
+  ```python
+  write_register(110, 0x0001)  # Reset Counter1
+  ```
+
+#### Bit 1: START_CMD (Write-Only Command)
+- **Funktionalitet:**
+  - Write `1` → Start counting (enable counter)
+  - Mode-afhængig: SW polling, ISR attach, eller HW PCNT start
+  - Auto-clears: Næste read viser bit 1 = 0
+- **Eksempel:**
+  ```python
+  write_register(110, 0x0002)  # Start Counter1
+  ```
+
+#### Bit 2: RUNNING_STATUS (Read-Only Status)
+- **Funktionalitet:**
+  - `1` = Counter aktiv (tæller edges/pulses)
+  - `0` = Counter stoppet
+- **Eksempel:**
+  ```python
+  ctrl = read_register(110)
+  running = (ctrl & 0x0004) != 0
+  ```
+
+#### Bit 3: OVERFLOW_FLAG (Read-Only Status)
+- **Funktionalitet:**
+  - `1` = Counter værdi > max for bit_width
+  - `0` = Normal drift
+  - Overflow limits: 8-bit=255, 16-bit=65535, 32-bit=2^32-1, 64-bit=2^64-1
+  - Clears kun via RESET_CMD (bit 0)
+- **Eksempel:**
+  ```python
+  ctrl = read_register(110)
+  if (ctrl & 0x0008):
+      print("Overflow!")
+      write_register(110, 0x0001)  # Reset
+  ```
+
+#### Bit 4: COMPARE_MATCH (Read-Only Status)
+- **Funktionalitet:**
+  - `1` = Counter værdi ≥ compare_value
+  - `0` = Counter værdi < compare_value
+  - Kun aktiv hvis compare_enabled=true
+  - Clears via RESET_CMD eller reset_on_read
+- **Eksempel:**
+  ```python
+  ctrl = read_register(110)
+  if (ctrl & 0x0010):
+      print("Compare threshold reached!")
+  ```
+
+#### Bit 7: DIRECTION_IND (Read-Only Status)
+- **Funktionalitet:**
+  - `0` = Counting UP (incrementing)
+  - `1` = Counting DOWN (decrementing)
+- **Eksempel:**
+  ```python
+  ctrl = read_register(110)
+  direction = "DOWN" if (ctrl & 0x0080) else "UP"
+  ```
+
+#### Typiske Ctrl Reg Værdier
+
+| Hex | Dec | Bits | Betydning |
+|-----|-----|------|-----------|
+| `0x0000` | 0 | None | Counter stopped, no flags |
+| `0x0004` | 4 | Bit 2 | Running (normal) |
+| `0x000C` | 12 | Bit 2+3 | Running + overflow |
+| `0x0014` | 20 | Bit 2+4 | Running + compare match |
+| `0x001C` | 28 | Bit 2+3+4 | Running + overflow + compare |
+| `0x0084` | 132 | Bit 2+7 | Running + counting DOWN |
+
+---
 
 **CLI Configuration Example:**
 ```bash
-set counter 1 index-reg:100 raw-reg:101 freq-reg:102 overload-reg:103 ctrl-reg:104
-set counter 1 enabled:true prescaler:16 scale:10
+set counter 1 value-reg:100 raw-reg:104 freq-reg:108 ctrl-reg:110
+set counter 1 enabled:true prescaler:16 scale:10 resolution:32
 save
 ```
 
 **Modbus Read Example:**
 ```python
-# Læs Counter1 scaled value
-scaled_value = read_holding_register(100)  # index_reg
-print(f"Counter1 scaled: {scaled_value}")
+# Læs Counter1 scaled value (32-bit)
+low = read_holding_register(100)   # LSW
+high = read_holding_register(101)  # MSW
+value = (high << 16) | low
 
 # Læs Counter1 frequency
-freq_hz = read_holding_register(102)  # freq_reg
-print(f"Counter1 frequency: {freq_hz} Hz")
+freq_hz = read_holding_register(108)
+print(f"Counter1: value={value}, freq={freq_hz} Hz")
 
-# Reset Counter1
-write_register(104, 0x0008)  # ctrl_reg bit 3
+# Check status flags
+ctrl = read_holding_register(110)
+running = (ctrl & 0x0004) != 0
+overflow = (ctrl & 0x0008) != 0
+print(f"Running: {running}, Overflow: {overflow}")
+
+# Reset counter
+write_register(110, 0x0001)
 ```
 
 **Register Count Per Counter:**
-- Minimum: 1 register (index_reg kun)
-- Maximum: 5 registers (alle funktioner)
-- Total capacity: Op til 4 counters × 5 registers = 20 registre maksimalt
+- Minimum: 1 register (value_reg kun, 16-bit)
+- Maximum: 11 registers (value_reg 4 + raw_reg 4 + freq_reg 1 + ctrl_reg 1 + compare_value_reg 1, 64-bit mode)
+- Typical: 4 registers (value_reg, raw_reg, freq_reg, ctrl_reg)
+- Total capacity: Op til 4 counters × ~4 registers = ~16 registre typisk
 
 ---
 
@@ -776,6 +884,7 @@ show gpio               # GPIO mappings
 
 ---
 
-**Version:** v4.1.0
+**Version:** v4.4.3
+**Build:** #834
 **Author:** Claude Code
-**Last Updated:** 2025-12-12
+**Last Updated:** 2025-12-29

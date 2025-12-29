@@ -301,20 +301,19 @@ Hver counter har **3 hardware modes:**
   - Threshold detection med edge detection (≥, >, ==)
   - Rising edge trigger (kun sæt ved threshold crossing)
   - Runtime modificerbar threshold via Modbus
-  - Auto-reset on read (ctrl-reg eller index-reg)
+  - Auto-reset on read (ctrl-reg eller value-reg)
   - Output til control register bit 4
-- **Register Outputs (v4.2.4 - Smart Defaults):**
-  - Counter 1: HR100-114 (20 registers total)
-  - Counter 2: HR120-134
-  - Counter 3: HR140-154
-  - Counter 4: HR160-174
+- **Register Outputs (v4.4.3 - Optimized Layout):**
+  - Counter 1: HR100-110 (11 registers total, 64-bit max)
+  - Counter 2: HR120-130
+  - Counter 3: HR140-150
+  - Counter 4: HR160-170
   - **Per counter (32-bit example):**
-    - HR100-101: Index (scaled value, 2 words)
-    - HR104-105: Raw (prescaled value, 2 words)
-    - HR108: Frequency (Hz)
-    - HR109: Overload flag
-    - HR110: Control register (bit7=running, bit4=compare-match)
-    - HR111-112: Compare value (2 words, runtime writable)
+    - HR100-101: Value (scaled value, 2 words, LSW first)
+    - HR104-105: Raw (prescaled value, 2 words, LSW first)
+    - HR108: Frequency (Hz, 1 word)
+    - HR110: Control register (bit3=overflow, bit4=compare-match, bit2=running)
+    - HR111-114: Compare value (4 words for 64-bit, runtime writable)
 
 ### Timer Engine (4 Uafhængige Timers)
 Hver timer har **4 modes:**
@@ -545,11 +544,18 @@ set counter <id> control compare-reg-reset-on-read:<on|off>   # Auto-clear compa
 set counter <id> control auto-start:<on|off>                  # Start counter ved boot
 set counter <id> control running:<on|off>                     # Start/stop counter
 
-# Control via Modbus FC06 write to ctrl-reg (one-shot commands)
+# Control via Modbus FC06 write to ctrl-reg
 write reg <ctrl-reg> value 0x0001      # Reset counter (bit 0, auto-clears)
 write reg <ctrl-reg> value 0x0002      # Start counter (bit 1, auto-clears)
-write reg <ctrl-reg> value 0x0004      # Stop counter (bit 2, auto-clears)
-write reg <ctrl-reg> value 0x0080      # Set running=on (bit 7, persistent)
+
+# Read status flags from ctrl-reg
+read reg <ctrl-reg>                     # Read control register
+# Bit 0: Reset command (write-only)
+# Bit 1: Start command (write-only)
+# Bit 2: Running status (read-only: 1=running, 0=stopped)
+# Bit 3: Overflow flag (read-only: 1=overflow, 0=normal)
+# Bit 4: Compare match (read-only: 1=threshold reached, 0=below)
+# Bit 7: Direction (read-only: 0=up, 1=down)
 
 # Enable/disable (Cisco-style)
 set counter <id> enable:<on|off>       # Enable/disable counter
@@ -1393,7 +1399,7 @@ extra_scripts =
 # Tilslut pulse signal til GPIO19
 
 # Konfigurer counter 1 i hardware mode
-> set counter 1 mode 1 parameter hw-mode:hw edge:rising prescaler:100 scale:0.1 index-reg:20 raw-reg:30 freq-reg:35 ctrl-reg:40 hw-gpio:19
+> set counter 1 mode 1 parameter hw-mode:hw edge:rising prescaler:100 scale:0.1 value-reg:20 raw-reg:30 freq-reg:35 ctrl-reg:40 hw-gpio:19
 
 # Enable counter
 > set counter 1 enable on
@@ -1410,10 +1416,10 @@ Scale Factor: 0.1
 PCNT GPIO: 19
 
 Register Mappings:
-  Index Register (scaled value): 20
+  Value Register (scaled value): 20
   Raw Register (prescaled): 30
   Frequency Register (Hz): 35
-  Control Register: 40
+  Control Register (bit 3=overflow): 40
 
 Current Values:
   Raw Value: 12345
