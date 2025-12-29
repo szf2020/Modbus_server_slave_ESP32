@@ -2,18 +2,61 @@
 
 **Version:** v5.0.0 | **Build:** #815 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
-En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med avancerede features inklusiv ST Structured Text Logic programmering med **performance monitoring**, **Modbus Master** (remote device control via ST Logic), Wi-Fi netværk, telnet CLI interface, og **komplet Modbus register dokumentation**.
+En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med **dual Modbus interfaces** (Slave + Master), ST Structured Text Logic programmering med IEC 61131-3 type system, Wi-Fi netværk, telnet CLI interface, og komplet Modbus register dokumentation.
+
+---
+
+## 🏗️ Architecture Overview
+
+ESP32'en fungerer som en **dual-mode Modbus gateway** med to separate RS-485 interfaces:
+
+### 📥 Modbus Slave Interface (UART0)
+**Formål:** Styring fra SCADA/HMI systemer
+- **Hardware:** UART0 (GPIO16 TX, GPIO17 RX, GPIO15 DE/RE)
+- **Funktion:** ESP32'en agerer som Modbus Slave
+- **Use cases:**
+  - SCADA læser/skriver counters, timers, ST Logic variabler
+  - HMI visualisering af process data
+  - PLC integration for fabriksautomatisering
+  - Remote monitoring og control
+
+### 📤 Modbus Master Interface (UART1)
+**Formål:** Styring af eksterne I/O boards og remote devices
+- **Hardware:** UART1 (GPIO25 TX, GPIO26 RX, GPIO27 DE/RE)
+- **Funktion:** ESP32'en agerer som Modbus Master
+- **Use cases:**
+  - Læs eksterne temperature sensorer
+  - Styr remote I/O modules (relæer, analog inputs)
+  - Poll multiple Modbus slaves
+  - Distributed I/O expansion
+  - **Integration:** Via ST Logic builtin funktioner (MB_READ_*, MB_WRITE_*)
+
+### 🔄 Workflow Eksempel
+```
+SCADA (Modbus Master)
+    ↕ UART0 (Slave)
+ESP32 Core
+    - Counters (4x)
+    - Timers (4x)
+    - ST Logic Programs (4x) ← Kan læse/skrive via UART1
+    ↕ UART1 (Master)
+Remote I/O Boards (Modbus Slaves)
+    - Temperature sensors
+    - Relay modules
+    - Analog inputs
+```
 
 ---
 
 ## 📑 Table of Contents
 
 ### Core Features
-- [Modbus RTU Protocol (Slave)](#core-modbus-rtu-protocol)
-- [**Modbus Master (v4.4.0) ⭐**](#modbus-master-remote-device-control-v440) - Remote device control via ST Logic
+- [**Architecture Overview**](#-architecture-overview) ⭐ - Dual Modbus Interface (Slave + Master)
+- [Modbus Slave Interface (UART0)](#modbus-slave-interface-uart0---scadahmi-control) - SCADA/HMI control
+- [Modbus Master Interface (UART1)](#modbus-master-interface-uart1---remote-device-control) - Remote device control
 - [Counter Engine](#counter-engine-4-uafhængige-counters)
 - [Timer Engine](#timer-engine-4-uafhængige-timers)
-- [ST Logic (Structured Text)](#st-logic-structured-text-programming-v20)
+- [ST Logic (Structured Text)](#st-logic-structured-text-programming-v20) ⭐ IEC 61131-3 Type System
 - [Network & Wi-Fi](#network--wi-fi-v30)
 
 ### Data Persistence ⭐
@@ -36,7 +79,16 @@ En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mik
 
 ## 🚀 Features
 
-### Core Modbus RTU Protocol
+### Modbus Slave Interface (UART0) - SCADA/HMI Control
+
+**ESP32'en som Modbus RTU Slave device** - styres af external SCADA/HMI/PLC systemer.
+
+#### Hardware (UART0)
+- **TX:** GPIO16
+- **RX:** GPIO17
+- **DE/RE:** GPIO15 (RS-485 Direction Enable)
+
+#### Protocol Support
 - **Modbus RTU Function Codes:** FC01, FC02, FC03, FC04, FC05, FC06, FC0F (15), FC10 (16)
   - FC01: Read Coils
   - FC02: Read Discrete Inputs
@@ -48,29 +100,61 @@ En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mik
   - FC10: Write Multiple Registers
 - **Configurable Slave ID:** 1-247 (default: 1)
 - **Configurable Baudrate:** 300-115200 bps (default: 9600)
-- **256 Holding Registers** (addresser 0-255)
-- **256 Input Registers** (addresser 0-255)
-- **256 Coils** (bit-addressable 0-255, packed i 32 bytes)
-- **256 Discrete Inputs** (bit-addressable 0-255, packed i 32 bytes)
+- **Parity:** None/Even/Odd (default: None)
+- **Stop Bits:** 1 eller 2 (default: 1)
+
+#### Register Map
+- **256 Holding Registers** (HR 0-255) - Read/Write
+- **256 Input Registers** (IR 0-255) - Read-only
+- **256 Coils** (0-255) - Read/Write bits
+- **256 Discrete Inputs** (0-255) - Read-only bits
+
+#### Features
 - **CRC16-CCITT Validation** på alle frames
-- **Hardware RS-485 Support** med GPIO15 direction control
 - **Timeout Handling:** 3.5 character times (baudrate-adaptive)
 - **Error Detection:** CRC mismatch, illegal function, illegal address
+- **Auto-mapped Registers:** Counters, timers, ST Logic variabler
 
-### Modbus Master (Remote Device Control) (v4.4.0)
+#### CLI Configuration
+```bash
+set modbus-slave id:1 baudrate:9600 parity:none stopbits:1
+show modbus-slave  # Vis konfiguration
+```
 
-**⭐ NYT I v4.4.0:** ESP32'en kan nu fungere som **Modbus Master** for at styre remote devices via ST Logic programmer!
+#### Use Cases
+- **SCADA Integration:** WinCC, Factory IO, Ignition læser/skriver registers
+- **HMI Panels:** Touch screens til operator interface
+- **PLC Communication:** Siemens S7, Allen-Bradley kan kommunikere
+- **Data Logging:** Historian systemer kan logge counter/timer data
+- **Remote Control:** Process automation via Modbus TCP gateway
 
-#### Hardware
-- **Separate RS485 Port:** UART1 (ikke delt med Modbus Slave)
-  - **TX:** GPIO25
-  - **RX:** GPIO26
-  - **DE/RE:** GPIO27 (Direction Enable)
-- **Protocol:** Modbus RTU (FC01-FC06 supported)
+---
+
+### Modbus Master Interface (UART1) - Remote Device Control
+
+**ESP32'en som Modbus RTU Master** - kan styre eksterne I/O boards, sensorer, og Modbus slave devices.
+
+**⭐ NYT I v4.4.0:** Separat RS-485 interface til distributed I/O expansion!
+
+#### Hardware (UART1)
+- **TX:** GPIO25
+- **RX:** GPIO26
+- **DE/RE:** GPIO27 (RS-485 Direction Enable)
+- **Note:** Komplet separat fra UART0 (Modbus Slave) - ingen deling!
+
+#### Protocol Support
+- **Modbus RTU Function Codes:** FC01-FC06
+  - FC01: Read Coils (fra remote slave)
+  - FC02: Read Discrete Inputs (fra remote slave)
+  - FC03: Read Holding Registers (fra remote slave)
+  - FC04: Read Input Registers (fra remote slave)
+  - FC05: Write Single Coil (til remote slave)
+  - FC06: Write Single Register (til remote slave)
 - **Baudrate:** Konfigurerbar (300-115200, default: 9600)
 - **Parity:** None/Even/Odd (default: None)
 - **Stop Bits:** 1 eller 2 (default: 1)
 - **Timeout:** Konfigurerbar (default: 500ms)
+- **Max Requests/Scan:** Konfigurerbar (default: 10)
 
 #### ST Logic Integration (6 Builtin Functions)
 
@@ -155,6 +239,32 @@ set modbus-master ?
 - **FC04:** Read Input Registers (MB_READ_INPUT_REG)
 - **FC05:** Write Single Coil (MB_WRITE_COIL)
 - **FC06:** Write Single Register (MB_WRITE_HOLDING)
+
+#### Use Cases
+- **Temperature Monitoring:** Læs remote temperature sensorer (slave ID 1-10)
+- **I/O Expansion:** Styr eksterne relay boards (16-kanals relay modules)
+- **Sensor Integration:** Poll multiple analog input modules
+- **Distributed Control:** Control remote actuators baseret på local logic
+- **Multi-device Polling:** Scan op til 247 slave devices på samme bus
+- **Process Automation:** Koordinér actions mellem multiple Modbus devices
+
+#### Real-World Application Example
+```
+ESP32 (Modbus Master via UART1)
+  ├─ Slave ID 1: Temperature sensor module (HR#0 = temperature)
+  ├─ Slave ID 2: Humidity sensor module (HR#0 = humidity)
+  ├─ Slave ID 3: 8-channel relay board (Coil#0-7 = relay outputs)
+  ├─ Slave ID 4: 16-channel analog input (HR#0-15 = ADC channels)
+  └─ Slave ID 5: External counter module (HR#0 = pulse count)
+
+ST Logic Program:
+  - Read sensors via MB_READ_HOLDING()
+  - Make control decisions
+  - Write relay outputs via MB_WRITE_COIL()
+  - Export aggregated data via Modbus Slave (UART0) til SCADA
+```
+
+---
 
 ### Counter Engine (4 Uafhængige Counters)
 Hver counter har **3 hardware modes:**
