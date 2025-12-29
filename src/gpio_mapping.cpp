@@ -111,23 +111,23 @@ static void gpio_mapping_read_inputs(void) {
             prog->bytecode.variables[map->st_var_index].int_val = (int16_t)reg_value;
           }
           else if (var_type == ST_TYPE_DINT) {
-            // DINT: 32-bit signed, 2 registers (high, low)
-            uint16_t high_word = registers_get_holding_register(map->input_reg);
-            uint16_t low_word = registers_get_holding_register(map->input_reg + 1);
+            // BUG-125 FIX: DINT: 32-bit signed, 2 registers (LSW first, MSW second)
+            uint16_t low_word = registers_get_holding_register(map->input_reg);      // LSW at base
+            uint16_t high_word = registers_get_holding_register(map->input_reg + 1); // MSW at base+1
             int32_t dint_value = ((int32_t)high_word << 16) | low_word;
             prog->bytecode.variables[map->st_var_index].dint_val = dint_value;
           }
           else if (var_type == ST_TYPE_DWORD) {
-            // DWORD: 32-bit unsigned, 2 registers (high, low)
-            uint16_t high_word = registers_get_holding_register(map->input_reg);
-            uint16_t low_word = registers_get_holding_register(map->input_reg + 1);
+            // BUG-125 FIX: DWORD: 32-bit unsigned, 2 registers (LSW first, MSW second)
+            uint16_t low_word = registers_get_holding_register(map->input_reg);      // LSW at base
+            uint16_t high_word = registers_get_holding_register(map->input_reg + 1); // MSW at base+1
             uint32_t dword_value = ((uint32_t)high_word << 16) | low_word;
             prog->bytecode.variables[map->st_var_index].dword_val = dword_value;
           }
           else if (var_type == ST_TYPE_REAL) {
-            // REAL: 32-bit float, 2 registers (IEEE 754)
-            uint16_t high_word = registers_get_holding_register(map->input_reg);
-            uint16_t low_word = registers_get_holding_register(map->input_reg + 1);
+            // BUG-125 FIX: REAL: 32-bit float, 2 registers (IEEE 754, LSW first, MSW second)
+            uint16_t low_word = registers_get_holding_register(map->input_reg);      // LSW at base
+            uint16_t high_word = registers_get_holding_register(map->input_reg + 1); // MSW at base+1
             uint32_t bits = ((uint32_t)high_word << 16) | low_word;
             float real_value;
             memcpy(&real_value, &bits, sizeof(float));  // Reinterpret bits as float
@@ -216,30 +216,30 @@ static void gpio_mapping_write_outputs(void) {
               registers_set_holding_register(map->coil_reg, (uint16_t)int_value);
             }
             else if (var_type == ST_TYPE_DINT) {
-              // DINT: 32-bit signed, 2 registers (high, low)
+              // BUG-125 FIX: DINT: 32-bit signed, 2 registers (LSW first, MSW second)
               int32_t dint_value = prog->bytecode.variables[map->st_var_index].dint_val;
-              uint16_t high_word = (uint16_t)((dint_value >> 16) & 0xFFFF);
               uint16_t low_word = (uint16_t)(dint_value & 0xFFFF);
-              registers_set_holding_register(map->coil_reg, high_word);
-              registers_set_holding_register(map->coil_reg + 1, low_word);
+              uint16_t high_word = (uint16_t)((dint_value >> 16) & 0xFFFF);
+              registers_set_holding_register(map->coil_reg, low_word);      // LSW at base
+              registers_set_holding_register(map->coil_reg + 1, high_word); // MSW at base+1
             }
             else if (var_type == ST_TYPE_DWORD) {
-              // DWORD: 32-bit unsigned, 2 registers (high, low)
+              // BUG-125 FIX: DWORD: 32-bit unsigned, 2 registers (LSW first, MSW second)
               uint32_t dword_value = prog->bytecode.variables[map->st_var_index].dword_val;
-              uint16_t high_word = (uint16_t)((dword_value >> 16) & 0xFFFF);
               uint16_t low_word = (uint16_t)(dword_value & 0xFFFF);
-              registers_set_holding_register(map->coil_reg, high_word);
-              registers_set_holding_register(map->coil_reg + 1, low_word);
+              uint16_t high_word = (uint16_t)((dword_value >> 16) & 0xFFFF);
+              registers_set_holding_register(map->coil_reg, low_word);      // LSW at base
+              registers_set_holding_register(map->coil_reg + 1, high_word); // MSW at base+1
             }
             else if (var_type == ST_TYPE_REAL) {
-              // REAL: 32-bit float, 2 registers (IEEE 754)
+              // BUG-125 FIX: REAL: 32-bit float, 2 registers (IEEE 754, LSW first, MSW second)
               float real_value = prog->bytecode.variables[map->st_var_index].real_val;
               uint32_t bits;
               memcpy(&bits, &real_value, sizeof(float));  // Reinterpret float as bits
-              uint16_t high_word = (uint16_t)((bits >> 16) & 0xFFFF);
               uint16_t low_word = (uint16_t)(bits & 0xFFFF);
-              registers_set_holding_register(map->coil_reg, high_word);
-              registers_set_holding_register(map->coil_reg + 1, low_word);
+              uint16_t high_word = (uint16_t)((bits >> 16) & 0xFFFF);
+              registers_set_holding_register(map->coil_reg, low_word);      // LSW at base
+              registers_set_holding_register(map->coil_reg + 1, high_word); // MSW at base+1
             }
           }
         }

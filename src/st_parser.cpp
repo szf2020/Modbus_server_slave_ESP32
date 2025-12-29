@@ -1074,6 +1074,7 @@ st_ast_node_t *st_parser_parse_statements(st_parser_t *parser) {
          !parser_match(parser, ST_TOK_END_FOR) &&
          !parser_match(parser, ST_TOK_END_WHILE) &&
          !parser_match(parser, ST_TOK_END_REPEAT) &&
+         !parser_match(parser, ST_TOK_UNTIL) &&    // BUG-122: Stop on UNTIL (terminates REPEAT loop)
          !parser_match(parser, ST_TOK_END_PROGRAM) &&
          !parser_match(parser, ST_TOK_END)) {
 
