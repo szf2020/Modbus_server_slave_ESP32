@@ -365,8 +365,11 @@ Hver timer har **4 modes:**
 - **Variable Sections:** VAR_INPUT, VAR_OUTPUT, VAR (persistent)
 - **Comments:** (* multi-line *) og // single-line
 - **Built-in Functions:**
-  - Math: `ABS()`, `SQRT()`, `MIN()`, `MAX()`
-  - Persistence: `SAVE(id)`, `LOAD(id)` - [See documentation](#4-st-logic-integration) 📖
+  - Math: `ABS()`, `SQRT()`, `MIN()`, `MAX()`, `SUM()`, `LIMIT()`, `SEL()`
+  - Type Conversion: `INT_TO_REAL()`, `REAL_TO_INT()`, `BOOL_TO_INT()`, `DWORD_TO_INT()`
+  - Trigonometry: `SIN()`, `COS()`, `TAN()`, `ROUND()`, `TRUNC()`, `FLOOR()`, `CEIL()`
+  - Persistence: `SAVE(group_id)` → INT, `LOAD(group_id)` → INT (0=OK, -1=error, -2=rate limited)
+  - Modbus Master: `MB_READ_COIL()`, `MB_READ_HOLDING()`, `MB_WRITE_COIL()`, `MB_WRITE_HOLDING()`
 
 **Compiler & Runtime:**
 - **Bytecode Compilation:** Real-time compilation ved upload
@@ -1589,24 +1592,32 @@ VAR
   cal_scale: INT;       (* Calibration scale factor *)
   save_trigger: BOOL;   (* Manual save trigger *)
   load_trigger: BOOL;   (* Manual restore trigger *)
-  save_result: INT;     (* SAVE() return value *)
+  save_result: INT;     (* SAVE()/LOAD() return value: 0=success, -1=error, -2=rate limited *)
+  load_result: INT;     (* Separate LOAD() result for clarity *)
 END_VAR
 
 BEGIN
   (* Manual save when triggered *)
   IF save_trigger THEN
     save_result := SAVE(1);  (* Save group #1 "calibration" to NVS *)
+                             (* Returns: 0=success, -1=error, -2=rate limited (5s) *)
     save_trigger := 0;       (* Clear trigger *)
   END_IF;
 
   (* Manual restore when triggered *)
   IF load_trigger THEN
-    save_result := LOAD(1);  (* Restore group #1 from NVS *)
+    load_result := LOAD(1);  (* Restore group #1 from NVS *)
+                             (* Returns: 0=success, -1=error (not found/NVS error) *)
     load_trigger := 0;       (* Clear trigger *)
   END_IF;
 END
 
 <blank line to finish upload>
+
+**SAVE()/LOAD() Return Codes:**
+- `0` = Success - operation completed
+- `-1` = Error - gruppe ikke fundet, NVS fejl, persistence disabled
+- `-2` = Rate limited (kun SAVE) - max 1 save per 5 sekunder
 
 # Bind variables to persistence group registers
 > set logic 1 bind cal_offset reg:200

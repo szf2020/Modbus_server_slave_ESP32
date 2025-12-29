@@ -2023,7 +2023,33 @@ read HR101-104 → Forventet: 1000 (DWORD format)
 
 ## 1.9 Builtin Funktioner - Persistence
 
+**VIGTIGE NOTER:**
+- SAVE() og LOAD() kræver 1 argument: `group_id` (0=alle grupper, 1-8=specifik gruppe)
+- Return type: INT (ikke BOOL!)
+  - `0` = Success
+  - `-1` = Error (gruppe ikke fundet, NVS fejl, persistence disabled)
+  - `-2` = Rate limited (max 1 SAVE per 5 sekunder)
+- Der skal være mindst én persist gruppe defineret
+- Persistence system skal være enabled
+
+---
+
 ### Test 1.9.1: SAVE (Gem til NVS)
+
+**Prerequisites (kør disse først):**
+```bash
+# Step 1: Opret en persist gruppe (hvis ikke allerede gjort)
+set persist create-group test_gruppe 100-105
+
+# Step 2: Skriv nogle testværdier til gruppen
+write reg 100 value uint 1234
+write reg 101 value uint 5678
+write reg 102 value uint 9999
+
+# Step 3: Verificer at gruppen er oprettet
+show persist
+# Forventet: test_gruppe med start=100, count=6
+```
 
 **CLI Kommandoer (Copy/Paste):**
 ```bash
@@ -2032,37 +2058,82 @@ set logic 1 upload
 PROGRAM test
 VAR
   trigger: BOOL;
-  save_result: BOOL;
+  save_result: INT;  (* Vigtigt: INT, ikke BOOL! *)
 END_VAR
 BEGIN
-  IF trigger THEN save_result := SAVE();
+  IF trigger THEN
+    save_result := SAVE(0);  (* 0 = gem alle grupper *)
   END_IF;
 END_PROGRAM
 END_UPLOAD
 set logic 1 bind trigger coil:0 input
-set logic 1 bind save_result coil:1 output
+set logic 1 bind save_result reg:110 output
 set logic 1 enabled:true
 ```
 
 **Test Cases:**
 ```bash
-# Test 1: Trigger SAVE operation
+# Test 1: Første SAVE (skal succeed)
 write coil 0 value 1
-# Wait 100ms
-read coil 1
-# Forventet: 1
+read reg 110 int
+# Forventet: 0 (success)
+# Console output: "✓ SAVE(0) completed: 1 groups saved to NVS"
+
+# Test 2: Nulstil trigger
+write coil 0 value 0
+read reg 110 int
+# Forventet: stadig 0 (sidste result)
+
+# Test 3: SAVE igen indenfor 5 sekunder (rate limited)
+write coil 0 value 1
+read reg 110 int
+# Forventet: -2 (rate limited)
+# Console output: "SAVE(0) rate limited (wait 5s between saves)"
+
+# Test 4: Vent 5+ sekunder og prøv igen
+# Wait 6 seconds...
+write coil 0 value 0
+write coil 0 value 1
+read reg 110 int
+# Forventet: 0 (success igen)
 ```
 
-**Forventet Resultat:**
+**Forventet Console Output (success):**
 ```
-✅ SAVE() triggered successfully
-⚠️ Verify NVS write via CLI: show persist
+SAVE(0): Snapshotting register groups...
+SAVE(0): Writing to NVS...
+✓ SAVE(0) completed: 1 groups saved to NVS
+```
+
+**Forventet Console Output (rate limited):**
+```
+SAVE(0) rate limited (wait 5s between saves)
+```
+
+**Verificer at data er gemt:**
+```bash
+# Reboot ESP32 eller kør LOAD test for at verificere
 ```
 
 ---
 
 ### Test 1.9.2: LOAD (Læs fra NVS)
 
+**Prerequisites (kør disse først):**
+```bash
+# Step 1: Gem data først (via SAVE test ovenfor eller CLI)
+set persist save-group test_gruppe
+
+# Step 2: Modificer register værdier (så vi kan se LOAD virker)
+write reg 100 value uint 0
+write reg 101 value uint 0
+write reg 102 value uint 0
+
+# Step 3: Verificer at værdier er ændret
+read reg 100 3
+# Forventet: alle 0
+```
+
 **CLI Kommandoer (Copy/Paste):**
 ```bash
 set logic 1 delete
@@ -2070,31 +2141,149 @@ set logic 1 upload
 PROGRAM test
 VAR
   trigger: BOOL;
-  load_result: BOOL;
+  load_result: INT;  (* Vigtigt: INT, ikke BOOL! *)
 END_VAR
 BEGIN
-  IF trigger THEN load_result := LOAD();
+  IF trigger THEN
+    load_result := LOAD(0);  (* 0 = load alle grupper *)
   END_IF;
 END_PROGRAM
 END_UPLOAD
 set logic 1 bind trigger coil:0 input
-set logic 1 bind load_result coil:1 output
+set logic 1 bind load_result reg:110 output
 set logic 1 enabled:true
 ```
 
 **Test Cases:**
 ```bash
-# Test 1: Trigger LOAD operation
+# Test 1: Verificer at registers er reset (fra prerequisites)
+read reg 100 3
+# Forventet: 0, 0, 0
+
+# Test 2: Trigger LOAD operation
 write coil 0 value 1
-# Wait 100ms
-read coil 1
-# Forventet: 1
+read reg 110 int
+# Forventet: 0 (success)
+# Console output: "✓ LOAD(0) completed: 1 groups restored from NVS"
+
+# Test 3: Verificer at registers er restored
+read reg 100 3
+# Forventet: 1234, 5678, 9999 (oprindelige værdier fra SAVE test)
+
+# Test 4: LOAD uden saved data (error)
+set persist delete-group test_gruppe
+write coil 0 value 0
+write coil 0 value 1
+read reg 110 int
+# Forventet: -1 (error - gruppe ikke fundet)
+```
+
+**Forventet Console Output (success):**
+```
+LOAD(0): Reading from NVS...
+LOAD(0): Restoring register values...
+✓ LOAD(0) completed: 1 groups restored from NVS
+```
+
+**Forventet Console Output (error):**
+```
+LOAD(0): Reading from NVS...
+LOAD(0): Restoring register values...
+LOAD(0) failed: Could not restore group
+```
+
+---
+
+### Test 1.9.3: SAVE/LOAD Integration (Complete Workflow)
+
+**Complete test scenario: Gem counter værdi ved shutdown, restore ved boot**
+
+**Step 1: Setup persist gruppe:**
+```bash
+# Opret gruppe til counter data
+set persist create-group counter_backup 200-202
+```
+
+**Step 2: Upload ST program:**
+```bash
+set logic 1 delete
+set logic 1 upload
+PROGRAM counter_backup
+VAR
+  counter: INT;
+  save_trigger: BOOL;
+  load_trigger: BOOL;
+  save_status: INT;
+  load_status: INT;
+END_VAR
+BEGIN
+  (* Increment counter *)
+  counter := counter + 1;
+
+  (* Save when triggered *)
+  IF save_trigger THEN
+    save_status := SAVE(0);
+  END_IF;
+
+  (* Load when triggered *)
+  IF load_trigger THEN
+    load_status := LOAD(0);
+  END_IF;
+END_PROGRAM
+END_UPLOAD
+
+set logic 1 bind counter reg:200 output
+set logic 1 bind save_trigger coil:10 input
+set logic 1 bind load_trigger coil:11 input
+set logic 1 bind save_status reg:201 output
+set logic 1 bind load_status reg:202 output
+set logic 1 enabled:true
+```
+
+**Step 3: Test workflow:**
+```bash
+# 1. Lad counter køre i 2 sekunder (~200 cycles @ 10ms interval)
+# Wait 2 seconds...
+read reg 200 int
+# Forventet: ~200
+
+# 2. Gem counter værdi
+write coil 10 value 1
+read reg 201 int
+# Forventet: 0 (success)
+
+# 3. Nulstil trigger
+write coil 10 value 0
+
+# 4. Lad counter fortsætte
+# Wait 2 seconds...
+read reg 200 int
+# Forventet: ~400
+
+# 5. Reset counter til 0 (simulér restart)
+set logic 1 enabled:false
+write reg 200 value int 0
+set logic 1 enabled:true
+
+# 6. Verificer reset
+read reg 200 int
+# Forventet: ~1-10 (lige startet)
+
+# 7. Load saved værdi
+write coil 11 value 1
+read reg 202 int
+# Forventet: 0 (success)
+
+# 8. Verificer at counter er restored
+read reg 200 int
+# Forventet: ~200 (originale gemte værdi + nye cycles)
 ```
 
 **Forventet Resultat:**
 ```
-✅ LOAD() triggered successfully
-⚠️ Verify NVS read via CLI: show persist
+✅ Counter værdi gemt korrekt
+✅ Counter værdi restored efter "reboot"
+✅ SAVE/LOAD workflow fungerer end-to-end
 ```
 
 ---
