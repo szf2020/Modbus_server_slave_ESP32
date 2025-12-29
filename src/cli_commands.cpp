@@ -1405,9 +1405,13 @@ void cli_cmd_write_reg(uint8_t argc, char* argv[]) {
     debug_println("WRITE REG: manglende parametre");
     debug_println("  Brug: write reg <addr> value uint <v\u00e6rdi>");
     debug_println("        write reg <addr> value int <v\u00e6rdi>");
+    debug_println("        write reg <addr> value dint <v\u00e6rdi>");
+    debug_println("        write reg <addr> value dword <v\u00e6rdi>");
     debug_println("        write reg <addr> value real <v\u00e6rdi>");
     debug_println("  Eksempel: write reg 100 value uint 223");
     debug_println("            write reg 112 value int -10");
+    debug_println("            write reg 100 value dint 100000");
+    debug_println("            write reg 100 value dword 3000000000");
     debug_println("            write reg 100 value real 3.14");
     return;
   }
@@ -1492,10 +1496,79 @@ void cli_cmd_write_reg(uint8_t argc, char* argv[]) {
     debug_print(hex_str);
     debug_println(")");
     return;
+  } else if (!strcmp(type, "dint")) {
+    // DINT value (32-bit signed integer, uses 2 consecutive registers)
+    int32_t dint_val = atol(value_str);
+
+    // Validate address (need 2 consecutive registers)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      debug_print("WRITE REG: DINT kr\u00e6ver 2 registers, adresse ");
+      debug_print_uint(addr);
+      debug_print(" udenfor omr\u00e5de (max ");
+      debug_print_uint(HOLDING_REGS_SIZE - 2);
+      debug_println(")");
+      return;
+    }
+
+    // Convert DINT to 2 words (high word, low word)
+    uint32_t bits = (uint32_t)dint_val;
+    uint16_t high_word = (uint16_t)((bits >> 16) & 0xFFFF);
+    uint16_t low_word = (uint16_t)(bits & 0xFFFF);
+
+    // Write to 2 consecutive registers
+    registers_set_holding_register(addr, high_word);
+    registers_set_holding_register(addr + 1, low_word);
+
+    debug_print("Register ");
+    debug_print_uint(addr);
+    debug_print("-");
+    debug_print_uint(addr + 1);
+    debug_print(" = ");
+    debug_print(value_str);
+    debug_print(" (dint, lagret som 0x");
+    char hex_str2[16];
+    snprintf(hex_str2, sizeof(hex_str2), "%04X%04X", high_word, low_word);
+    debug_print(hex_str2);
+    debug_println(")");
+    return;
+  } else if (!strcmp(type, "dword")) {
+    // DWORD value (32-bit unsigned integer, uses 2 consecutive registers)
+    uint32_t dword_val = strtoul(value_str, NULL, 10);
+
+    // Validate address (need 2 consecutive registers)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      debug_print("WRITE REG: DWORD kr\u00e6ver 2 registers, adresse ");
+      debug_print_uint(addr);
+      debug_print(" udenfor omr\u00e5de (max ");
+      debug_print_uint(HOLDING_REGS_SIZE - 2);
+      debug_println(")");
+      return;
+    }
+
+    // Convert DWORD to 2 words (high word, low word)
+    uint16_t high_word = (uint16_t)((dword_val >> 16) & 0xFFFF);
+    uint16_t low_word = (uint16_t)(dword_val & 0xFFFF);
+
+    // Write to 2 consecutive registers
+    registers_set_holding_register(addr, high_word);
+    registers_set_holding_register(addr + 1, low_word);
+
+    debug_print("Register ");
+    debug_print_uint(addr);
+    debug_print("-");
+    debug_print_uint(addr + 1);
+    debug_print(" = ");
+    debug_print(value_str);
+    debug_print(" (dword, lagret som 0x");
+    char hex_str3[16];
+    snprintf(hex_str3, sizeof(hex_str3), "%04X%04X", high_word, low_word);
+    debug_print(hex_str3);
+    debug_println(")");
+    return;
   } else {
     debug_print("WRITE REG: ukendt type '");
     debug_print(type);
-    debug_println("' (brug: uint, int, eller real)");
+    debug_println("' (brug: uint, int, dint, dword, eller real)");
     return;
   }
 

@@ -2237,11 +2237,13 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
   // read reg <id> [antal] [int|uint|real]  (antal og type er optional)
   if (argc < 1) {
     debug_println("READ REG: manglende parametre");
-    debug_println("  Brug: read reg <id> [antal] [int|uint|real]");
+    debug_println("  Brug: read reg <id> [antal] [int|uint|dint|dword|real]");
     debug_println("  Eksempel: read reg 90           (l\u00e6ser 1 register som uint)");
     debug_println("  Eksempel: read reg 90 10        (l\u00e6ser 10 registre som uint)");
     debug_println("  Eksempel: read reg 90 1 int     (l\u00e6ser 1 register som signed int)");
     debug_println("  Eksempel: read reg 100 5 uint   (l\u00e6ser 5 registre som unsigned int)");
+    debug_println("  Eksempel: read reg 100 dint     (l\u00e6ser 2 registre som DINT/32-bit signed)");
+    debug_println("  Eksempel: read reg 100 dword    (l\u00e6ser 2 registre som DWORD/32-bit unsigned)");
     debug_println("  Eksempel: read reg 100 real     (l\u00e6ser 2 registre som REAL/float)");
     return;
   }
@@ -2250,6 +2252,8 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
   uint16_t count = 1;  // Default: 1 register
   bool display_as_signed = false;  // Default: unsigned
   bool display_as_real = false;     // BUG-108: REAL type support
+  bool display_as_dint = false;     // DINT (32-bit signed) support
+  bool display_as_dword = false;    // DWORD (32-bit unsigned) support
 
   // Parse count (argv[1])
   if (argc >= 2) {
@@ -2260,6 +2264,10 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
       display_as_signed = false;
     } else if (strcasecmp(argv[1], "real") == 0) {
       display_as_real = true;
+    } else if (strcasecmp(argv[1], "dint") == 0) {
+      display_as_dint = true;
+    } else if (strcasecmp(argv[1], "dword") == 0) {
+      display_as_dword = true;
     } else {
       count = atoi(argv[1]);
     }
@@ -2270,12 +2278,28 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
     if (strcasecmp(argv[2], "int") == 0) {
       display_as_signed = true;
       display_as_real = false;
+      display_as_dint = false;
+      display_as_dword = false;
     } else if (strcasecmp(argv[2], "uint") == 0) {
       display_as_signed = false;
       display_as_real = false;
+      display_as_dint = false;
+      display_as_dword = false;
     } else if (strcasecmp(argv[2], "real") == 0) {
       display_as_real = true;
       display_as_signed = false;
+      display_as_dint = false;
+      display_as_dword = false;
+    } else if (strcasecmp(argv[2], "dint") == 0) {
+      display_as_dint = true;
+      display_as_signed = false;
+      display_as_real = false;
+      display_as_dword = false;
+    } else if (strcasecmp(argv[2], "dword") == 0) {
+      display_as_dword = true;
+      display_as_signed = false;
+      display_as_real = false;
+      display_as_dint = false;
     }
   }
 
@@ -2332,6 +2356,93 @@ void cli_cmd_read_reg(uint8_t argc, char* argv[]) {
     char float_str[32];
     snprintf(float_str, sizeof(float_str), "%.6f", real_value);
     debug_print(float_str);
+    debug_print(" (0x");
+    char hex_str[16];
+    snprintf(hex_str, sizeof(hex_str), "%04X%04X", high_word, low_word);
+    debug_print(hex_str);
+    debug_println(")");
+    debug_println("");
+
+    // Call reset-on-read handler for both registers
+    extern void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity);
+    modbus_handle_reset_on_read(start_addr, 2);
+    return;
+  }
+
+  // DINT type (32-bit signed integer, 2 consecutive registers)
+  if (display_as_dint) {
+    // Validate that we have 2 registers available
+    if (start_addr + 1 >= HOLDING_REGS_SIZE) {
+      debug_println("READ REG: DINT kr\u00e6ver 2 registre, adresse udenfor omr\u00e5de");
+      return;
+    }
+
+    // Read 2 consecutive registers and convert to DINT
+    uint16_t high_word = registers_get_holding_register(start_addr);
+    uint16_t low_word = registers_get_holding_register(start_addr + 1);
+    uint32_t bits = ((uint32_t)high_word << 16) | low_word;
+    int32_t dint_value = (int32_t)bits;
+
+    debug_println("\n=== L\u00c6SNING AF HOLDING REGISTERS ===");
+    debug_print("Adresse ");
+    debug_print_uint(start_addr);
+    debug_print("-");
+    debug_print_uint(start_addr + 1);
+    debug_println(" (DINT/32-bit signed):\n");
+
+    debug_print("Reg[");
+    debug_print_uint(start_addr);
+    debug_print("-");
+    debug_print_uint(start_addr + 1);
+    debug_print("]: ");
+
+    // Display DINT value
+    char dint_str[16];
+    snprintf(dint_str, sizeof(dint_str), "%ld", (long)dint_value);
+    debug_print(dint_str);
+    debug_print(" (0x");
+    char hex_str[16];
+    snprintf(hex_str, sizeof(hex_str), "%04X%04X", high_word, low_word);
+    debug_print(hex_str);
+    debug_println(")");
+    debug_println("");
+
+    // Call reset-on-read handler for both registers
+    extern void modbus_handle_reset_on_read(uint16_t starting_address, uint16_t quantity);
+    modbus_handle_reset_on_read(start_addr, 2);
+    return;
+  }
+
+  // DWORD type (32-bit unsigned integer, 2 consecutive registers)
+  if (display_as_dword) {
+    // Validate that we have 2 registers available
+    if (start_addr + 1 >= HOLDING_REGS_SIZE) {
+      debug_println("READ REG: DWORD kr\u00e6ver 2 registre, adresse udenfor omr\u00e5de");
+      return;
+    }
+
+    // Read 2 consecutive registers and convert to DWORD
+    uint16_t high_word = registers_get_holding_register(start_addr);
+    uint16_t low_word = registers_get_holding_register(start_addr + 1);
+    uint32_t dword_value = ((uint32_t)high_word << 16) | low_word;
+
+    debug_println("\n=== L\u00c6SNING AF HOLDING REGISTERS ===");
+    debug_print("Adresse ");
+    debug_print_uint(start_addr);
+    debug_print("-");
+    debug_print_uint(start_addr + 1);
+    debug_println(" (DWORD/32-bit unsigned):\n");
+
+    debug_print("Reg[");
+    debug_print_uint(start_addr);
+    debug_print("-");
+    debug_print_uint(start_addr + 1);
+    debug_print("]: ");
+
+    // Display DWORD value
+    char dword_str[16];
+    snprintf(dword_str, sizeof(dword_str), "%lu", (unsigned long)dword_value);
+    debug_print(dword_str);
     debug_print(" (0x");
     char hex_str[16];
     snprintf(hex_str, sizeof(hex_str), "%04X%04X", high_word, low_word);
