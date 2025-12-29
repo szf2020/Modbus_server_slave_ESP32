@@ -473,6 +473,11 @@ static void print_logic_help(void) {
   debug_println("  show logic stats       - Vis statistik");
   debug_println("  show logic <id> code   - Vis program source code");
   debug_println("  show logic all code    - Vis alle programmer source code");
+  debug_println("  show logic <id> timing - Vis timing info (execution times)");
+  debug_println("");
+  debug_println("Available 'reset logic' commands:");
+  debug_println("  reset logic stats      - Nulstil alle programs statistik");
+  debug_println("  reset logic stats <id> - Nulstil specifik programs statistik");
   debug_println("");
 }
 
@@ -641,8 +646,18 @@ bool cli_parser_execute(char* line) {
               return false;
             }
           }
+        } else if (!strcmp(subcommand2_norm, "TIMING")) {
+          // show logic <id> timing - BUG-122 FIX
+          uint8_t program_id = atoi(subcommand);
+          if (program_id > 0 && program_id <= 4) {
+            cli_cmd_show_logic_timing(st_logic_get_state(), program_id - 1);
+            return true;
+          } else {
+            debug_printf("ERROR: Invalid program ID '%s' (expected 1-4)\n", subcommand);
+            return false;
+          }
         }
-        // If argv[3] exists but is not "code", fall through to normal handling
+        // If argv[3] exists but is not "code"/"timing", fall through to normal handling
       }
 
       // Handle other subcommands (without code)
@@ -1147,6 +1162,22 @@ bool cli_parser_execute(char* line) {
     if (!strcmp(what, "COUNTER")) {
       cli_cmd_reset_counter(argc - 2, argv + 2);
       return true;
+    } else if (!strcmp(what, "LOGIC")) {
+      // reset logic stats [all|<id>] - BUG-122 FIX
+      if (argc < 3) {
+        debug_println("RESET LOGIC: missing argument (expected 'stats')");
+        return false;
+      }
+      const char* sub = normalize_alias(argv[2]);
+      if (!strcmp(sub, "STATS")) {
+        // reset logic stats [all|<id>]
+        const char* target = (argc >= 4) ? argv[3] : "all";
+        cli_cmd_reset_logic_stats(st_logic_get_state(), target);
+        return true;
+      } else {
+        debug_println("RESET LOGIC: unknown subcommand (expected 'stats')");
+        return false;
+      }
     } else {
       debug_println("RESET: unknown argument");
       return false;
@@ -1289,6 +1320,7 @@ bool cli_parser_execute(char* line) {
 
     debug_println("Reset/Clear (rst, clr):");
     debug_println("  reset counter <id>      - Reset counter value");
+    debug_println("  reset logic stats [id]  - Reset logic stats (all or specific)");
     debug_println("  clear counters          - Reset all counters\n");
 
     debug_println("Delete:");

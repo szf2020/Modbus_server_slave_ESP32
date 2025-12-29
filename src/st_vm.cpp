@@ -893,16 +893,24 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
   // BUG-077: Infer return type for polymorphic functions (SEL, LIMIT, SUM)
   st_datatype_t return_type;
   if (func_id == ST_BUILTIN_SEL) {
-    // SEL returns same type as in0/in1 (arg2 and arg3)
-    // If either is REAL, return REAL (type promotion)
-    return_type = (arg2_type == ST_TYPE_REAL || arg3_type == ST_TYPE_REAL) ? ST_TYPE_REAL : arg2_type;
+    // BUG-120 FIX: SEL returns same type as in0/in1 (arg2 and arg3) with proper promotion
+    // Type promotion: INT → DINT → REAL
+    if (arg2_type == ST_TYPE_REAL || arg3_type == ST_TYPE_REAL) {
+      return_type = ST_TYPE_REAL;
+    } else if (arg2_type == ST_TYPE_DINT || arg3_type == ST_TYPE_DINT) {
+      return_type = ST_TYPE_DINT;
+    } else {
+      return_type = arg2_type;  // Both are INT/BOOL → use first
+    }
   } else if (func_id == ST_BUILTIN_LIMIT) {
-    // LIMIT returns same type as min/val/max (arg1, arg2, arg3)
-    // If any is REAL, return REAL (type promotion)
+    // BUG-121 FIX: LIMIT returns same type as min/val/max with proper promotion
+    // Type promotion: INT → DINT → REAL
     if (arg1_type == ST_TYPE_REAL || arg2_type == ST_TYPE_REAL || arg3_type == ST_TYPE_REAL) {
       return_type = ST_TYPE_REAL;
+    } else if (arg1_type == ST_TYPE_DINT || arg2_type == ST_TYPE_DINT || arg3_type == ST_TYPE_DINT) {
+      return_type = ST_TYPE_DINT;
     } else {
-      return_type = arg1_type;  // All are INT/BOOL/DWORD → use first
+      return_type = arg1_type;  // All are INT/BOOL → use first
     }
   } else if (func_id == ST_BUILTIN_SUM) {
     // BUG-110 FIX: SUM returns same type as ADD operator

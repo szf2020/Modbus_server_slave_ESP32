@@ -95,6 +95,9 @@
 | BUG-117 | MIN/MAX funktioner ikke type-aware | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | MIN/MAX med REAL værdier giver forkerte resultater |
 | BUG-118 | ABS funktion kun INT type | ✅ FIXED | 🟡 HIGH | v5.0.0 | ABS(-1.5) returnerer 1 i stedet for 1.5 |
 | BUG-119 | LIMIT funktion ikke type-aware | ✅ FIXED | 🟡 HIGH | v5.0.0 | LIMIT med REAL værdier clampes forkert |
+| BUG-120 | SEL return type mangler DINT håndtering | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | SEL(cond, DINT1, DINT2) returnerer INT type |
+| BUG-121 | LIMIT return type mangler DINT håndtering | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | LIMIT(DINT_min, val, DINT_max) returnerer INT type |
+| BUG-122 | CLI show logic timing og reset logic stats ikke tilgængelige | ✅ FIXED | 🟠 MEDIUM | v5.0.0 | Funktioner implementeret men ikke eksponeret i parser/header |
 
 ## Quick Lookup by Category
 

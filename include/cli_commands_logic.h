@@ -104,4 +104,17 @@ int cli_cmd_show_logic_code(st_logic_engine_state_t *logic_state, uint8_t progra
  */
 int cli_cmd_show_logic_code_all(st_logic_engine_state_t *logic_state);
 
+/**
+ * @brief show logic <id> timing
+ * Show timing information (execution times, jitter) for a specific logic program
+ */
+int cli_cmd_show_logic_timing(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief reset logic stats [all|<id>]
+ * Reset execution statistics for one or all logic programs
+ * @param target "all" or program ID as string
+ */
+int cli_cmd_reset_logic_stats(st_logic_engine_state_t *logic_state, const char *target);
+
 #endif /* CLI_COMMANDS_LOGIC_H */
