@@ -161,7 +161,7 @@ static const char* normalize_alias(const char* s) {
   // Logic subcommands
   if (!strcmp(s, "PROGRAM") || !strcmp(s, "program")) return "PROGRAM";
   if (!strcmp(s, "PROGRAMS") || !strcmp(s, "programs")) return "PROGRAM";
-  if (!strcmp(s, "STATS") || !strcmp(s, "stats") || !strcmp(s, "ST-STATS") || !strcmp(s, "st-stats")) return "ST-STATS";
+  if (!strcmp(s, "STATS") || !strcmp(s, "stats") || !strcmp(s, "ST-STATS") || !strcmp(s, "st-stats")) return "STATS";
   if (!strcmp(s, "ERRORS") || !strcmp(s, "errors")) return "ERRORS";
   if (!strcmp(s, "ALL") || !strcmp(s, "all")) return "ALL";
   if (!strcmp(s, "CODE") || !strcmp(s, "code")) return "CODE";
