@@ -3072,6 +3072,7 @@ set logic 1 bind kp reg:22 input
 set logic 1 bind output_limited reg:23 output
 set logic 1 enabled:true
 write reg 22 value int 2
+
 ```
 
 **Test Cases:**
@@ -3337,7 +3338,7 @@ read reg 21 int
 
 # Test 2: threshold=10, count values 1-9 = 9
 write reg 20 value int 10
-write coil 0 value 0
+write coil 0 value 1
 # Wait 100ms
 read reg 21 int
 # Forventet: 9
