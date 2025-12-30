@@ -70,10 +70,10 @@ Remote I/O Boards (Modbus Slaves)
 
 ### Development
 - [Quick Start](#quick-start-first-boot)
-- [CLI Commands](#cli-commands)
-- [Examples](#-examples)
+- [**CLI Commands Reference**](#-cli-commands-reference) ⭐ NEW - Complete guide
+- [Examples](#-usage-examples)
 - [Project Structure](#-project-structure)
-- [Changelog](#changelog)
+- [Changelog](#-version-history)
 
 ---
 
@@ -1688,6 +1688,656 @@ Result: 100 ✓ (restored from NVS)
 
 ---
 
+## 🖥️ CLI Commands Reference
+
+Modbus ESP32 serveren har et omfattende Command Line Interface (CLI) tilgængeligt både via **Serial (UART0, 115200 baud)** og **Telnet (port 23)**.
+
+### Quick Reference: `show config` → `set` Command Mapping
+
+**`show config`** giver dig et komplet overblik over systemets konfiguration organiseret i logiske sektioner. Hver linje i output'et svarer direkte til en `set` kommando.
+
+**Workflow:**
+1. Kør `show config` for at se nuværende konfiguration
+2. Find den indstilling du vil ændre i output'et
+3. Brug tilsvarende `set` kommando til at ændre værdien
+4. Kør `save` for at gemme til NVS (persistent storage)
+
+---
+
+### `show config` Output Organization (v4.4.0+)
+
+Output er organiseret i **8 hovedsektioner** med klare headers:
+
+```
+[SYSTEM]           - Hostname, unit ID, build info
+[MODBUS]           - Slave + Master interface settings
+[COUNTERS]         - Counter mode, registers, status
+[TIMERS]           - Timer mode, registers, status
+[GPIO]             - GPIO pin mappings med ST variable annotation
+[ST LOGIC]         - ST Logic status, programs, variable bindings
+[NETWORK]          - WiFi + Telnet settings
+[PERSISTENCE]      - Persistent register groups + auto-load
+```
+
+---
+
+### Section 1: `[SYSTEM]` - System Configuration
+
+**Show output:**
+```
+[SYSTEM]
+  build: 873 (2025-12-30 19:52:32, main@03431e2)
+  hostname: modbus-esp32
+  unit-id: 1
+  uart-slave: 9600 8N1
+  uart-master: 9600 8N1
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Hostname (persistent - kræver 'save')
+> set hostname <name>
+> save
+
+# Unit ID (persistent - kræver 'save')
+> set id <1-247>
+> save
+
+# Baud rate (persistent - kræver 'save')
+> set baud <9600|19200|38400|57600|115200>
+> save
+```
+
+**Bemærk:** Build info er read-only og kan ikke ændres via CLI.
+
+---
+
+### Section 2: `[MODBUS]` - Modbus Interface Configuration
+
+**Show output:**
+```
+[MODBUS]
+modbus slave:
+  status: enabled
+  unit-id: 1
+  baud: 9600
+
+modbus master:
+  status: disabled
+  baud: 9600
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Slave enable/disable
+> set modbus slave enable
+> set modbus slave disable
+
+# Master enable/disable
+> set modbus master enable
+> set modbus master disable
+
+# Baud rate (begge interfaces)
+> set baud <9600|19200|38400|57600|115200>
+> save
+```
+
+**Info:** Modbus Slave (UART0) modtager kommandoer fra SCADA/HMI. Modbus Master (UART1) sender kommandoer til eksterne enheder.
+
+---
+
+### Section 3: `[COUNTERS]` - Counter Configuration
+
+**Show output:**
+```
+[COUNTERS]
+counters:
+  counter1: mode=1 (hw), enabled, hr100-119
+  counter2: mode=0 (disabled)
+  counter3: mode=2 (modbus), enabled, hr140-159
+  counter4: mode=0 (disabled)
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Mode 0: Disabled
+> set counter <1-4> mode 0
+
+# Mode 1: Hardware PCNT
+> set counter <1-4> mode 1 parameter \
+  hw-mode:hw \
+  edge:rising \
+  prescaler:100 \
+  scale:0.1 \
+  value-reg:100 \
+  raw-reg:101 \
+  freq-reg:102 \
+  ctrl-reg:103 \
+  hw-gpio:19
+
+# Mode 2: Modbus Slave Input
+> set counter <1-4> mode 2 parameter \
+  modbus-mode:slave \
+  slave-id:10 \
+  register:5 \
+  value-reg:140 \
+  ctrl-reg:143
+
+# Enable/Disable
+> set counter <1-4> enable on
+> set counter <1-4> enable off
+
+# Control flags
+> set counter <1-4> control \
+  counter-reg-reset-on-read:1 \
+  compare-reg-reset-on-read:1 \
+  compare-enabled:1 \
+  compare-mode:1 \
+  compare-source:1
+```
+
+**Info:** Se `show counter <id>` for detaljeret status for specifik counter.
+
+---
+
+### Section 4: `[TIMERS]` - Timer Configuration
+
+**Show output:**
+```
+[TIMERS]
+timers:
+  timer1: mode=1 (on-delay), enabled, target=5000ms, hr180-189
+  timer2: mode=0 (disabled)
+  timer3: mode=3 (pulse), enabled, hr200-209
+  timer4: mode=0 (disabled)
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Mode 0: Disabled
+> set timer <1-4> mode 0
+
+# Mode 1: On-Delay (TON)
+> set timer <1-4> mode 1 parameter \
+  target:5000 \
+  input-reg:10 \
+  output-reg:15 \
+  elapsed-reg:16
+
+# Mode 2: Off-Delay (TOF)
+> set timer <1-4> mode 2 parameter \
+  target:3000 \
+  input-reg:20 \
+  output-reg:25 \
+  elapsed-reg:26
+
+# Mode 3: Pulse (TP)
+> set timer <1-4> mode 3 parameter \
+  target:1000 \
+  trigger-reg:30 \
+  output-reg:35 \
+  elapsed-reg:36
+
+# Enable/Disable
+> set timer <1-4> enable on
+> set timer <1-4> enable off
+```
+
+**Info:** Se `show timer <id>` for detaljeret status for specifik timer.
+
+---
+
+### Section 5: `[GPIO]` - GPIO Pin Mappings
+
+**Show output (v4.4.0+ med ST variable annotation):**
+```
+[GPIO]
+mappings:
+  set gpio 21 coil 0 [ST VAR:logic1.count]
+  set gpio 18 input 20 [Manual]
+  set gpio 19 reg 100 [Counter1]
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Map GPIO pin til coil (read/write)
+> set gpio <pin> coil <address>
+
+# Map GPIO pin til discrete input (read-only)
+> set gpio <pin> input <address>
+
+# Map GPIO pin til holding register (read/write)
+> set gpio <pin> reg <address>
+
+# Fjern GPIO mapping
+> set gpio <pin> none
+```
+
+**Annotation forklaring:**
+- `[ST VAR:logic1.count]` - GPIO bruges af ST Logic program 1, variabel "count"
+- `[Counter1]` - GPIO bruges af Counter 1 (hardware PCNT)
+- `[Timer2]` - GPIO bruges af Timer 2
+- `[Manual]` - Manuelt konfigureret mapping (ingen automatisk association)
+
+**Info:** Annotationerne hjælper dig med at identificere konflikter og forstå GPIO forbrug.
+
+---
+
+### Section 6: `[ST LOGIC]` - ST Logic Programming
+
+**Show output (v4.4.0+ grupperet per program):**
+```
+[ST LOGIC]
+  status: enabled
+  interval: 50 ms
+  cycles: 6163
+
+programs:
+  logic1: enabled, register bindings=3
+  logic2: disabled, register bindings=0
+  logic3: disabled, register bindings=0
+  logic4: disabled, register bindings=0
+
+variable bindings:
+logic1:
+  var start_count <-- coil:0 as input
+  var threshold   <-- reg:20 as input
+  var count       --> reg:21 as output
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Upload ST source code
+> set logic <1-4> upload "
+VAR
+  start_count : BOOL;
+  threshold : INT;
+  count : INT;
+END_VAR
+
+IF start_count THEN
+  count := threshold + 10;
+END_IF
+"
+
+# Enable/disable program
+> set logic <1-4> enabled:true
+> set logic <1-4> enabled:false
+
+# Bind variable til Modbus register
+> set logic <1-4> bind <var_name> reg:<address> input
+> set logic <1-4> bind <var_name> reg:<address> output
+> set logic <1-4> bind <var_name> coil:<address> input
+> set logic <1-4> bind <var_name> coil:<address> output
+> set logic <1-4> bind <var_name> input-dis:<address> input
+
+# Slet program
+> set logic <1-4> delete
+
+# Sæt execution interval (OS scheduling)
+> set logic interval:<ms>   # 10, 20, 25, 50, 75, 100
+
+# Enable/disable debug output
+> set logic debug:true
+> set logic debug:false
+```
+
+**Variable Bindings Format:**
+- `var <name> <-- <source>` = INPUT mode (ST læser fra Modbus)
+- `var <name> --> <target>` = OUTPUT mode (ST skriver til Modbus)
+- Grupperet per program (logic1:, logic2:, osv.)
+
+**Show kommandoer for ST Logic:**
+```bash
+# Vis program detaljer
+> show logic <1-4>
+
+# Vis source code med linjebrud
+> show logic <1-4> code
+
+# Vis timing info (execution times, jitter)
+> show logic <1-4> timing
+
+# Vis compileret bytecode (v4.4.0+)
+> show logic <1-4> bytecode
+
+# Vis alle programmer
+> show logic all
+
+# Vis kun programmer med fejl
+> show logic errors
+
+# Vis execution statistik
+> show logic stats
+
+# Nulstil statistik
+> reset logic stats
+> reset logic stats <1-4>
+```
+
+**Info:**
+- ST Logic kører med fast interval (default 50ms)
+- Variable bindings synkroniseres før/efter execution
+- Se IEC 61131-3 standard for ST syntax reference
+
+---
+
+### Section 7: `[NETWORK]` - WiFi & Telnet
+
+**Show output:**
+```
+[NETWORK]
+wifi:
+  status: enabled
+  ssid: MyNetwork
+  ip: 192.168.1.100
+  mode: static
+
+telnet:
+  status: enabled
+  port: 23
+  username: admin
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# WiFi enable/disable
+> set wifi enable
+> set wifi disable
+
+# WiFi credentials (persistent - kræver 'save')
+> set wifi ssid <ssid>
+> set wifi password <password>
+> save
+
+# WiFi static IP
+> set wifi static <ip> <gateway> <subnet> <dns>
+> save
+
+# WiFi DHCP mode
+> set wifi dhcp
+> save
+
+# Telnet enable/disable
+> set telnet enable
+> set telnet disable
+
+# Telnet credentials (persistent - kræver 'save')
+> set telnet username <username>
+> set telnet password <password>
+> save
+```
+
+**Info:**
+- WiFi SSID/password gemmes i NVS
+- Telnet kræver authentication (default: admin/admin)
+- Se `show wifi` for detaljeret WiFi status
+
+---
+
+### Section 8: `[PERSISTENCE]` - Persistent Register Groups
+
+**Show output:**
+```
+[PERSISTENCE]
+  status: enabled
+
+auto-load:
+  status: enabled
+  groups: 1, 2 (2 groups)
+
+groups:
+  group1: hr200-210 (10 regs), crc=0x1A2B
+  group2: hr300-305 (5 regs), crc=0xF3D4
+```
+
+**Tilsvarende `set` kommandoer:**
+```bash
+# Enable/disable persistence system
+> set persist enable
+> set persist disable
+
+# Create register group
+> set persist group <1-7> add <start_reg> <count>
+
+# Delete register group
+> set persist group <1-7> delete
+
+# Save group to NVS
+> persist save <group_id>
+
+# Restore group from NVS
+> persist load <group_id>
+
+# Auto-load system (v4.3.0+)
+> set persist auto-load enable
+> set persist auto-load disable
+> set persist auto-load add <group_id>
+> set persist auto-load remove <group_id>
+
+# Show persistence status
+> show persist
+> show persist groups
+```
+
+**Info:**
+- Auto-load gendanner register grupper automatisk ved boot
+- Max 7 grupper, hver op til 50 registre
+- CRC32 checksum validering ved load
+- Se ST Logic SAVE()/LOAD() funktioner for programmatisk adgang
+
+---
+
+### Common CLI Workflows
+
+**1. Konfigurer Counter fra bunden:**
+```bash
+# Find counter status
+> show config
+[COUNTERS]
+  counter1: mode=0 (disabled)
+
+# Konfigurer hardware mode
+> set counter 1 mode 1 parameter hw-mode:hw edge:rising prescaler:100 scale:0.1 value-reg:100 raw-reg:101 freq-reg:102 ctrl-reg:103 hw-gpio:19
+
+# Enable counter
+> set counter 1 enable on
+
+# Verificer konfiguration
+> show counter 1
+
+# Gem til NVS
+> save
+```
+
+**2. Upload og test ST Logic program:**
+```bash
+# Check ST Logic status
+> show config
+[ST LOGIC]
+  status: enabled
+  interval: 50 ms
+
+# Upload program
+> set logic 1 upload "
+VAR
+  input_val : INT;
+  output_val : INT;
+END_VAR
+
+output_val := input_val * 2;
+"
+
+# Bind variables
+> set logic 1 bind input_val reg:200 input
+> set logic 1 bind output_val reg:201 output
+
+# Enable program
+> set logic 1 enabled:true
+
+# Test med Modbus write
+> write reg 200 value int 42
+
+# Verificer output
+> read reg 201 1
+Result: 84 ✓ (42 * 2)
+
+# Se bytecode (debug)
+> show logic 1 bytecode
+```
+
+**3. Setup persistent calibration data:**
+```bash
+# Check persistence status
+> show config
+[PERSISTENCE]
+  status: disabled
+
+# Enable system
+> set persist enable
+
+# Create group for calibration registers (HR 200-209)
+> set persist group 1 add 200 10
+
+# Write calibration values
+> write reg 200 value int 100
+> write reg 201 value int 250
+
+# Save to NVS
+> persist save 1
+
+# Add to auto-load (restore on boot)
+> set persist auto-load enable
+> set persist auto-load add 1
+
+# Gem konfiguration
+> save
+
+# Test: Reboot og verificer auto-load
+> reboot
+[After boot]
+> read reg 200 1
+Result: 100 ✓ (restored from NVS)
+```
+
+---
+
+### Advanced: Using `show config` Output Directly
+
+**Workflow for batch reconfiguration:**
+
+1. **Export current config til fil:**
+   ```bash
+   > show config
+   # Copy output til text editor
+   ```
+
+2. **Modificer settings i editor:**
+   ```
+   [GPIO]
+   mappings:
+     set gpio 21 coil 0 [ST VAR:logic1.count]  ← Copy this line
+     set gpio 18 input 20 [Manual]             ← Copy this line
+   ```
+
+3. **Paste commands tilbage til CLI:**
+   ```bash
+   > set gpio 21 coil 0
+   > set gpio 18 input 20
+   > save
+   ```
+
+**Fordel:** `show config` output er **copy/paste ready** - linjer kan bruges direkte som kommandoer (ignorer annotations i [brackets]).
+
+---
+
+### CLI Help System
+
+Alle kommandoer har indbygget help:
+
+```bash
+# Global help
+> help
+> ?
+
+# Show kommando help
+> show ?
+> show help
+
+# Set kommando help
+> set ?
+> set help
+
+# Logic-specifik help
+> show logic ?
+> show logic help
+
+# Counter-specifik help
+> show counter ?
+> set counter ?
+
+# Timer-specifik help
+> show timer ?
+> set timer ?
+```
+
+**Tip:** Brug `?` eller `help` som argument til enhver kommando for at se tilgængelige subkommandoer.
+
+---
+
+### Keyboard Shortcuts (Telnet + Serial)
+
+| Shortcut | Function |
+|----------|----------|
+| `↑` / `↓` | Command history (sidste 10 kommandoer) |
+| `←` / `→` | Cursor navigation (insert mode) |
+| `Backspace` | Delete character before cursor |
+| `Delete` | Delete character at cursor |
+| `Ctrl+C` | Cancel current line |
+| `Tab` | (ikke implementeret endnu) |
+
+**Info:** Cursor editing virker både i Serial Monitor og Telnet sessions.
+
+---
+
+### Error Handling & Validation
+
+CLI validerer alle inputs og giver klare fejlmeddelelser:
+
+```bash
+# Ugyldig program ID
+> set logic 5 enabled:true
+ERROR: Invalid program ID (1-4)
+
+# Manglende parameter
+> set counter 1 mode 1
+ERROR: Missing 'parameter' keyword
+
+# Ugyldig register range
+> set persist group 1 add 500 10
+ERROR: Register range 500-509 out of bounds (0-999)
+
+# Compilation error (ST Logic)
+> set logic 1 upload "count = 10"  # Missing VAR block
+ERROR: Expected VAR keyword (line 1)
+```
+
+**Tip:** Læs fejlmeddelelser nøje - de angiver præcist hvad der er galt og hvordan man retter det.
+
+---
+
+### Version Information
+
+CLI kommandoer dokumenteret for **v4.4.0** (Build #873+):
+- `show config` med 8 sektioner og ST variable annotations
+- `show logic <id> bytecode` bytecode debugging
+- Execution interval visibility i ST Logic output
+- Grupperet variable bindings per program
+
+Se [Version History](#-version-history) for changelog og tidligere versioner.
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -2191,6 +2841,33 @@ if client.connect():
 ---
 
 ## 📝 Version History
+
+- **v4.4.0** (2025-12-30) - ⭐ CLI Documentation & ST Logic Debugging Enhancements
+  - **NEW FEATURE: Comprehensive CLI Documentation**
+    - Added complete CLI Commands Reference section to README
+    - `show config` → `set` command mapping guide
+    - 8 organized sections with examples and workflows
+    - 650+ lines of detailed CLI documentation
+  - **ST Logic Improvements:**
+    - **NEW:** `show logic <id> bytecode` command for debugging compiled programs
+    - Display execution interval in `show logic <id>` output
+    - Grouped variable bindings per program (logic1:, logic2:, etc.)
+  - **`show config` Organization (Build #869):**
+    - Reorganized output into 8 logical sections with headers
+    - Section headers: [SYSTEM], [MODBUS], [COUNTERS], [TIMERS], [GPIO], [ST LOGIC], [NETWORK], [PERSISTENCE]
+    - **NEW:** ST variable annotations in GPIO mappings (e.g., `[ST VAR:logic1.count]`)
+    - Cross-referenced ST bindings with GPIO pins for conflict detection
+    - Moved ST variable bindings from GPIO section to ST LOGIC section
+    - Combined related settings (WiFi+Telnet, Slave+Master)
+  - **Bug fixes:**
+    - **BUG-126 FIXED:** `st_count` redeclaration in cli_show.cpp
+    - **BUG-127 FIXED:** `st_state` declaration order (used before declared)
+  - **Documentation:**
+    - 650+ lines CLI reference with 8 sections
+    - 3 complete workflow examples
+    - Help system guide and keyboard shortcuts
+    - Copy/paste ready command examples
+  - **Builds:** #865 (ST timing), #869 (show config organization), #873 (bytecode display)
 
 - **v4.3.0** (2025-12-20) - ⭐ Auto-Load Persistent Register Groups on Boot
   - **NEW FEATURE:** Auto-load on boot (restore saved register groups automatically at startup)

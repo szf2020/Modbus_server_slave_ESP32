@@ -101,6 +101,8 @@
 | BUG-123 | Parser accepterer syntax fejl (reserved keywords i statement position) | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | "THEN THEN", "END_IF x := 5" accepteres uden fejl |
 | BUG-124 | Counter 32/64-bit DINT/DWORD register byte order | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | CLI read/write brugte MSW først, counter skriver LSW først |
 | BUG-125 | ST Logic multi-register byte order (DINT/DWORD/REAL INPUT/OUTPUT) | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | Variable bindings brugte MSW først, skulle bruge LSW først |
+| BUG-126 | st_count redeclaration i cli_show.cpp | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable declared twice in same function, compile error |
+| BUG-127 | st_state declaration order (used before declared) | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable used on line 382 but declared on line 415 |
 
 ## Quick Lookup by Category
 
@@ -177,6 +179,8 @@
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535
 - **BUG-011:** Variable naming (`coil_reg`)
+- **BUG-126:** st_count redeclaration in cli_show.cpp (FIXED v4.4.0 Build #869)
+- **BUG-127:** st_state declaration order (FIXED v4.4.0 Build #869)
 
 ### ✔️ NOT BUGS (DESIGN CHOICES)
 - **BUG-013:** Binding display order (intentional)
