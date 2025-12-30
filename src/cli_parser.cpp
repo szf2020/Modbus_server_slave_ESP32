@@ -242,6 +242,7 @@ static void print_set_help(void) {
   debug_println("  set timer ?             - Vis timer kommandoer");
   debug_println("  set gpio ?              - Vis GPIO kommandoer");
   debug_println("  set debug ?             - Vis debug kommandoer");
+  debug_println("  set logic interval:<ms> - Sæt ST Logic execution interval (2,5,10,20,25,50,75,100)");
   debug_println("  set persist ?           - Vis persistence kommandoer (v4.0+)");
   debug_println("  set modbus-master ?     - Vis Modbus Master kommandoer (v4.4+)");
   debug_println("  set modbus-slave ?      - Vis Modbus Slave kommandoer (v4.4.1+)");

@@ -215,6 +215,7 @@ void st_logic_print_program(st_logic_engine_state_t *state, uint8_t program_id) 
   debug_printf("Enabled: %s\n", prog->enabled ? "YES" : "NO");
   debug_printf("Compiled: %s\n", prog->compiled ? "YES" : "NO");
   debug_printf("Source Code: %d bytes\n", prog->source_size);
+  debug_printf("Execution Interval: %ums\n", (unsigned int)state->execution_interval_ms);
 
   if (prog->source_size > 0) {
     debug_printf("\nSource:\n");
