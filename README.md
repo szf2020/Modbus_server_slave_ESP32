@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v5.0.0 | **Build:** #860 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.4.0 | **Build:** #875 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med **dual Modbus interfaces** (Slave + Master), ST Structured Text Logic programmering med IEC 61131-3 type system, Wi-Fi netværk, telnet CLI interface, og komplet Modbus register dokumentation.
 
@@ -50,30 +50,107 @@ Remote I/O Boards (Modbus Slaves)
 
 ## 📑 Table of Contents
 
-### Core Features
+### 📚 Documentation Hub
+**Start here for different use cases:**
+
+| Document | Description | Target Audience |
+|----------|-------------|-----------------|
+| **[README.md](#)** (This File) | Complete feature guide & user manual | End users, integrators |
+| **[CLAUDE.md](CLAUDE.md)** | Development guide (Danish) | Developers, Claude Code |
+| **[CHANGELOG.md](CHANGELOG.md)** | Detailed version history | All users |
+
+**Claude Development Suite:**
+- **[CLAUDE_INDEX.md](CLAUDE_INDEX.md)** - Quick start & navigation (2 min read) ⭐ START HERE
+- **[CLAUDE_SETUP.md](CLAUDE_SETUP.md)** - Security rules & environment setup
+- **[CLAUDE_WORKFLOW.md](CLAUDE_WORKFLOW.md)** - Code modification & commit guidelines
+- **[CLAUDE_ARCH.md](CLAUDE_ARCH.md)** - Layered architecture & file reference
+
+**Bug Tracking:**
+- **[BUGS_INDEX.md](BUGS_INDEX.md)** - Quick bug lookup (10 sec scan) ⚡ CHECK BEFORE CODING
+- **[BUGS.md](BUGS.md)** - Detailed bug analysis (use as reference)
+
+**Technical Reference:**
+- **[MODBUS_REGISTER_MAP.md](MODBUS_REGISTER_MAP.md)** - Complete Modbus register mapping
+- **[ST_MONITORING.md](ST_MONITORING.md)** - ST Logic performance monitoring
+- **[TIMING_ANALYSIS.md](TIMING_ANALYSIS.md)** - ST Logic timing specifications
+
+**Test & Analysis:**
+- **[ST_COMPLETE_TEST_PLAN.md](ST_COMPLETE_TEST_PLAN.md)** - 59 ST Logic test cases (copy/paste ready)
+- **[ST_MODULE_ANALYSIS.md](ST_MODULE_ANALYSIS.md)** - ST module architecture
+- **[ST_SYNTAX_ANALYSIS.md](ST_SYNTAX_ANALYSIS.md)** - ST syntax reference
+- **[ST_TYPE_REFACTOR_PLAN.md](ST_TYPE_REFACTOR_PLAN.md)** - IEC 61131-3 type refactor plan
+
+---
+
+### 🏗️ Core Features (This Document)
+
+**Architecture & Interfaces:**
 - [**Architecture Overview**](#-architecture-overview) ⭐ - Dual Modbus Interface (Slave + Master)
 - [Modbus Slave Interface (UART0)](#modbus-slave-interface-uart0---scadahmi-control) - SCADA/HMI control
 - [Modbus Master Interface (UART1)](#modbus-master-interface-uart1---remote-device-control) - Remote device control
-- [Counter Engine](#counter-engine-4-uafhængige-counters)
-- [Timer Engine](#timer-engine-4-uafhængige-timers)
-- [ST Logic (Structured Text)](#st-logic-structured-text-programming-v20) ⭐ IEC 61131-3 Type System
-- [Network & Wi-Fi](#network--wi-fi-v30)
 
-### Data Persistence ⭐
-- [**Persistent Registers (v4.0+)**](#persistent-registers-v40) - Save/restore register groups
+**Core Engines:**
+- [Counter Engine](#counter-engine-4-uafhængige-counters) - 4 independent counters (HW/Modbus/GPIO)
+- [Timer Engine](#timer-engine-4-uafhængige-timers) - 4 timers (TON/TOF/TP modes)
+- [ST Logic Programming](#st-logic-structured-text-programming-v20) ⭐ - IEC 61131-3 Structured Text
+
+**Connectivity:**
+- [Network & Wi-Fi](#network--wi-fi-v30) - WiFi AP/STA, Telnet CLI
+- [GPIO Mapping](#gpio-mapping) - Digital I/O til Modbus registers
+
+---
+
+### ⭐ Advanced Features
+
+**Data Persistence (v4.0+):**
+- [**Persistent Registers**](#persistent-registers-v40) - Save/restore register groups
   - [Group Management](#1-group-management-cli)
   - [Save & Restore Operations](#2-save--restore-operations)
-  - [**Auto-Load on Boot (v4.3.0)**](#3-auto-load-on-boot-v430) ⭐ NEW
+  - [**Auto-Load on Boot**](#3-auto-load-on-boot-v430) ⭐ v4.3.0
   - [ST Logic Integration](#4-st-logic-integration)
   - [Best Practices](#6-best-practices)
   - [Troubleshooting](#8-troubleshooting)
 
-### Development
-- [Quick Start](#quick-start-first-boot)
-- [**CLI Commands Reference**](#-cli-commands-reference) ⭐ NEW - Complete guide
-- [Examples](#-usage-examples)
-- [Project Structure](#-project-structure)
-- [Changelog](#-version-history)
+**ST Logic Capabilities:**
+- [IEC 61131-3 Type System](#st-logic-structured-text-programming-v20) - INT/DINT/REAL/BOOL (v5.0.0)
+- [Modbus Master Integration](#modbus-master-interface-uart1---remote-device-control) - MB_READ_*/MB_WRITE_* functions
+- [Performance Monitoring](#st-logic-structured-text-programming-v20) - Min/Max/Avg execution times
+- [Bytecode Debugging](#-cli-commands-reference) - `show logic <id> bytecode` (v4.4.0)
+
+---
+
+### 🛠️ Development & Usage
+
+**Getting Started:**
+- [Quick Start](#quick-start-first-boot) - First boot walkthrough
+- [Installation & Build](#-installation--build) - PlatformIO setup
+- [Hardware Requirements](#-hardware-requirements) - ESP32-WROOM-32 specs
+
+**CLI Interface (v4.4.0):**
+- [**CLI Commands Reference**](#-cli-commands-reference) ⭐ NEW - Complete guide (650+ lines)
+  - [Quick Reference: `show config` → `set` mapping](#quick-reference-show-config--set-command-mapping)
+  - [8 Organized Sections](#show-config-output-organization-v440) - SYSTEM, MODBUS, COUNTERS, TIMERS, GPIO, ST LOGIC, NETWORK, PERSISTENCE
+  - [Common Workflows](#common-cli-workflows) - Counter setup, ST upload, persistence
+  - [Error Handling](#error-handling--validation)
+
+**Examples & Testing:**
+- [Usage Examples](#-usage-examples) - Counter, timer, ST Logic examples
+- [Testing Guide](#-testing) - Unit tests, integration tests
+
+**Project Reference:**
+- [Project Structure](#-project-structure) - File organization
+- [Architecture](#-architecture) - Layered design
+- [Specifications](#-specifications) - Technical specs
+
+---
+
+### 📖 Version History & Support
+
+- [**Version History**](#-version-history) - Complete changelog (v4.4.0+)
+- [Contributing](#-contributing) - Code standards
+- [Support & Issues](#-support--issues) - Bug reporting
+- [License](#-license) - MIT License
+- [Additional Documentation](#-additional-documentation) - External docs
 
 ---
 
