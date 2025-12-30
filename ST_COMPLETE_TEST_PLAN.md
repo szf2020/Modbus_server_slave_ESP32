@@ -3011,9 +3011,9 @@ BEGIN
   output_limited := LIMIT(0, output, 100);
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind setpoint reg:100 output
-set logic 1 bind actual reg:101 output
-set logic 1 bind kp reg:102 output
+set logic 1 bind setpoint reg:100 input
+set logic 1 bind actual reg:101 input
+set logic 1 bind kp reg:102 input
 set logic 1 bind output_limited reg:103 output
 set logic 1 enabled:true
 ```
@@ -3079,8 +3079,8 @@ BEGIN
   END_IF;
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind temperature reg:100 output
-set logic 1 bind pressure reg:101 output
+set logic 1 bind temperature reg:100 input
+set logic 1 bind pressure reg:101 input
 set logic 1 bind alarm_level reg:102 output
 set logic 1 enabled:true
 ```
@@ -3142,10 +3142,10 @@ BEGIN
   average := sum / 4;
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind value1 reg:100 output
-set logic 1 bind value2 reg:101 output
-set logic 1 bind value3 reg:102 output
-set logic 1 bind value4 reg:103 output
+set logic 1 bind value1 reg:100 input
+set logic 1 bind value2 reg:101 input
+set logic 1 bind value3 reg:102 input
+set logic 1 bind value4 reg:103 input
 set logic 1 bind average reg:104 output
 set logic 1 enabled:true
 ```
@@ -3200,8 +3200,8 @@ BEGIN
   END_CASE;
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind mode reg:100 output
-set logic 1 bind input reg:101 output
+set logic 1 bind mode reg:100 input
+set logic 1 bind input reg:101 input
 set logic 1 bind output reg:102 output
 set logic 1 enabled:true
 ```
@@ -3267,8 +3267,8 @@ BEGIN
   END_IF;
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind start_count coil:0 output
-set logic 1 bind threshold reg:100 output
+set logic 1 bind start_count coil:0 input
+set logic 1 bind threshold reg:100 input
 set logic 1 bind count reg:101 output
 set logic 1 enabled:true
 ```
@@ -3326,7 +3326,7 @@ BEGIN
   END_WHILE;
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind target reg:100 output
+set logic 1 bind target reg:100 input
 set logic 1 bind iterations reg:101 output
 set logic 1 enabled:true
 ```
@@ -3422,7 +3422,7 @@ BEGIN
   int_output := REAL_TO_INT(scaled);
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind int_input reg:100 output
+set logic 1 bind int_input reg:100 input
 set logic 1 bind int_output reg:101 output
 set logic 1 enabled:true
 ```
@@ -3476,10 +3476,10 @@ BEGIN
   final_output := SEL(mode_active, manual_value, auto_value);
 END_PROGRAM
 END_UPLOAD
-set logic 1 bind auto_mode coil:0 output
-set logic 1 bind manual_override coil:1 output
-set logic 1 bind auto_value reg:100 output
-set logic 1 bind manual_value reg:101 output
+set logic 1 bind auto_mode coil:0 input
+set logic 1 bind manual_override coil:1 input
+set logic 1 bind auto_value reg:100 input
+set logic 1 bind manual_value reg:101 input
 set logic 1 bind final_output reg:102 output
 set logic 1 enabled:true
 ```
