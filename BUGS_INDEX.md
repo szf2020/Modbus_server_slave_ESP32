@@ -103,6 +103,7 @@
 | BUG-125 | ST Logic multi-register byte order (DINT/DWORD/REAL INPUT/OUTPUT) | ✅ FIXED | 🔴 CRITICAL | v5.0.0 | Variable bindings brugte MSW først, skulle bruge LSW først |
 | BUG-126 | st_count redeclaration i cli_show.cpp | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable declared twice in same function, compile error |
 | BUG-127 | st_state declaration order (used before declared) | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable used on line 382 but declared on line 415 |
+| BUG-128 | normalize_alias() mangler BYTECODE/TIMING keywords | ✅ FIXED | 🟠 MEDIUM | v4.4.0 | `show logic <id> bytecode/timing` kommandoer virker ikke |
 
 ## Quick Lookup by Category
 
@@ -175,6 +176,7 @@
 - **BUG-072:** DUP type stack sync (FIXED v4.4.4)
 - **BUG-073:** SHL/SHR shift overflow (FIXED v4.4.4)
 - **BUG-074:** Jump patch silent fail (FIXED v4.4.4)
+- **BUG-128:** normalize_alias() mangler BYTECODE/TIMING (FIXED v4.4.0 Build #875)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535

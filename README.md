@@ -2862,6 +2862,7 @@ if client.connect():
   - **Bug fixes:**
     - **BUG-126 FIXED:** `st_count` redeclaration in cli_show.cpp
     - **BUG-127 FIXED:** `st_state` declaration order (used before declared)
+    - **BUG-128 FIXED:** normalize_alias() missing BYTECODE/TIMING keywords (Build #875)
   - **Documentation:**
     - 650+ lines CLI reference with 8 sections
     - 3 complete workflow examples
