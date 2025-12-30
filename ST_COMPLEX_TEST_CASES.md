@@ -117,7 +117,7 @@ BEGIN
 END_PROGRAM
 END_UPLOAD
 
-set logic 1 bind enable coil:0
+set logic 1 bind enable coil:0 input
 set logic 1 bind temp_setpoint reg:20 input
 set logic 1 bind temp_actual reg:30 input
 set logic 1 bind alarm coil:10 output
@@ -262,7 +262,7 @@ END_UPLOAD
 set logic 2 bind tank1_level reg:50 input
 set logic 2 bind tank2_level reg:52 input
 set logic 2 bind tank3_level reg:54 input
-set logic 2 bind auto_mode coil:0
+set logic 2 bind auto_mode coil:0 input
 set logic 2 bind pump1_on coil:20 output
 set logic 2 bind pump2_on coil:21 output
 set logic 2 bind pump3_on coil:22 output
@@ -405,7 +405,7 @@ BEGIN
 END_PROGRAM
 END_UPLOAD
 
-set logic 3 bind running coil:0
+set logic 3 bind running coil:0 input
 set logic 3 bind good_count reg:60 input
 set logic 3 bind bad_count reg:61 input
 set logic 3 bind batch_complete coil:30 output
@@ -544,8 +544,8 @@ set logic 4 bind zone2_temp reg:82 input
 set logic 4 bind zone3_temp reg:84 input
 set logic 4 bind zone4_temp reg:86 input
 set logic 4 bind setpoint reg:88 input
-set logic 4 bind system_enable coil:0
-set logic 4 bind eco_mode coil:1
+set logic 4 bind system_enable coil:0 input
+set logic 4 bind eco_mode coil:1 input
 set logic 4 bind heating_on coil:40 output
 set logic 4 bind cooling_on coil:41 output
 set logic 4 bind zone1_alarm coil:42 output
@@ -724,9 +724,9 @@ set logic 1 bind weight reg:100 input
 set logic 1 bind temperature reg:102 input
 set logic 1 bind target_weight reg:104 input
 set logic 1 bind target_temp reg:105 input
-set logic 1 bind recipe_running coil:0
-set logic 1 bind door_closed coil:1
-set logic 1 bind estop coil:2
+set logic 1 bind recipe_running coil:0 input
+set logic 1 bind door_closed coil:1 input
+set logic 1 bind estop coil:2 input
 set logic 1 bind fill_valve coil:50 output
 set logic 1 bind mix_motor coil:51 output
 set logic 1 bind heater coil:52 output
