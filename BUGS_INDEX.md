@@ -104,6 +104,7 @@
 | BUG-126 | st_count redeclaration i cli_show.cpp | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable declared twice in same function, compile error |
 | BUG-127 | st_state declaration order (used before declared) | ✅ FIXED | 🔵 LOW | v4.4.0 | Variable used on line 382 but declared on line 415 |
 | BUG-128 | normalize_alias() mangler BYTECODE/TIMING keywords | ✅ FIXED | 🟠 MEDIUM | v4.4.0 | `show logic <id> bytecode/timing` kommandoer virker ikke |
+| BUG-129 | normalize_alias() returnerer ST-STATS i stedet for STATS | ✅ FIXED | 🟡 HIGH | v4.4.0 | `show logic stats` og `reset logic stats` virker ikke |
 
 ## Quick Lookup by Category
 
@@ -157,6 +158,7 @@
 - **BUG-051:** Expression chaining fejler for REAL (FIXED v4.3.5 Build #712)
 - **BUG-063:** Function argument overflow validation (FIXED v4.4.3)
 - **BUG-068:** String parsing null terminator (FIXED v4.4.4)
+- **BUG-129:** normalize_alias() returnerer ST-STATS (FIXED v4.4.0 Build #880)
 - **BUG-CLI-1:** Parameter keyword clarification
 - **BUG-CLI-2:** GPIO validation
 

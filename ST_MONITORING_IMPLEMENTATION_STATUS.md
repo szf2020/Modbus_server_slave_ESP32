@@ -16,7 +16,9 @@
 | **Interval Control** | ✅ FULLY IMPLEMENTED | 100% |
 | **Statistics Reset** | ✅ FULLY IMPLEMENTED | 100% |
 
-**Overall Implementation:** ✅ **100% COMPLETE**
+**Overall Implementation:** ✅ **100% COMPLETE** (Fixed BUG-129 in Build #880)
+
+**Note:** BUG-129 was discovered during testing - `normalize_alias()` returned "ST-STATS" instead of "STATS", causing `show logic stats` and `reset logic stats` commands to fail. Fixed in Build #880.
 
 ---
 
