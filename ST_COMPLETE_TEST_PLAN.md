@@ -3071,12 +3071,11 @@ set logic 1 bind actual reg:21 input
 set logic 1 bind kp reg:22 input
 set logic 1 bind output_limited reg:23 output
 set logic 1 enabled:true
+write reg 22 value int 2
 ```
 
 **Test Cases:**
 ```bash
-write reg 22 value int 2
-
 # Test 1: setpoint=80, actual=70 → error=10, output=20
 write reg 20 value int 80
 write reg 21 value int 70
@@ -3259,12 +3258,11 @@ set logic 1 bind mode reg:20 input
 set logic 1 bind input reg:21 input
 set logic 1 bind output reg:22 output
 set logic 1 enabled:true
+write reg 21 value int -50
 ```
 
 **Test Cases:**
 ```bash
-write reg 21 value int -50
-
 # Test 1: mode=1 (ABS)
 write reg 20 value int 1
 read reg 22 int
@@ -3537,13 +3535,12 @@ set logic 1 bind auto_value reg:20 input
 set logic 1 bind manual_value reg:21 input
 set logic 1 bind final_output reg:22 output
 set logic 1 enabled:true
+write reg 20 value int 75
+write reg 21 value int 50
 ```
 
 **Test Cases:**
 ```bash
-write reg 20 value int 75
-write reg 21 value int 50
-
 # Test 1: auto=TRUE, override=FALSE → mode_active=TRUE → auto_value
 write coil 0 value 1
 read reg 22 int
@@ -3617,14 +3614,12 @@ set logic 1 bind motor_running coil:10 output
 set logic 1 bind alarm coil:11 output
 set logic 1 bind production_count reg:40 output
 set logic 1 enabled:true
+write reg 20 value int 50
+write reg 21 value real 25.0
 ```
 
 **Test Cases:**
 ```bash
-# Setup initial values
-write reg 20 value int 50
-write reg 21 value real 25.0
-
 # Test 1: Start sequence
 write coil 0 value 1
 read coil 10
