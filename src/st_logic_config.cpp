@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <FS.h>
+#include <SPIFFS.h>
 
 /* ============================================================================
  * GLOBAL STATE
@@ -272,30 +274,27 @@ void st_logic_reset_cycle_stats(st_logic_engine_state_t *state) {
 }
 
 /* ============================================================================
- * PERSISTENCE (NVS STORAGE)
+ * PERSISTENCE (SPIFFS STORAGE)
  * ============================================================================ */
 
 /**
- * @brief Save ST Logic programs to NVS separately (avoid PersistConfig size limit)
+ * @brief Save ST Logic programs to SPIFFS (unlimited size)
  * @return true if successful
  */
 bool st_logic_save_to_nvs(void) {
   st_logic_engine_state_t *state = st_logic_get_state();
-  nvs_handle_t handle;
   DebugFlags* dbg = debug_flags_get();
 
-  esp_err_t err = nvs_open("st_logic", NVS_READWRITE, &handle);
-  if (err != ESP_OK) {
+  // Mount SPIFFS if not already mounted
+  if (!SPIFFS.begin(true)) {
     if (dbg->config_save) {
-      debug_print("ST_LOGIC SAVE: NVS open failed: ");
-      debug_print_uint(err);
-      debug_println("");
+      debug_println("ST_LOGIC SAVE: SPIFFS mount failed");
     }
     return false;
   }
 
   if (dbg->config_save) {
-    debug_println("ST_LOGIC SAVE: Saving programs to NVS");
+    debug_println("ST_LOGIC SAVE: Saving programs to SPIFFS");
   }
 
   // Save each program
@@ -303,77 +302,80 @@ bool st_logic_save_to_nvs(void) {
   for (uint8_t i = 0; i < 4; i++) {
     st_logic_program_config_t *prog = &state->programs[i];
 
-    // Skip empty programs
-    if (prog->source_size == 0) continue;
+    // Delete file if program is empty
+    char filename[32];
+    snprintf(filename, sizeof(filename), "/logic_%d.dat", i);
 
-    char key[16];
-    snprintf(key, sizeof(key), "prog_%d", i);
+    if (prog->source_size == 0) {
+      if (SPIFFS.exists(filename)) {
+        SPIFFS.remove(filename);
+        if (dbg->config_save) {
+          debug_print("  Program ");
+          debug_print_uint(i);
+          debug_println(": deleted (empty)");
+        }
+      }
+      continue;
+    }
 
-    // Store: enabled flag + source size + source code
-    uint8_t data[2050];
-    data[0] = prog->enabled;
-    memcpy(&data[1], &prog->source_size, sizeof(uint32_t));
+    // Open file for writing
+    File file = SPIFFS.open(filename, FILE_WRITE);
+    if (!file) {
+      if (dbg->config_save) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_println(": FAILED to open file");
+      }
+      continue;
+    }
+
+    // Write: enabled flag (1 byte) + source size (4 bytes) + source code
+    file.write(prog->enabled);
+    file.write((uint8_t*)&prog->source_size, sizeof(uint32_t));
     if (prog->source_size > 0 && prog->source_size <= 2000) {
-      memcpy(&data[5], prog->source_code, prog->source_size);
+      file.write((uint8_t*)prog->source_code, prog->source_size);
     }
+    file.close();
 
-    uint32_t total_size = 5 + prog->source_size;
-    err = nvs_set_blob(handle, key, data, total_size);
-    if (err == ESP_OK) {
-      if (dbg->config_save) {
-        debug_print("  Program ");
-        debug_print_uint(i);
-        debug_print(": saved ");
-        debug_print_uint(prog->source_size);
-        debug_print(" bytes (enabled=");
-        debug_print_uint(prog->enabled);
-        debug_println(")");
-      }
-      saved_count++;
-    } else {
-      if (dbg->config_save) {
-        debug_print("  Program ");
-        debug_print_uint(i);
-        debug_print(": FAILED - error ");
-        debug_print_uint(err);
-        debug_println("");
-      }
+    if (dbg->config_save) {
+      debug_print("  Program ");
+      debug_print_uint(i);
+      debug_print(": saved ");
+      debug_print_uint(prog->source_size);
+      debug_print(" bytes (enabled=");
+      debug_print_uint(prog->enabled);
+      debug_println(")");
     }
+    saved_count++;
   }
-
-  err = nvs_commit(handle);
-  nvs_close(handle);
 
   if (dbg->config_save) {
     debug_print("ST_LOGIC SAVE: Saved ");
     debug_print_uint(saved_count);
-    debug_print(" programs (commit=");
-    debug_print_uint(err);
-    debug_println(")");
+    debug_println(" programs to SPIFFS");
   }
 
-  return (err == ESP_OK);
+  return true;
 }
 
 /**
- * @brief Load ST Logic programs from NVS
+ * @brief Load ST Logic programs from SPIFFS
  * @return true if successful
  */
 bool st_logic_load_from_nvs(void) {
   st_logic_engine_state_t *state = st_logic_get_state();
-  nvs_handle_t handle;
   DebugFlags* dbg = debug_flags_get();
 
-  esp_err_t err = nvs_open("st_logic", NVS_READONLY, &handle);
-  if (err != ESP_OK) {
+  // Mount SPIFFS if not already mounted
+  if (!SPIFFS.begin(true)) {
     if (dbg->config_load) {
-      debug_println("ST_LOGIC LOAD: No saved programs found (namespace not created yet)");
+      debug_println("ST_LOGIC LOAD: SPIFFS mount failed");
     }
-    return true;  // No saved programs yet - OK
+    return false;
   }
 
   if (dbg->config_load) {
-    debug_println("ST_LOGIC LOAD: Loading programs from NVS");
+    debug_println("ST_LOGIC LOAD: Loading programs from SPIFFS");
   }
 
   // Load each program
@@ -381,71 +383,83 @@ bool st_logic_load_from_nvs(void) {
   for (uint8_t i = 0; i < 4; i++) {
     st_logic_program_config_t *prog = &state->programs[i];
 
-    char key[16];
-    snprintf(key, sizeof(key), "prog_%d", i);
+    char filename[32];
+    snprintf(filename, sizeof(filename), "/logic_%d.dat", i);
 
-    uint8_t data[2050];
-    size_t length = sizeof(data);
+    // Check if file exists
+    if (!SPIFFS.exists(filename)) {
+      // No file for this program slot - OK (empty slot)
+      continue;
+    }
 
-    err = nvs_get_blob(handle, key, data, &length);
-    if (err == ESP_OK && length >= 5) {
-      // Parse: enabled flag + source size + source code
-      prog->enabled = data[0];
-      memcpy(&prog->source_size, &data[1], sizeof(uint32_t));
-
-      if (prog->source_size > 0 && prog->source_size <= 2000) {
-        memcpy(prog->source_code, &data[5], prog->source_size);
-        prog->compiled = 0;  // Mark as needing recompilation
-
-        if (dbg->config_load) {
-          debug_print("  Program ");
-          debug_print_uint(i);
-          debug_print(": loaded ");
-          debug_print_uint(prog->source_size);
-          debug_print(" bytes, enabled=");
-          debug_print_uint(prog->enabled);
-          debug_print(", compiling...");
-        }
-
-        // Immediately compile the program
-        if (st_logic_compile(state, i)) {
-          if (dbg->config_load) {
-            debug_println(" OK");
-          }
-          loaded_count++;
-        } else {
-          if (dbg->config_load) {
-            debug_print(" FAILED: ");
-            debug_println(prog->last_error);
-          }
-        }
-      } else {
-        if (dbg->config_load) {
-          debug_print("  Program ");
-          debug_print_uint(i);
-          debug_print(": invalid size ");
-          debug_print_uint(prog->source_size);
-          debug_println("");
-        }
-      }
-    } else if (err != ESP_ERR_NVS_NOT_FOUND) {
+    // Open file for reading
+    File file = SPIFFS.open(filename, FILE_READ);
+    if (!file) {
       if (dbg->config_load) {
         debug_print("  Program ");
         debug_print_uint(i);
-        debug_print(": read error ");
-        debug_print_uint(err);
+        debug_println(": FAILED to open file");
+      }
+      continue;
+    }
+
+    // Read: enabled flag (1 byte) + source size (4 bytes) + source code
+    if (file.available() < 5) {
+      if (dbg->config_load) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_println(": file too small");
+      }
+      file.close();
+      continue;
+    }
+
+    prog->enabled = file.read();
+    file.read((uint8_t*)&prog->source_size, sizeof(uint32_t));
+
+    if (prog->source_size > 0 && prog->source_size <= 2000) {
+      file.read((uint8_t*)prog->source_code, prog->source_size);
+      prog->compiled = 0;  // Mark as needing recompilation
+      file.close();
+
+      if (dbg->config_load) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_print(": loaded ");
+        debug_print_uint(prog->source_size);
+        debug_print(" bytes, enabled=");
+        debug_print_uint(prog->enabled);
+        debug_print(", compiling...");
+      }
+
+      // Immediately compile the program
+      if (st_logic_compile(state, i)) {
+        if (dbg->config_load) {
+          debug_println(" OK");
+        }
+        loaded_count++;
+      } else {
+        if (dbg->config_load) {
+          debug_print(" FAILED: ");
+          debug_println(prog->last_error);
+        }
+      }
+    } else {
+      if (dbg->config_load) {
+        debug_print("  Program ");
+        debug_print_uint(i);
+        debug_print(": invalid size ");
+        debug_print_uint(prog->source_size);
         debug_println("");
       }
+      file.close();
     }
-    // ESP_ERR_NVS_NOT_FOUND is normal (program slot empty)
   }
-
-  nvs_close(handle);
 
   if (dbg->config_load) {
     debug_print("ST_LOGIC LOAD: Loaded ");
     debug_print_uint(loaded_count);
-    debug_println(" programs");
+    debug_println(" programs from SPIFFS");
   }
 
   // BUG-005 FIX: Update binding count cache after loading programs
@@ -454,13 +468,13 @@ bool st_logic_load_from_nvs(void) {
   return true;
 }
 
-// Legacy compatibility functions (empty implementations)
+// Legacy compatibility functions - redirect to SPIFFS storage
 bool st_logic_save_to_persist_config(PersistConfig *config) {
-  (void)config;  // Unused - ST Logic now saves to separate NVS namespace
-  return st_logic_save_to_nvs();
+  (void)config;  // Unused - ST Logic now saves to SPIFFS filesystem
+  return st_logic_save_to_nvs();  // Function name kept for compatibility
 }
 
 bool st_logic_load_from_persist_config(const PersistConfig *config) {
-  (void)config;  // Unused - ST Logic now loads from separate NVS namespace
-  return st_logic_load_from_nvs();
+  (void)config;  // Unused - ST Logic now loads from SPIFFS filesystem
+  return st_logic_load_from_nvs();  // Function name kept for compatibility
 }

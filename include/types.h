@@ -400,7 +400,7 @@ typedef struct __attribute__((packed)) {
 
   // Variable mappings (GPIO pins + ST variables)
   uint8_t var_map_count;
-  VariableMapping var_maps[64];  // 32 GPIO + ST variable bindings
+  VariableMapping var_maps[32];  // Reduced from 64 to fit in NVS (saves ~400 bytes)
 
   // GPIO2 configuration (heartbeat control)
   uint8_t gpio2_user_mode;  // 0 = heartbeat mode (default), 1 = user mode (GPIO2 available)

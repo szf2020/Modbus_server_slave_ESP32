@@ -65,8 +65,8 @@ static void config_init_defaults(PersistConfig* cfg) {
   // Initialize network config with defaults (v3.0+)
   network_config_init_defaults(&cfg->network);
 
-  // Initialize all GPIO mappings as unused (all 64 slots)
-  for (uint8_t i = 0; i < 64; i++) {
+  // Initialize all GPIO mappings as unused (reduced to 32 slots for NVS space)
+  for (uint8_t i = 0; i < 32; i++) {
     cfg->var_maps[i].input_reg = 65535;
     cfg->var_maps[i].coil_reg = 65535;
     cfg->var_maps[i].associated_counter = 0xff;
