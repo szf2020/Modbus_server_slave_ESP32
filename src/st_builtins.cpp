@@ -139,6 +139,58 @@ st_value_t st_builtin_tan(st_value_t x) {
 }
 
 /* ============================================================================
+ * EXPONENTIAL FUNCTIONS (v4.7+)
+ * ============================================================================ */
+
+st_value_t st_builtin_exp(st_value_t x) {
+  st_value_t result;
+  float exp_result = expf(x.real_val);  // e^x
+
+  // v4.7+: Overflow check - expf(>88.7) → INF
+  if (isinf(exp_result)) {
+    result.real_val = 0.0f;  // Return 0 for overflow (consistent with other math functions)
+  } else {
+    result.real_val = exp_result;
+  }
+  return result;
+}
+
+st_value_t st_builtin_ln(st_value_t x) {
+  st_value_t result;
+  // Check for invalid input (log of non-positive number)
+  if (x.real_val <= 0.0f) {
+    result.real_val = 0.0f;  // Return 0 for invalid input (similar to BUG-065 SQRT handling)
+  } else {
+    result.real_val = logf(x.real_val);  // Natural logarithm (base e)
+  }
+  return result;
+}
+
+st_value_t st_builtin_log(st_value_t x) {
+  st_value_t result;
+  // Check for invalid input (log of non-positive number)
+  if (x.real_val <= 0.0f) {
+    result.real_val = 0.0f;  // Return 0 for invalid input
+  } else {
+    result.real_val = log10f(x.real_val);  // Base-10 logarithm
+  }
+  return result;
+}
+
+st_value_t st_builtin_pow(st_value_t x, st_value_t y) {
+  st_value_t result;
+  float pow_result = powf(x.real_val, y.real_val);  // x^y
+
+  // v4.7+: Input validation - check for NaN/INF (negative base with fractional exponent, etc.)
+  if (isnan(pow_result) || isinf(pow_result)) {
+    result.real_val = 0.0f;  // Return 0 for invalid results (consistent with LN/LOG/SQRT)
+  } else {
+    result.real_val = pow_result;
+  }
+  return result;
+}
+
+/* ============================================================================
  * TYPE CONVERSION FUNCTIONS
  * ============================================================================ */
 
@@ -260,6 +312,23 @@ st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_
       result = st_builtin_tan(arg1);
       break;
 
+    // Exponential (v4.7+)
+    case ST_BUILTIN_EXP:
+      result = st_builtin_exp(arg1);
+      break;
+
+    case ST_BUILTIN_LN:
+      result = st_builtin_ln(arg1);
+      break;
+
+    case ST_BUILTIN_LOG:
+      result = st_builtin_log(arg1);
+      break;
+
+    case ST_BUILTIN_POW:
+      result = st_builtin_pow(arg1, arg2);
+      break;
+
     // Type conversions
     case ST_BUILTIN_INT_TO_REAL:
       result = st_builtin_int_to_real(arg1);
@@ -349,6 +418,10 @@ const char *st_builtin_name(st_builtin_func_t func_id) {
     case ST_BUILTIN_SIN:           return "SIN";
     case ST_BUILTIN_COS:           return "COS";
     case ST_BUILTIN_TAN:           return "TAN";
+    case ST_BUILTIN_EXP:           return "EXP";
+    case ST_BUILTIN_LN:            return "LN";
+    case ST_BUILTIN_LOG:           return "LOG";
+    case ST_BUILTIN_POW:           return "POW";
     case ST_BUILTIN_INT_TO_REAL:   return "INT_TO_REAL";
     case ST_BUILTIN_REAL_TO_INT:   return "REAL_TO_INT";
     case ST_BUILTIN_BOOL_TO_INT:   return "BOOL_TO_INT";
@@ -363,6 +436,14 @@ const char *st_builtin_name(st_builtin_func_t func_id) {
     case ST_BUILTIN_MB_READ_INPUT_REG: return "MB_READ_INPUT_REG";
     case ST_BUILTIN_MB_WRITE_COIL:     return "MB_WRITE_COIL";
     case ST_BUILTIN_MB_WRITE_HOLDING:  return "MB_WRITE_HOLDING";
+    case ST_BUILTIN_R_TRIG:        return "R_TRIG";
+    case ST_BUILTIN_F_TRIG:        return "F_TRIG";
+    case ST_BUILTIN_TON:           return "TON";
+    case ST_BUILTIN_TOF:           return "TOF";
+    case ST_BUILTIN_TP:            return "TP";
+    case ST_BUILTIN_CTU:           return "CTU";
+    case ST_BUILTIN_CTD:           return "CTD";
+    case ST_BUILTIN_CTUD:          return "CTUD";
     default:                       return "UNKNOWN";
   }
 }
@@ -385,12 +466,16 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_SIN:
     case ST_BUILTIN_COS:
     case ST_BUILTIN_TAN:
+    case ST_BUILTIN_EXP:
+    case ST_BUILTIN_LN:
+    case ST_BUILTIN_LOG:
       return 1;
 
     // 2-argument functions
     case ST_BUILTIN_MIN:
     case ST_BUILTIN_MAX:
     case ST_BUILTIN_SUM:
+    case ST_BUILTIN_POW:
     case ST_BUILTIN_MB_READ_COIL:      // MB_READ_COIL(slave_id, address)
     case ST_BUILTIN_MB_READ_INPUT:     // MB_READ_INPUT(slave_id, address)
     case ST_BUILTIN_MB_READ_HOLDING:   // MB_READ_HOLDING(slave_id, address)
@@ -409,6 +494,23 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_PERSIST_LOAD:
       return 1;  // arg: group_id (0=all, 1-8=specific)
 
+    // Stateful functions (v4.7+)
+    case ST_BUILTIN_R_TRIG:        // R_TRIG(CLK)
+    case ST_BUILTIN_F_TRIG:        // F_TRIG(CLK)
+      return 1;
+
+    case ST_BUILTIN_TON:           // TON(IN, PT)
+    case ST_BUILTIN_TOF:           // TOF(IN, PT)
+    case ST_BUILTIN_TP:            // TP(IN, PT)
+      return 2;
+
+    case ST_BUILTIN_CTU:           // CTU(CU, RESET, PV)
+    case ST_BUILTIN_CTD:           // CTD(CD, LOAD, PV)
+      return 3;
+
+    case ST_BUILTIN_CTUD:          // CTUD(CU, CD, RESET, LOAD, PV)
+      return 5;
+
     default:
       return 0;
   }
@@ -421,6 +523,10 @@ st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
     case ST_BUILTIN_SIN:
     case ST_BUILTIN_COS:
     case ST_BUILTIN_TAN:
+    case ST_BUILTIN_EXP:
+    case ST_BUILTIN_LN:
+    case ST_BUILTIN_LOG:
+    case ST_BUILTIN_POW:
     case ST_BUILTIN_INT_TO_REAL:
       return ST_TYPE_REAL;
 
@@ -430,6 +536,14 @@ st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
     case ST_BUILTIN_MB_READ_INPUT:     // MB_READ_INPUT → BOOL
     case ST_BUILTIN_MB_WRITE_COIL:     // MB_WRITE_COIL → BOOL (success flag)
     case ST_BUILTIN_MB_WRITE_HOLDING:  // MB_WRITE_HOLDING → BOOL (success flag)
+    case ST_BUILTIN_R_TRIG:            // R_TRIG → BOOL
+    case ST_BUILTIN_F_TRIG:            // F_TRIG → BOOL
+    case ST_BUILTIN_TON:               // TON → BOOL
+    case ST_BUILTIN_TOF:               // TOF → BOOL
+    case ST_BUILTIN_TP:                // TP → BOOL
+    case ST_BUILTIN_CTU:               // CTU → BOOL
+    case ST_BUILTIN_CTD:               // CTD → BOOL
+    case ST_BUILTIN_CTUD:              // CTUD → BOOL
       return ST_TYPE_BOOL;
 
     // Returns DWORD

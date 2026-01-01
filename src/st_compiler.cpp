@@ -8,6 +8,7 @@
 
 #include "st_compiler.h"
 #include "st_builtins.h"
+#include "st_stateful.h"
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
@@ -25,6 +26,11 @@ void st_compiler_init(st_compiler_t *compiler) {
   compiler->patch_count = 0;
   compiler->exit_patch_total = 0;
   memset(compiler->exit_patch_count, 0, sizeof(compiler->exit_patch_count));
+
+  // v4.7+: Initialize instance counters for stateful functions
+  compiler->edge_instance_count = 0;
+  compiler->timer_instance_count = 0;
+  compiler->counter_instance_count = 0;
 }
 
 /* ============================================================================
@@ -105,6 +111,17 @@ bool st_compiler_emit_var(st_compiler_t *compiler, st_opcode_t opcode, uint8_t v
   st_bytecode_instr_t *instr = &compiler->bytecode[compiler->bytecode_ptr++];
   instr->opcode = opcode;
   instr->arg.var_index = var_index;
+  return true;
+}
+
+bool st_compiler_emit_builtin_call(st_compiler_t *compiler, int32_t func_id, uint8_t instance_id) {
+  if (!st_compiler_ensure_space(compiler, 1)) return false;
+
+  st_bytecode_instr_t *instr = &compiler->bytecode[compiler->bytecode_ptr++];
+  instr->opcode = ST_OP_CALL_BUILTIN;
+  instr->arg.builtin_call.func_id_low = (uint8_t)(func_id & 0xFF);  // Only lower byte (max 256 functions)
+  instr->arg.builtin_call.instance_id = instance_id;
+  instr->arg.builtin_call.padding = 0;  // Explicit zero padding
   return true;
 }
 
@@ -268,6 +285,10 @@ bool st_compiler_compile_expr(st_compiler_t *compiler, st_ast_node_t *node) {
       else if (strcasecmp(node->data.function_call.func_name, "SIN") == 0) func_id = ST_BUILTIN_SIN;
       else if (strcasecmp(node->data.function_call.func_name, "COS") == 0) func_id = ST_BUILTIN_COS;
       else if (strcasecmp(node->data.function_call.func_name, "TAN") == 0) func_id = ST_BUILTIN_TAN;
+      else if (strcasecmp(node->data.function_call.func_name, "EXP") == 0) func_id = ST_BUILTIN_EXP;
+      else if (strcasecmp(node->data.function_call.func_name, "LN") == 0) func_id = ST_BUILTIN_LN;
+      else if (strcasecmp(node->data.function_call.func_name, "LOG") == 0) func_id = ST_BUILTIN_LOG;
+      else if (strcasecmp(node->data.function_call.func_name, "POW") == 0) func_id = ST_BUILTIN_POW;
       else if (strcasecmp(node->data.function_call.func_name, "INT_TO_REAL") == 0) func_id = ST_BUILTIN_INT_TO_REAL;
       else if (strcasecmp(node->data.function_call.func_name, "REAL_TO_INT") == 0) func_id = ST_BUILTIN_REAL_TO_INT;
       else if (strcasecmp(node->data.function_call.func_name, "BOOL_TO_INT") == 0) func_id = ST_BUILTIN_BOOL_TO_INT;
@@ -283,6 +304,15 @@ bool st_compiler_compile_expr(st_compiler_t *compiler, st_ast_node_t *node) {
       else if (strcasecmp(node->data.function_call.func_name, "MB_READ_INPUT_REG") == 0) func_id = ST_BUILTIN_MB_READ_INPUT_REG;
       else if (strcasecmp(node->data.function_call.func_name, "MB_WRITE_COIL") == 0) func_id = ST_BUILTIN_MB_WRITE_COIL;
       else if (strcasecmp(node->data.function_call.func_name, "MB_WRITE_HOLDING") == 0) func_id = ST_BUILTIN_MB_WRITE_HOLDING;
+      // Stateful functions (v4.7+)
+      else if (strcasecmp(node->data.function_call.func_name, "R_TRIG") == 0) func_id = ST_BUILTIN_R_TRIG;
+      else if (strcasecmp(node->data.function_call.func_name, "F_TRIG") == 0) func_id = ST_BUILTIN_F_TRIG;
+      else if (strcasecmp(node->data.function_call.func_name, "TON") == 0) func_id = ST_BUILTIN_TON;
+      else if (strcasecmp(node->data.function_call.func_name, "TOF") == 0) func_id = ST_BUILTIN_TOF;
+      else if (strcasecmp(node->data.function_call.func_name, "TP") == 0) func_id = ST_BUILTIN_TP;
+      else if (strcasecmp(node->data.function_call.func_name, "CTU") == 0) func_id = ST_BUILTIN_CTU;
+      else if (strcasecmp(node->data.function_call.func_name, "CTD") == 0) func_id = ST_BUILTIN_CTD;
+      else if (strcasecmp(node->data.function_call.func_name, "CTUD") == 0) func_id = ST_BUILTIN_CTUD;
       else {
         char msg[128];
         snprintf(msg, sizeof(msg), "Unknown function: %s", node->data.function_call.func_name);
@@ -297,8 +327,43 @@ bool st_compiler_compile_expr(st_compiler_t *compiler, st_ast_node_t *node) {
         }
       }
 
-      // Emit CALL_BUILTIN instruction
-      return st_compiler_emit_int(compiler, ST_OP_CALL_BUILTIN, (int32_t)func_id);
+      // v4.7+: Allocate instance ID for stateful functions
+      uint8_t instance_id = 0;
+
+      // Edge detection functions
+      if (func_id == ST_BUILTIN_R_TRIG || func_id == ST_BUILTIN_F_TRIG) {
+        if (compiler->edge_instance_count >= 8) {
+          st_compiler_error(compiler, "Too many edge detector instances (max 8)");
+          return false;
+        }
+        instance_id = compiler->edge_instance_count++;
+        debug_printf("[COMPILER] Allocated edge instance %d for %s\n",
+                     instance_id, node->data.function_call.func_name);
+      }
+      // Timer functions
+      else if (func_id == ST_BUILTIN_TON || func_id == ST_BUILTIN_TOF || func_id == ST_BUILTIN_TP) {
+        if (compiler->timer_instance_count >= 8) {
+          st_compiler_error(compiler, "Too many timer instances (max 8)");
+          return false;
+        }
+        instance_id = compiler->timer_instance_count++;
+        debug_printf("[COMPILER] Allocated timer instance %d for %s\n",
+                     instance_id, node->data.function_call.func_name);
+      }
+      // Counter functions
+      else if (func_id == ST_BUILTIN_CTU || func_id == ST_BUILTIN_CTD || func_id == ST_BUILTIN_CTUD) {
+        if (compiler->counter_instance_count >= 8) {
+          st_compiler_error(compiler, "Too many counter instances (max 8)");
+          return false;
+        }
+        instance_id = compiler->counter_instance_count++;
+        debug_printf("[COMPILER] Allocated counter instance %d for %s\n",
+                     instance_id, node->data.function_call.func_name);
+      }
+      // Stateless functions use instance_id = 0
+
+      // Emit CALL_BUILTIN instruction with instance ID
+      return st_compiler_emit_builtin_call(compiler, (int32_t)func_id, instance_id);
     }
 
     default:
@@ -855,7 +920,34 @@ st_bytecode_program_t *st_compiler_compile(st_compiler_t *compiler, st_program_t
                  i, bytecode->var_names[i], bytecode->var_types[i]);
   }
 
+  // v4.7+: Allocate stateful storage if any stateful functions were used
+  if (compiler->edge_instance_count > 0 ||
+      compiler->timer_instance_count > 0 ||
+      compiler->counter_instance_count > 0) {
+    st_stateful_storage_t *stateful = (st_stateful_storage_t *)malloc(sizeof(st_stateful_storage_t));
+    if (!stateful) {
+      st_compiler_error(compiler, "Failed to allocate stateful storage");
+      free(bytecode);
+      return NULL;
+    }
+    st_stateful_init(stateful);
+
+    // Pre-allocate instances based on compiler counts
+    stateful->edge_count = compiler->edge_instance_count;
+    stateful->timer_count = compiler->timer_instance_count;
+    stateful->counter_count = compiler->counter_instance_count;
+
+    bytecode->stateful = (struct st_stateful_storage*)stateful;  // Cast to opaque pointer
+
+    debug_printf("[COMPILER] Allocated stateful storage: edges=%d timers=%d counters=%d\n",
+                 compiler->edge_instance_count, compiler->timer_instance_count,
+                 compiler->counter_instance_count);
+  } else {
+    bytecode->stateful = NULL;
+  }
+
   if (compiler->error_count > 0) {
+    if (bytecode->stateful) free(bytecode->stateful);
     free(bytecode);
     return NULL;
   }

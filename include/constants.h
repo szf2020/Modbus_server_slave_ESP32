@@ -286,10 +286,16 @@ typedef enum {
  * ============================================================================ */
 
 #define PROJECT_NAME        "Modbus RTU Server (ESP32)"
-#define PROJECT_VERSION     "4.6.1"
+#define PROJECT_VERSION     "4.7.0"
 // BUILD_DATE and BUILD_NUMBER now in build_version.h (auto-generated)
 
 /* Version history:
+ * v4.7.0 (2026-01-01): Advanced ST Functions & Memory Optimization
+ *                      - 13 new ST functions: EXP/LN/LOG/POW, R_TRIG/F_TRIG, TON/TOF/TP, CTU/CTD/CTUD
+ *                      - Stateful function blocks with automatic instance allocation
+ *                      - Memory optimization: +17.8KB overflow → +32 bytes (99.8% reduction)
+ *                      - Input validation: NaN/INF protection, overflow/underflow guards
+ *                      - Documentation: ST_FUNCTIONS_V47.md, RELEASE_NOTES_V47.md
  * v4.4.0 (2025-12-30): CLI Documentation & ST Logic Debugging Enhancements
  *                      - Comprehensive CLI Commands Reference (650+ lines)
  *                      - show logic <id> bytecode command

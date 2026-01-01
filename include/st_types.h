@@ -370,7 +370,7 @@ typedef enum {
   ST_OP_HALT,               // Stop execution
 } st_opcode_t;
 
-/* Bytecode instruction */
+/* Bytecode instruction (8 bytes, optimized for DRAM) */
 typedef struct {
   st_opcode_t opcode;
   union {
@@ -379,8 +379,16 @@ typedef struct {
     uint32_t dword_arg;     // For PUSH_DWORD
     bool bool_arg;          // For PUSH_BOOL
     uint16_t var_index;     // For LOAD_VAR, STORE_VAR
+    struct {                // For CALL_BUILTIN with stateful functions
+      uint8_t func_id_low;  // Lower byte of function ID
+      uint8_t instance_id;  // Instance storage index (0-7)
+      uint16_t padding;     // Padding to 4 bytes
+    } builtin_call;
   } arg;
 } st_bytecode_instr_t;
+
+/* Forward declaration for stateful storage (defined in st_stateful.h) */
+struct st_stateful_storage;
 
 /* Bytecode program (compiled) */
 typedef struct {
@@ -392,6 +400,9 @@ typedef struct {
   char var_names[32][64];    // Variable names (for CLI binding by name)
   st_datatype_t var_types[32]; // Variable types (BOOL, INT, etc.) - for bindings display
   uint8_t var_count;
+
+  // Stateful storage for timers, edges, counters (v4.7+)
+  struct st_stateful_storage* stateful;  // Persistent state between cycles (opaque pointer)
 
   char name[64];
   uint8_t enabled;

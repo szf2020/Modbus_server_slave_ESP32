@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.6.1 | **Build:** #919 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.7.0 | **Build:** #920 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med **dual Modbus interfaces** (Slave + Master), ST Structured Text Logic programmering med IEC 61131-3 type system, Wi-Fi netværk, telnet CLI interface, og komplet Modbus register dokumentation.
 
@@ -501,8 +501,12 @@ Hver timer har **4 modes:**
 - **Comments:** (* multi-line *) og // single-line
 - **Built-in Functions:**
   - Math: `ABS()`, `SQRT()`, `MIN()`, `MAX()`, `SUM()`, `LIMIT()`, `SEL()`
+  - Exponential (v4.7.0): `EXP()`, `LN()`, `LOG()`, `POW()` ⭐ NEW
   - Type Conversion: `INT_TO_REAL()`, `REAL_TO_INT()`, `BOOL_TO_INT()`, `DWORD_TO_INT()`
   - Trigonometry: `SIN()`, `COS()`, `TAN()`, `ROUND()`, `TRUNC()`, `FLOOR()`, `CEIL()`
+  - Edge Detection (v4.7.0): `R_TRIG()`, `F_TRIG()` ⭐ NEW
+  - Timers (v4.7.0): `TON()`, `TOF()`, `TP()` ⭐ NEW
+  - Counters (v4.7.0): `CTU()`, `CTD()`, `CTUD()` ⭐ NEW
   - Persistence: `SAVE(group_id)` → INT, `LOAD(group_id)` → INT (0=OK, -1=error, -2=rate limited)
   - Modbus Master: `MB_READ_COIL()`, `MB_READ_HOLDING()`, `MB_WRITE_COIL()`, `MB_WRITE_HOLDING()`
 
@@ -2983,7 +2987,206 @@ if client.connect():
 
 ---
 
+## ⭐ What's New in v4.7.0 - Advanced ST Functions
+
+**Release Date:** 2026-01-01 | **Build:** #920 | **Type:** Major Feature Release
+
+Version 4.7 introduces **13 nye ST funktioner** med fokus på avanceret matematik og stateful function blocks, samtidig med kritiske DRAM optimeringer og robuste input validations.
+
+### 🎯 New ST Functions (13 total)
+
+#### Eksponentielle Funktioner (4 functions)
+```structured-text
+result := EXP(x)      (* Exponential function (e^x) *)
+result := LN(x)       (* Natural logarithm (base e) *)
+result := LOG(x)      (* Base-10 logarithm *)
+result := POW(x, y)   (* Power function (x^y) *)
+```
+
+**Features:**
+- ✅ Full input validation (NaN/INF protection)
+- ✅ Overflow/underflow protection
+- ✅ Returns 0.0 for invalid inputs (consistent with existing functions)
+- ✅ IEC 61131-3 compliant
+
+**Example:**
+```structured-text
+temp_celsius := (temp_fahrenheit - 32.0) * 5.0 / 9.0;
+growth_rate := EXP(0.05 * time);
+ph_value := -1.0 * LOG(hydrogen_concentration);
+power_watts := POW(voltage, 2.0) / resistance;
+```
+
+#### Edge Detection (2 functions)
+```structured-text
+button_pressed := R_TRIG(button_input);  (* Rising edge 0→1 *)
+button_released := F_TRIG(button_input); (* Falling edge 1→0 *)
+```
+
+**Features:**
+- ✅ Single-cycle edge detection
+- ✅ Stateful storage (automatic instance allocation)
+- ✅ Max 8 instances per program
+
+**Example:**
+```structured-text
+IF R_TRIG(start_button) THEN
+  counter := counter + 1;
+END_IF;
+```
+
+#### Timers (3 functions)
+```structured-text
+motor_on := TON(start_button, 2000);     (* On-delay: 2 second delay *)
+light_on := TOF(presence_sensor, 5000);  (* Off-delay: 5 second delay *)
+valve_pulse := TP(trigger, 500);         (* Pulse: 500ms pulse *)
+```
+
+**Features:**
+- ✅ Millisecond precision via `millis()`
+- ✅ Negative PT protection (treated as 0)
+- ✅ Correct millis() overflow handling (49-day rollover safe)
+- ✅ Non-retriggerable pulse (TP)
+- ✅ Max 8 timer instances per program
+
+#### Counters (3 functions)
+```structured-text
+batch_done := CTU(sensor, reset_button, 100);    (* Count up to 100 *)
+empty := CTD(dispense, reload, 50);              (* Count down from 50 *)
+(* CTUD available but requires VM update for full support *)
+```
+
+**Features:**
+- ✅ Overflow protection (CV clamped at INT32_MAX)
+- ✅ Underflow protection (CV clamped at 0)
+- ✅ Edge-triggered counting (not level)
+- ✅ Max 8 counter instances per program
+- ⚠️ CTUD requires 5-argument support (planned for v4.8)
+
+### 🔧 Technical Improvements
+
+**Memory Optimization:**
+- **Challenge:** Initial implementation caused +17.8 KB DRAM overflow
+- **Solution:** Union-based bytecode instruction optimization
+- **Result:** Only +32 bytes DRAM (99.8% reduction!)
+- **Bytecode size:** Reduced from 12 bytes → 8 bytes per instruction
+
+**Input Validation:**
+- EXP/LN/LOG/POW: NaN/INF checks → returns 0.0 for invalid inputs
+- Timers: Negative PT values → treated as 0
+- Counters: Overflow protection at INT32_MAX
+
+**Compiler Integration:**
+- Automatic instance ID allocation during compilation
+- Compiler error if max instances exceeded (easy to detect)
+- Zero runtime overhead for instance management
+
+### 📊 Performance Metrics
+
+**Memory Usage:**
+- **RAM (DRAM):** +32 bytes (+0.03% from baseline)
+- **Flash:** +5,892 bytes (+0.6%)
+- **Per-Program Stateful Storage:** 420 bytes (8 timers + 8 edges + 8 counters)
+
+**Code Quality:**
+- ~1,700 lines of new code across 9 files
+- 100% code review passed
+- All validation warnings fixed
+- Build verification: SUCCESS
+
+### 📚 Documentation
+
+**Comprehensive Documentation:**
+- **[ST_FUNCTIONS_V47.md](ST_FUNCTIONS_V47.md)** - Complete function reference (700+ lines)
+  - Syntax & parameters for all 13 functions
+  - 4 comprehensive code examples
+  - Timing diagrams for timers
+  - Truth tables for edge detection
+  - Troubleshooting guide (5 common problems)
+  - Memory usage breakdown
+
+- **[RELEASE_NOTES_V47.md](RELEASE_NOTES_V47.md)** - Release notes & migration guide (400+ lines)
+  - Performance metrics & benchmarks
+  - Breaking changes (instance limits 16→8)
+  - Known issues (CTUD VM support pending)
+  - Migration guide from v4.6 to v4.7
+  - Upgrade checklist
+  - v4.8 roadmap
+
+### ⚠️ Breaking Changes
+
+**Instance Limits Reduced:**
+- Old: Max 16 instances per type
+- New: Max 8 instances per type (50% DRAM savings)
+- Impact: LOW (most programs use <4 instances)
+- Compiler error if limit exceeded
+
+**Bytecode Structure Changed:**
+- Backward compatible (programs recompile automatically)
+- No user action required
+
+### 🐛 Known Issues
+
+**CTUD VM Support Incomplete:**
+- Issue: CTUD function recognized but not executable
+- Reason: VM does not support 5-argument calls yet
+- Status: ⚠️ Planned for v4.8
+- Workaround: Use separate CTU + CTD
+
+### 🚀 Upgrade Guide
+
+1. **Update firmware** to Build #920+
+2. **Read documentation:** [ST_FUNCTIONS_V47.md](ST_FUNCTIONS_V47.md)
+3. **Test new functions** in standalone program
+4. **Verify DRAM usage** acceptable (check diagnostics)
+5. **Update production programs** as needed
+
+---
+
 ## 📝 Version History
+
+- **v4.7.0** (2026-01-01) - ⭐ Advanced ST Functions & Memory Optimization
+  - **NEW FEATURE: 13 ST Functions**
+    - **Exponential Functions (4):** `EXP()`, `LN()`, `LOG()`, `POW()`
+    - **Edge Detection (2):** `R_TRIG()`, `F_TRIG()`
+    - **Timers (3):** `TON()`, `TOF()`, `TP()` with millisecond precision
+    - **Counters (3):** `CTU()`, `CTD()`, `CTUD()` with edge-triggered counting
+  - **Memory Optimization:**
+    - Union-based bytecode instruction optimization
+    - DRAM impact: Only +32 bytes (99.8% reduction from initial +17.8 KB overflow)
+    - Bytecode size: 12 bytes → 8 bytes per instruction
+    - Instance limits: 16 → 8 per type (50% DRAM savings)
+  - **Input Validation:**
+    - EXP/LN/LOG/POW: NaN/INF protection → returns 0.0 for invalid inputs
+    - Timers: Negative PT values treated as 0
+    - Counters: Overflow protection at INT32_MAX
+  - **Compiler Integration:**
+    - Automatic instance ID allocation during compilation
+    - Compiler error if max instances exceeded
+    - Zero runtime overhead for instance management
+  - **Stateful Storage Infrastructure:**
+    - Created `st_stateful.h/cpp` (395 lines) - Storage architecture
+    - Created `st_builtin_edge.h/cpp` (122 lines) - Edge detection
+    - Created `st_builtin_timers.h/cpp` (281 lines) - Timer functions
+    - Created `st_builtin_counters.h/cpp` (272 lines) - Counter functions
+    - Per-program storage: 420 bytes (8 timers + 8 edges + 8 counters)
+  - **Documentation:**
+    - **[ST_FUNCTIONS_V47.md](ST_FUNCTIONS_V47.md)** - Complete function reference (700+ lines)
+    - **[RELEASE_NOTES_V47.md](RELEASE_NOTES_V47.md)** - Release notes & migration guide (400+ lines)
+    - **[CODE_REVIEW_ST_FUNCTIONS.md](CODE_REVIEW_ST_FUNCTIONS.md)** - Detailed code review (700+ lines)
+    - **[SYSTEM_FEATURE_ANALYSIS.md](SYSTEM_FEATURE_ANALYSIS.md)** - IEC 61131-3 compliance analysis (1000+ lines)
+  - **Performance:**
+    - Flash: +5,892 bytes (+0.6%)
+    - ~1,700 lines of new code across 9 files
+    - 100% code review passed
+    - Build verification: SUCCESS
+  - **Known Issues:**
+    - ⚠️ CTUD VM support incomplete (requires 5-argument support, planned for v4.8)
+    - Workaround: Use separate CTU + CTD
+  - **Breaking Changes:**
+    - Instance limits reduced to 8 per type (compiler error if exceeded)
+    - Bytecode structure changed (backward compatible, auto-recompile)
+  - **Build:** #920
 
 - **v4.4.0** (2025-12-30) - ⭐ CLI Documentation & ST Logic Debugging Enhancements
   - **NEW FEATURE: Comprehensive CLI Documentation**

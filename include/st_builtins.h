@@ -43,6 +43,12 @@ typedef enum {
   ST_BUILTIN_COS,          // COS(x) → cosine (radians)
   ST_BUILTIN_TAN,          // TAN(x) → tangent (radians)
 
+  // Exponential Functions (v4.7+)
+  ST_BUILTIN_EXP,          // EXP(x) → e^x
+  ST_BUILTIN_LN,           // LN(x) → natural logarithm
+  ST_BUILTIN_LOG,          // LOG(x) → base-10 logarithm
+  ST_BUILTIN_POW,          // POW(x, y) → x^y
+
   // Type Conversion
   ST_BUILTIN_INT_TO_REAL,  // INT_TO_REAL(i) → REAL
   ST_BUILTIN_REAL_TO_INT,  // REAL_TO_INT(r) → INT
@@ -66,6 +72,16 @@ typedef enum {
   ST_BUILTIN_MB_READ_INPUT_REG, // MB_READ_INPUT_REG(slave_id, address) → INT
   ST_BUILTIN_MB_WRITE_COIL,     // MB_WRITE_COIL(slave_id, address, value) → BOOL
   ST_BUILTIN_MB_WRITE_HOLDING,  // MB_WRITE_HOLDING(slave_id, address, value) → BOOL
+
+  // Stateful Functions (v4.7+) - Require instance storage
+  ST_BUILTIN_R_TRIG,        // R_TRIG(CLK) → BOOL (rising edge)
+  ST_BUILTIN_F_TRIG,        // F_TRIG(CLK) → BOOL (falling edge)
+  ST_BUILTIN_TON,           // TON(IN, PT) → BOOL (on-delay timer)
+  ST_BUILTIN_TOF,           // TOF(IN, PT) → BOOL (off-delay timer)
+  ST_BUILTIN_TP,            // TP(IN, PT) → BOOL (pulse timer)
+  ST_BUILTIN_CTU,           // CTU(CU, RESET, PV) → BOOL (count up)
+  ST_BUILTIN_CTD,           // CTD(CD, LOAD, PV) → BOOL (count down)
+  ST_BUILTIN_CTUD,          // CTUD(CU, CD, RESET, LOAD, PV) → BOOL (count up/down)
 
   ST_BUILTIN_COUNT          // Total number of built-ins
 } st_builtin_func_t;
@@ -218,6 +234,39 @@ st_value_t st_builtin_cos(st_value_t x);
  * @return tan(x)
  */
 st_value_t st_builtin_tan(st_value_t x);
+
+/* ============================================================================
+ * EXPONENTIAL FUNCTIONS (v4.7+)
+ * ============================================================================ */
+
+/**
+ * @brief Exponential function
+ * @param x Exponent value (REAL)
+ * @return e^x
+ */
+st_value_t st_builtin_exp(st_value_t x);
+
+/**
+ * @brief Natural logarithm
+ * @param x Input value (REAL, must be > 0)
+ * @return ln(x) (base e)
+ */
+st_value_t st_builtin_ln(st_value_t x);
+
+/**
+ * @brief Base-10 logarithm
+ * @param x Input value (REAL, must be > 0)
+ * @return log10(x)
+ */
+st_value_t st_builtin_log(st_value_t x);
+
+/**
+ * @brief Power function
+ * @param x Base value (REAL)
+ * @param y Exponent value (REAL)
+ * @return x^y
+ */
+st_value_t st_builtin_pow(st_value_t x, st_value_t y);
 
 /* ============================================================================
  * TYPE CONVERSION FUNCTIONS

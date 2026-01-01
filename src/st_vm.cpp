@@ -8,6 +8,10 @@
 #include "st_vm.h"
 #include "st_builtins.h"
 #include "st_builtin_modbus.h"
+#include "st_stateful.h"  // For st_stateful_storage_t cast
+#include "st_builtin_edge.h"
+#include "st_builtin_timers.h"
+#include "st_builtin_counters.h"
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
@@ -760,7 +764,7 @@ static bool st_vm_exec_shr(st_vm_t *vm, st_bytecode_instr_t *instr) {
  * ============================================================================ */
 
 static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
-  st_builtin_func_t func_id = (st_builtin_func_t)instr->arg.int_arg;
+  st_builtin_func_t func_id = (st_builtin_func_t)instr->arg.builtin_call.func_id_low;
   uint8_t arg_count = st_builtin_arg_count(func_id);
 
   st_value_t arg1 = {0}, arg2 = {0}, arg3 = {0};
@@ -968,7 +972,64 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
         result.int_val = (arg1.int_val < 0) ? -arg1.int_val : arg1.int_val;
       }
     }
-  } else {
+  }
+  // v4.7+: Stateful functions (edge detection, timers, counters)
+  else if (func_id == ST_BUILTIN_R_TRIG || func_id == ST_BUILTIN_F_TRIG) {
+    // Edge detection functions
+    uint8_t instance_id = instr->arg.builtin_call.instance_id;
+    st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
+    if (!stateful || instance_id >= stateful->edge_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Invalid edge detector instance ID: %d", instance_id);
+      return false;
+    }
+    st_edge_instance_t *instance = &stateful->edges[instance_id];
+    if (func_id == ST_BUILTIN_R_TRIG) {
+      result = st_builtin_r_trig(arg1, instance);
+    } else {
+      result = st_builtin_f_trig(arg1, instance);
+    }
+  }
+  else if (func_id == ST_BUILTIN_TON || func_id == ST_BUILTIN_TOF || func_id == ST_BUILTIN_TP) {
+    // Timer functions
+    uint8_t instance_id = instr->arg.builtin_call.instance_id;
+    st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
+    if (!stateful || instance_id >= stateful->timer_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Invalid timer instance ID: %d", instance_id);
+      return false;
+    }
+    st_timer_instance_t *instance = &stateful->timers[instance_id];
+    if (func_id == ST_BUILTIN_TON) {
+      result = st_builtin_ton(arg1, arg2, instance);
+    } else if (func_id == ST_BUILTIN_TOF) {
+      result = st_builtin_tof(arg1, arg2, instance);
+    } else {
+      result = st_builtin_tp(arg1, arg2, instance);
+    }
+  }
+  else if (func_id == ST_BUILTIN_CTU || func_id == ST_BUILTIN_CTD || func_id == ST_BUILTIN_CTUD) {
+    // Counter functions
+    uint8_t instance_id = instr->arg.builtin_call.instance_id;
+    st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
+    if (!stateful || instance_id >= stateful->counter_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Invalid counter instance ID: %d", instance_id);
+      return false;
+    }
+    st_counter_instance_t *instance = &stateful->counters[instance_id];
+    if (func_id == ST_BUILTIN_CTU) {
+      result = st_builtin_ctu(arg1, arg2, arg3, instance);
+    } else if (func_id == ST_BUILTIN_CTD) {
+      result = st_builtin_ctd(arg1, arg2, arg3, instance);
+    } else {
+      // CTUD requires 5 arguments - need special handling
+      // For now, return error
+      snprintf(vm->error_msg, sizeof(vm->error_msg), "CTUD not yet implemented in VM");
+      return false;
+    }
+  }
+  else {
     result = st_builtin_call(func_id, arg1, arg2);
   }
 

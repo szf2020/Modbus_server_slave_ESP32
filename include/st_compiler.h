@@ -61,6 +61,11 @@ typedef struct {
   // Forward jump patches (resolved in second pass if needed)
   st_jump_patch_t patches[32];
   uint8_t patch_count;
+
+  // Instance allocation counters (v4.7+: stateful functions)
+  uint8_t edge_instance_count;        // R_TRIG/F_TRIG instances allocated
+  uint8_t timer_instance_count;       // TON/TOF/TP instances allocated
+  uint8_t counter_instance_count;     // CTU/CTD/CTUD instances allocated
 } st_compiler_t;
 
 /**
@@ -141,6 +146,15 @@ bool st_compiler_emit_int(st_compiler_t *compiler, st_opcode_t opcode, int32_t a
  * @return true if successful
  */
 bool st_compiler_emit_var(st_compiler_t *compiler, st_opcode_t opcode, uint8_t var_index);
+
+/**
+ * @brief Emit builtin function call with instance ID (v4.7+)
+ * @param compiler Compiler state
+ * @param func_id Builtin function ID
+ * @param instance_id Instance ID for stateful functions (0 for stateless)
+ * @return true if successful
+ */
+bool st_compiler_emit_builtin_call(st_compiler_t *compiler, int32_t func_id, uint8_t instance_id);
 
 /**
  * @brief Get current bytecode address (for jump targets)
