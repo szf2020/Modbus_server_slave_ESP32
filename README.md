@@ -248,6 +248,20 @@ MB_READ_INPUT_REG(slave_id, address) → INT     (* Read remote input register *
 MB_WRITE_COIL(slave_id, address) := boolean_value      (* Write remote coil *)
 MB_WRITE_HOLDING(slave_id, address) := int_value       (* Write remote holding register *)
 ```
+
+**Type Support (v4.6.1+):**
+- **slave_id:** INT, DINT, DWORD (auto-converted til INT med clamping)
+- **address:** INT, DINT, DWORD (auto-converted til INT med clamping)
+- **MB_WRITE_COIL value:** BOOL, INT, REAL, DINT, DWORD (non-zero → TRUE)
+- **MB_WRITE_HOLDING value:** INT, REAL, DINT, DWORD (auto-converted til INT)
+
+**Type Conversion (v4.6.1+):**
+- DINT → INT: Clamp til [-32768, 32767]
+- DWORD → INT: Clamp til [0, 32767]
+- REAL → INT: Truncate (42.9 → 42)
+- REAL → BOOL: |x| > 0.001 → TRUE
+- INT → BOOL: Non-zero → TRUE, Zero → FALSE
+
 **Note:** Gammel 3-argument syntax (`MB_WRITE_COIL(id, addr, value)`) er deprecated. Brug ny assignment syntax i stedet.
 
 **Global Status Variables:**
@@ -296,6 +310,34 @@ MB_WRITE_COIL(REMOTE_IO, COIL_ADDR) := heating_on;
 FOR i := 0 TO 9 DO
   MB_WRITE_HOLDING(2, 200 + i) := i * 10;
 END_FOR;
+```
+
+**Type Conversion Examples (v4.6.1+):**
+```structured-text
+VAR
+  remote_id: DINT := 3;           (* DINT type *)
+  base_addr: DINT := 40000;       (* Large address *)
+  temperature: REAL := 72.5;      (* REAL value *)
+  enable_flag: INT := 1;          (* INT as boolean *)
+  flags: DWORD := 16#ABCD1234;    (* DWORD value *)
+END_VAR
+
+(* DINT arguments auto-converted to INT *)
+temp := MB_READ_HOLDING(remote_id, base_addr);
+(* remote_id: 3 → INT(3) ✓ *)
+(* base_addr: 40000 → INT(32767) clamped ✓ *)
+
+(* REAL value auto-converted to INT *)
+MB_WRITE_HOLDING(1, 100) := temperature;
+(* 72.5 → INT(72) truncated ✓ *)
+
+(* INT value auto-converted to BOOL *)
+MB_WRITE_COIL(3, 20) := enable_flag;
+(* 1 → BOOL(TRUE) non-zero ✓ *)
+
+(* DWORD value auto-converted to INT *)
+MB_WRITE_HOLDING(2, 200) := flags;
+(* 0xABCD1234 → INT(0x1234) lower 16 bits ✓ *)
 ```
 
 #### CLI Configuration
@@ -758,6 +800,11 @@ MB_READ_INPUT_REG(slave_id, address) → INT
 (* v4.6.0+ New assignment syntax for writes *)
 MB_WRITE_COIL(slave_id, address) := boolean_value
 MB_WRITE_HOLDING(slave_id, address) := int_value
+
+(* v4.6.1+ Type support - All types auto-converted *)
+(* slave_id, address: INT/DINT/DWORD → INT (clamped) *)
+(* MB_WRITE_COIL value: BOOL/INT/REAL/DINT/DWORD → BOOL (non-zero=TRUE) *)
+(* MB_WRITE_HOLDING value: INT/REAL/DINT/DWORD → INT (converted) *)
 
 (* Global status variables *)
 mb_last_error (INT)   (* 0=OK, 1=TIMEOUT, 2=CRC, 3=EXCEPTION, 4=MAX_REQ, 5=DISABLED *)
