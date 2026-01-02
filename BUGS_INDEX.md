@@ -113,6 +113,7 @@
 | BUG-135 | MB_WRITE_HOLDING mangler value type validering | ✅ FIXED | 🔴 CRITICAL | v4.6.1 | REAL/DWORD værdier bruger int_val → garbage sendt til remote register (Build #919) |
 | BUG-136 | MB_WRITE_COIL mangler value type validering | ✅ FIXED | 🔴 CRITICAL | v4.6.1 | INT værdier bruger bool_val i stedet for konvertering → random coil state (Build #919) |
 | BUG-137 | CLI `read reg <count> real/dint/dword` ignorerer count parameter | ✅ FIXED | 🟠 MEDIUM | v4.7.1 | Kan ikke læse arrays af multi-register værdier (Build #937) |
+| BUG-138 | ST Logic upload error message generisk og ikke informativ | ✅ FIXED | 🔵 LOW | v4.7.1 | Viser kun "Failed to upload" uden detaljer (Build #940) |
 
 ## Feature Requests / Enhancements
 
@@ -208,6 +209,7 @@
 - **BUG-011:** Variable naming (`coil_reg`)
 - **BUG-126:** st_count redeclaration in cli_show.cpp (FIXED v4.4.0 Build #869)
 - **BUG-127:** st_state declaration order (FIXED v4.4.0 Build #869)
+- **BUG-138:** ST Logic upload error message generisk (FIXED v4.7.1 Build #940)
 
 ### ✔️ NOT BUGS (DESIGN CHOICES)
 - **BUG-013:** Binding display order (intentional)

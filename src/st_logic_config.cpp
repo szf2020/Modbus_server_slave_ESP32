@@ -62,9 +62,28 @@ void st_logic_init(st_logic_engine_state_t *state) {
 bool st_logic_upload(st_logic_engine_state_t *state, uint8_t program_id,
                       const char *source, uint32_t source_size) {
   if (program_id >= 4) return false;
-  if (!source || source_size == 0 || source_size > 2000) return false;
 
   st_logic_program_config_t *prog = &state->programs[program_id];
+
+  // Validate source code
+  if (!source) {
+    snprintf(prog->last_error, sizeof(prog->last_error), "Source code pointer is NULL");
+    return false;
+  }
+
+  if (source_size == 0) {
+    snprintf(prog->last_error, sizeof(prog->last_error), "Source code is empty (0 bytes)");
+    return false;
+  }
+
+  if (source_size > 2000) {
+    snprintf(prog->last_error, sizeof(prog->last_error),
+             "Source code too large: %u bytes (max 2000 bytes). Remove comments to reduce size.",
+             (unsigned int)source_size);
+    return false;
+  }
+
+  // Upload successful
   memcpy(prog->source_code, source, source_size);
   prog->source_size = source_size;
   prog->compiled = 0;  // Mark as needing compilation

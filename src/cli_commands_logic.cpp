@@ -65,8 +65,20 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
   }
 
   // Upload source
-  if (!st_logic_upload(logic_state, program_id, source_code, strlen(source_code))) {
-    debug_println("ERROR: Failed to upload source code");
+  uint32_t source_len = strlen(source_code);
+  if (!st_logic_upload(logic_state, program_id, source_code, source_len)) {
+    st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+    uint32_t usage_pct = (source_len * 100) / 2000;
+
+    // Show detailed error message
+    debug_println("");
+    debug_println("╔════════════════════════════════════════════════════════╗");
+    debug_println("║              UPLOAD ERROR - Logic Program             ║");
+    debug_println("╚════════════════════════════════════════════════════════╝");
+    debug_printf("Program ID: Logic%d\n", program_id + 1);
+    debug_printf("Source size: %d bytes (%d%% of 2000 bytes max)\n", (int)source_len, (int)usage_pct);
+    debug_printf("Error: %s\n", prog->last_error);
+    debug_println("");
     return -1;
   }
 
@@ -94,10 +106,12 @@ int cli_cmd_set_logic_upload(st_logic_engine_state_t *logic_state, uint8_t progr
   uint8_t compiled_after = prog ? prog->compiled : 0;
 
   // Success output
+  uint32_t usage_pct = (source_len * 100) / 2000;
+
   debug_println("");
   debug_println("✓ COMPILATION SUCCESSFUL");
   debug_printf("  Program: Logic%d\n", program_id + 1);
-  debug_printf("  Source: %d bytes\n", strlen(source_code));
+  debug_printf("  Source: %d bytes (%d%% of 2000 bytes max)\n", (int)source_len, (int)usage_pct);
   debug_printf("  Bytecode: %d instructions\n", prog->bytecode.instr_count);
   debug_printf("  Variables: %d\n", prog->bytecode.var_count);
   debug_printf("  [DEBUG] compiled: %d → %d\n", compiled_before, compiled_after);
