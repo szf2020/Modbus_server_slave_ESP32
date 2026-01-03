@@ -114,6 +114,7 @@
 | BUG-136 | MB_WRITE_COIL mangler value type validering | ✅ FIXED | 🔴 CRITICAL | v4.6.1 | INT værdier bruger bool_val i stedet for konvertering → random coil state (Build #919) |
 | BUG-137 | CLI `read reg <count> real/dint/dword` ignorerer count parameter | ✅ FIXED | 🟠 MEDIUM | v4.7.1 | Kan ikke læse arrays af multi-register værdier (Build #937) |
 | BUG-138 | ST Logic upload error message generisk og ikke informativ | ✅ FIXED | 🔵 LOW | v4.7.1 | Viser kun "Failed to upload" uden detaljer (Build #940) |
+| BUG-139 | `show logic stats` skjuler disabled programs med source code | ✅ FIXED | 🟠 MEDIUM | v4.7.1 | Pool total matcher ikke per-program sum (Build #948) |
 
 ## Feature Requests / Enhancements
 
