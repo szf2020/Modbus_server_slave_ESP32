@@ -765,11 +765,27 @@ void cli_cmd_show_config(void) {
     }
   }
 
-  // ST Logic execution interval
+  // ST Logic execution interval + enable/disable status
   debug_println("\n# ST Logic");
   debug_print("set logic interval ");
   debug_print_uint(g_persist_config.st_logic_interval_ms);
   debug_println("");
+
+  // ST Logic enable/disable for each program
+  extern st_logic_engine_state_t* st_logic_get_state(void);
+  st_logic_engine_state_t* logic_state = st_logic_get_state();
+  if (logic_state) {
+    for (uint8_t i = 0; i < 4; i++) {
+      st_logic_program_config_t* prog = &logic_state->programs[i];
+      // Only show if program has source code OR is explicitly enabled/disabled
+      if (prog->source_size > 0 || prog->enabled) {
+        debug_print("set logic ");
+        debug_print_uint(i + 1);
+        debug_print(" enable ");
+        debug_println(prog->enabled ? "on" : "off");
+      }
+    }
+  }
 
   // Persistence
   // BUG-140: Clamp group_count to prevent out-of-bounds access
