@@ -1245,6 +1245,21 @@ bool cli_parser_execute(char* line) {
       return true;
     }
 
+  } else if (!strcmp(cmd, "CONFIG")) {
+    // config save (alias for 'save') OR config load (alias for 'load')
+    if (argc >= 2) {
+      const char* subcmd = normalize_alias(argv[1]);
+      if (!strcmp(subcmd, "SAVE")) {
+        cli_cmd_save();
+        return true;
+      } else if (!strcmp(subcmd, "LOAD")) {
+        cli_cmd_load();
+        return true;
+      }
+    }
+    debug_println("CONFIG: Use 'config save' or 'config load'");
+    return false;
+
   } else if (!strcmp(cmd, "DEFAULTS")) {
     cli_cmd_defaults();
     return true;
@@ -1289,8 +1304,8 @@ bool cli_parser_execute(char* line) {
     debug_println("System:");
     debug_println("  help, ?, h              - Show detailed help");
     debug_println("  commands, cmds          - Show this command list");
-    debug_println("  save, sv                - Save config to NVS");
-    debug_println("  load, ld                - Load config from NVS");
+    debug_println("  save, sv, config save   - Save config to NVS");
+    debug_println("  load, ld, config load   - Load config from NVS");
     debug_println("  defaults, def           - Reset to defaults");
     debug_println("  reboot, restart         - Reboot ESP32");
     debug_println("  exit, quit, q           - Exit telnet session\n");
