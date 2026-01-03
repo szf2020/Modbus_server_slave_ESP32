@@ -183,6 +183,8 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "ADD") || !strcmp(s, "add")) return "ADD";
   if (!strcmp(s, "REMOVE") || !strcmp(s, "remove")) return "REMOVE";
   if (!strcmp(s, "AUTO-LOAD") || !strcmp(s, "auto-load") || !strcmp(s, "AUTOLOAD") || !strcmp(s, "autoload")) return "AUTO-LOAD";
+  if (!strcmp(s, "RESET") || !strcmp(s, "reset")) return "RESET";
+  if (!strcmp(s, "CLEAR") || !strcmp(s, "clear")) return "CLEAR";
 
   // Boolean values
   if (!strcmp(s, "ON") || !strcmp(s, "on")) return "ON";
@@ -437,6 +439,7 @@ static void print_persist_help(void) {
   debug_println("  set persist group <name> remove <reg>           - Fjern register fra gruppe");
   debug_println("  set persist group <name> delete                 - Slet gruppe");
   debug_println("  set persist enable on|off                       - Aktivér/deaktivér system");
+  debug_println("  set persist reset                               - Slet ALLE groups (nødvendigt ved corruption)");
   debug_println("");
   debug_println("Auto-Load on Boot (v4.3.0):");
   debug_println("  set persist auto-load enable                    - Aktivér auto-load ved boot");
@@ -914,8 +917,12 @@ bool cli_parser_execute(char* line) {
         // set persist auto-load enable|disable|add|remove ...
         cli_cmd_set_persist_auto_load(argc - 3, argv + 3);
         return true;
+      } else if (!strcmp(subwhat, "RESET") || !strcmp(subwhat, "CLEAR")) {
+        // set persist reset - BUG-140 fix for corrupted groups
+        cli_cmd_set_persist_reset();
+        return true;
       } else {
-        debug_println("SET PERSIST: unknown argument (expected group, enable, or auto-load)");
+        debug_println("SET PERSIST: unknown argument (expected group, enable, auto-load, or reset)");
         return false;
       }
     } else if (!strcmp(what, "LOGIC")) {

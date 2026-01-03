@@ -169,6 +169,14 @@ void cli_cmd_load_registers(uint8_t argc, char* argv[]);
 void cli_cmd_set_persist_enable(bool enabled);
 
 /**
+ * @brief Handle "set persist reset" command (clear all corrupted groups)
+ *
+ * BUG-140 FIX: Clears all persistence groups and resets to clean state.
+ * Use this to recover from corrupted NVS data.
+ */
+void cli_cmd_set_persist_reset(void);
+
+/**
  * @brief Handle "set persist auto-load" command (configure auto-load on boot)
  * @param argc Argument count
  * @param argv Argument array

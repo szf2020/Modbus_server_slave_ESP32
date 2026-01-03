@@ -1369,6 +1369,24 @@ void cli_cmd_set_persist_enable(bool enabled) {
   }
 }
 
+void cli_cmd_set_persist_reset(void) {
+  // BUG-140 FIX: Clear all corrupted persistence groups
+  debug_println("WARN: This will DELETE ALL persistence groups!");
+  debug_println("Clearing all groups...");
+
+  // Clear all group data
+  memset(&g_persist_config.persist_regs.groups, 0, sizeof(g_persist_config.persist_regs.groups));
+  g_persist_config.persist_regs.group_count = 0;
+  g_persist_config.persist_regs.enabled = 0;
+
+  // Clear auto-load config
+  g_persist_config.persist_regs.auto_load_enabled = 0;
+  memset(&g_persist_config.persist_regs.auto_load_group_ids, 0, sizeof(g_persist_config.persist_regs.auto_load_group_ids));
+
+  debug_println("✓ All persistence groups cleared");
+  debug_println("  Run 'config save' to persist this change to NVS");
+}
+
 void cli_cmd_set_persist_auto_load(uint8_t argc, char* argv[]) {
   // Syntax:
   //   set persist auto-load enable
