@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v4.7.2 | **Build:** #974 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v4.7.2 | **Build:** #975 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med **dual Modbus interfaces** (Slave + Master), ST Structured Text Logic programmering med IEC 61131-3 type system, Wi-Fi netværk, telnet CLI interface, og komplet Modbus register dokumentation.
 
@@ -3157,9 +3157,14 @@ empty := CTD(dispense, reload, 50);              (* Count down from 50 *)
     - **BUG-143:** Documented IR 220-251 limitation (8 variables/program, not 32)
   - **Documentation Updates:**
     - MODBUS_REGISTER_MAP.md: Added CLI command guide at top
+    - **NEW:** Complete ST Logic Variable Bindings guide (INPUT/OUTPUT/BOTH modes)
+    - **NEW:** Modbus Function Codes reference (FC03/FC04/FC06/FC16)
+    - **NEW:** Practical examples with Python Modbus code and CLI commands
+    - **NEW:** Data flow diagrams for binding modes
     - Clarified: ST Logic variable VALUES are in IR 220-251 (read-only)
+    - Clarified: IR 220-251 automatisk mapping vs manual bindings
     - Updated all help messages to use consistent "holding-reg" / "input-reg" terminology
-  - **Build:** #973-974
+  - **Build:** #973-975
 
 - **v4.7.1** (2026-01-04) - 🔧 Persistent Register Type Support & Documentation Updates
   - **NEW FEATURE: `set reg STATIC` Multi-Type Support (FEAT-001)**

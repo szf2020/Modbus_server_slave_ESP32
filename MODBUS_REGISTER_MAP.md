@@ -28,6 +28,120 @@ Dette dokument beskriver **ALLE** Modbus registre, coils og discrete inputs som 
   - DINT/DWORD/REAL: Register N = LSW (Least Significant Word), Register N+1 = MSW (Most Significant Word)
   - Eksempel: Value 100000 (0x000186A0) → HR100=0x86A0 (34464), HR101=0x0001 (1)
 
+**Modbus Function Codes:**
+- **FC03** (Read Holding Regs): Læs HR (bruges sjældent for ST vars)
+- **FC04** (Read Input Regs): ✅ **Læs IR** ← Brug denne til ST Logic OUTPUT!
+- **FC06** (Write Single HR): ✅ **Skriv til HR** ← Brug denne til ST Logic INPUT!
+- **FC16** (Write Multiple HRs): ✅ **Skriv til HR** ← Brug denne til multi-register (DINT/REAL)!
+
+**⚠️ VIGTIGT:** Du kan **IKKE** skrive til Input Registers (IR)! De er read-only og opdateres kun af systemet.
+
+---
+
+## 🔄 ST Logic Variable Bindings - Praktisk Guide
+
+### Binding Modes
+
+| Mode | Modbus → ST | ST → Modbus | CLI Kommando | Brug Til |
+|------|-------------|-------------|--------------|----------|
+| **INPUT** | ✅ HR (FC06/FC16) | ✅ IR 220-251 (auto) | `bind var hr:100 input` | Setpoints, commands fra SCADA |
+| **OUTPUT** | - | ✅ IR 220-251 (auto)<br>+ IR custom | `bind var ir:300 output` | Status, målinger til SCADA |
+| **BOTH** | ✅ HR (FC06/FC16) | ✅ IR 220-251 (auto)<br>+ IR custom | `bind var both hr:100 ir:300` | Begge retninger |
+
+### Praktisk Eksempel: Temperature Controller
+
+**ST Program:**
+```st
+PROGRAM TempControl
+VAR
+  setpoint: REAL;        # Ønsket temperatur (fra SCADA)
+  actual: REAL;          # Målt temperatur (til SCADA)
+  control: REAL;         # PID output (begge veje)
+END_VAR
+
+bind setpoint hr:100 input         # SCADA → ST
+bind actual ir:300 output          # ST → SCADA (+ auto IR 221)
+bind control both hr:102 ir:302    # Begge veje (+ auto IR 222)
+END_PROGRAM
+```
+
+**Modbus Access (Python):**
+```python
+from pymodbus.client import ModbusSerialClient
+
+client = ModbusSerialClient(port='COM3', baudrate=115200, slave=1)
+
+# === SKRIV til ST Program (INPUT) ===
+# Sæt setpoint = 25.5°C via HR 100-101 (REAL)
+client.write_registers(100, float_to_regs(25.5))        # FC16
+
+# Sæt control output = 40% via HR 102-103 (REAL)
+client.write_registers(102, float_to_regs(40.0))        # FC16
+
+# === LÆS fra ST Program (OUTPUT) ===
+# Læs setpoint fra IR 220 (automatisk mapping)
+result = client.read_input_registers(220, 2)            # FC04
+setpoint_readback = regs_to_float(result.registers)
+
+# Læs actual fra IR 221 (automatisk) ELLER IR 300 (manual)
+result = client.read_input_registers(221, 2)            # FC04
+actual1 = regs_to_float(result.registers)
+result = client.read_input_registers(300, 2)            # FC04
+actual2 = regs_to_float(result.registers)
+# actual1 == actual2 (identiske!)
+
+# Læs control fra IR 222 (automatisk) ELLER IR 302 (manual)
+result = client.read_input_registers(222, 2)            # FC04
+control1 = regs_to_float(result.registers)
+result = client.read_input_registers(302, 2)            # FC04
+control2 = regs_to_float(result.registers)
+# control1 == control2 (identiske!)
+```
+
+**CLI Kommandoer (ESP32 Terminal):**
+```bash
+# Skriv til ST Program (INPUT)
+write reg 100 value real 25.5          # Sæt setpoint
+write reg 102 value real 40.0          # Sæt control output
+
+# Læs fra ST Program (OUTPUT)
+read input-reg 220 real                # Læs setpoint (auto IR)
+read input-reg 221 real                # Læs actual (auto IR)
+read input-reg 300 real                # Læs actual (manual IR)
+read input-reg 222 real                # Læs control (auto IR)
+read input-reg 302 real                # Læs control (manual IR)
+```
+
+**Data Flow Diagram:**
+```
+┌─────────────────────────────────────────────────────────┐
+│  setpoint (Variable #0 i Logic1)                        │
+├─────────────────────────────────────────────────────────┤
+│  IR 220 (auto) ←─ ST Program ─→ HR 100 (input)         │
+│      ↑ FC04                          ↓ FC06/FC16        │
+│    SCADA læser                    SCADA skriver         │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  actual (Variable #1 i Logic1)                          │
+├─────────────────────────────────────────────────────────┤
+│  IR 221 (auto) ←─ ST Program ─→ IR 300 (output)        │
+│      ↑ FC04                          ↑ FC04             │
+│    SCADA læser                    SCADA læser           │
+│  (identiske værdier på begge!)                          │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  control (Variable #2 i Logic1)                         │
+├─────────────────────────────────────────────────────────┤
+│  IR 222 (auto) ←─ ST Program ─→ HR 102 (input)         │
+│      ↑ FC04          ↕            ↓ FC06/FC16           │
+│  IR 302 (output) ←───┘         SCADA skriver            │
+│      ↑ FC04                                             │
+│    SCADA læser (3 steder total!)                        │
+└─────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 🎯 Register Allocation Guide
@@ -362,6 +476,32 @@ IR 228 = Logic2.Var[0]  (første variable i Logic2)
 - Variabler 9-32 har INGEN automatisk IR mapping (kun intern brug i ST program)
 - Kode reference: `registers.cpp:337` → `(prog_id * 8)` allokerer kun 8 registre per program
 - Se BUG-143 for diskussion om at øge denne grænse
+
+**🔄 AUTOMATISK IR MAPPING vs MANUAL BINDINGS:**
+
+IR 220-251 opdateres **ALTID automatisk** for de første 8 variabler - **uanset binding mode!**
+
+| Binding Mode | Automatisk IR 220-251 | Manual Bindings | Total Modbus Access |
+|--------------|----------------------|-----------------|---------------------|
+| **Ingen** | ✅ Ja (read-only) | - | **1 sted** (IR 220-227) |
+| **INPUT** | ✅ Ja (read-only) | HR (input) | **2 steder** (IR + HR) |
+| **OUTPUT** | ✅ Ja (read-only) | IR custom (output) | **2 steder** (IR 220 + IR custom) |
+| **BOTH** | ✅ Ja (read-only) | HR (input) + IR custom (output) | **3 steder** (IR 220 + HR + IR custom) |
+
+**Eksempel:**
+```
+bind temp both hr:100 ir:300    # temp tilgængelig 3 steder:
+                                # - IR 220 (automatisk, read-only)
+                                # - HR 100 (INPUT: SCADA → ST)
+                                # - IR 300 (OUTPUT: ST → SCADA)
+```
+
+**⚠️ ANBEFALING:** Brug IKKE IR 220-251 i manual bindings! De er allerede automatisk mappet.
+
+```
+bind temp both hr:100 ir:220  # ❌ DÅRLIGT - IR 220 allerede automatisk
+bind temp both hr:100 ir:300  # ✅ GODT - Brug IR uden for 220-251
+```
 
 ---
 
