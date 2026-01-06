@@ -76,6 +76,11 @@ bool modbus_frame_verify_crc(const ModbusFrame* frame) {
   // CRC is calculated over slave_id + function_code + data
   // Data length = total length - 2 (CRC bytes)
   uint16_t data_len = frame->length - 2;
+
+  // BUG-147 FIX: Validate data_len before calculating data payload size
+  // If data_len < 2, then data_len - 2 would underflow and cause buffer overflow in memcpy
+  if (data_len < 2) return false;
+
   uint8_t frame_data[254];
 
   // Copy slave_id + function_code + data (exclude CRC)
@@ -93,6 +98,11 @@ void modbus_frame_set_crc(ModbusFrame* frame) {
 
   // CRC is calculated over slave_id + function_code + data
   uint16_t data_len = frame->length - 2;
+
+  // BUG-147 FIX: Validate data_len before calculating data payload size
+  // If data_len < 2, then data_len - 2 would underflow and cause buffer overflow in memcpy
+  if (data_len < 2) return;
+
   uint8_t frame_data[254];
 
   frame_data[0] = frame->slave_id;

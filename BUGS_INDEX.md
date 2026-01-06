@@ -117,10 +117,14 @@
 | BUG-139 | `show logic stats` skjuler disabled programs med source code | ✅ FIXED | 🟠 MEDIUM | v4.7.1 | Pool total matcher ikke per-program sum (Build #948) |
 | BUG-140 | Persistence group_count=255 buffer overflow i show config | ✅ FIXED | 🔴 CRITICAL | v4.7.1 | Out-of-bounds array access → garbage display + crash risk (Build #951 + recovery cmd #953) |
 | BUG-141 | Save/load viser var_map_count i stedet for aktive mappings | ✅ FIXED | 🟠 MEDIUM | v4.7.1 | Viser "32 mappings" selvom alle er unused (Build #960) |
-| BUG-142 | `set reg STATIC` blokerer HR238-255 fejlagtigt | ❌ OPEN | 🟠 MEDIUM | v4.7.2 | Validation blokerer HR200-299, men kun HR200-237 er faktisk brugt af ST Logic (Build #969) |
+| BUG-142 | `set reg STATIC` blokerer HR238-255 fejlagtigt | ✅ FIXED | 🟠 MEDIUM | v4.7.3 | Validation blokerede HR200-299, nu korrigeret til HR200-237 (Build #995) |
 | BUG-143 | ST Logic IR variable mapping begrænset til 8 per program | 💡 DESIGN | 🟠 MEDIUM | v4.8.0? | ST programmer kan have 32 variabler, men kun 8 mappes til IR220-251 (registers.cpp:337) |
 | BUG-144 | Forvirrende CLI: "read reg" læser HR, men ST vars er i IR | ✅ FIXED | 🔵 LOW | v4.7.2 | Brugere forventer "read reg 220" viser ST vars, men skal bruge "read input-reg 220" (Build #973-974) |
 | BUG-145 | CLI help message mangler "read input-reg" option | ✅ FIXED | 🔵 LOW | v4.7.2 | "read" uden argumenter viste ikke "input-reg" option selvom funktionen findes (Build #973) |
+| BUG-146 | Use-after-free i config_save.cpp | ✅ FIXED | 🔴 CRITICAL | v4.7.3 | Memory corruption - debug print brugte frigivet pointer (config_save.cpp:175) (Build #995) |
+| BUG-147 | Buffer underflow i modbus_frame.cpp | ✅ FIXED | 🔴 CRITICAL | v4.7.3 | Integer underflow i memcpy size → buffer overflow (modbus_frame.cpp:84,100) (Build #995) |
+| BUG-148 | Printf format mismatch i cli_config_regs.cpp | ✅ FIXED | 🟡 HIGH | v4.7.3 | %ld format med int32_t argument - portability issue (cli_config_regs.cpp:398) (Build #995) |
+| BUG-149 | Identical condition i modbus_master.cpp | ✅ FIXED | 🟠 MEDIUM | v4.7.3 | Redundant indre if-check altid sand (modbus_master.cpp:181) (Build #995) |
 
 ## Feature Requests / Enhancements
 
@@ -165,6 +169,8 @@
 - **BUG-134:** MB_WRITE DINT arguments sender garbage data (FIXED v4.6.1 Build #919)
 - **BUG-135:** MB_WRITE_HOLDING mangler value type validering (FIXED v4.6.1 Build #919)
 - **BUG-136:** MB_WRITE_COIL mangler value type validering (FIXED v4.6.1 Build #919)
+- **BUG-146:** Use-after-free i config_save.cpp (FIXED v4.7.3 Build #995)
+- **BUG-147:** Buffer underflow i modbus_frame.cpp (FIXED v4.7.3 Build #995)
 
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-003:** Bounds checking on var index
@@ -190,6 +196,7 @@
 - **BUG-131:** CLI `set id` kommando virker ikke (FIXED v4.5.0 Build #910)
 - **BUG-132:** CLI `set baud` kommando virker ikke (FIXED v4.5.0 Build #910)
 - **BUG-133:** Modbus Master request counter reset mangler (FIXED v4.5.2 Build #911)
+- **BUG-148:** Printf format mismatch i cli_config_regs.cpp (FIXED v4.7.3 Build #995)
 - **BUG-CLI-1:** Parameter keyword clarification
 - **BUG-CLI-2:** GPIO validation
 
@@ -211,6 +218,8 @@
 - **BUG-074:** Jump patch silent fail (FIXED v4.4.4)
 - **BUG-128:** normalize_alias() mangler BYTECODE/TIMING (FIXED v4.4.0 Build #875)
 - **BUG-137:** CLI `read reg` count parameter ignoreres for REAL/DINT/DWORD (FIXED v4.7.1 Build #937)
+- **BUG-142:** `set reg STATIC` blokerer HR238-255 fejlagtigt (FIXED v4.7.3 Build #995)
+- **BUG-149:** Identical condition i modbus_master.cpp (FIXED v4.7.3 Build #995)
 
 ### 🔵 LOW Priority (COSMETIC)
 - **BUG-006:** Counter wrapping at 65535

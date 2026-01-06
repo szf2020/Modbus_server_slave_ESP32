@@ -145,6 +145,9 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
     return false;
   }
 
+  // BUG-146 FIX: Save CRC value before freeing memory
+  uint16_t saved_crc = cfg_with_crc->crc16;
+
   // Commit to flash
   err = nvs_commit(handle);
   nvs_close(handle);
@@ -172,7 +175,7 @@ bool config_save_to_nvs(const PersistConfig* cfg) {
     debug_print(", static_coils=");
     debug_print_uint(cfg->static_coil_count);
     debug_print(", CRC=");
-    debug_print_uint(cfg_with_crc->crc16);
+    debug_print_uint(saved_crc);  // BUG-146 FIX: Use saved CRC instead of freed pointer
     debug_println("");
   }
 

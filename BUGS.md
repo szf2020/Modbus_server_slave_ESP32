@@ -6751,3 +6751,101 @@ MB_WRITE_COIL(3, 20) := (enable <> 0);  (* Returns BOOL type *)
 - Mindre sandsynligt (folk bruger typisk BOOL for coils)
 
 ---
+
+## BUG-142: set reg STATIC blokerer HR238-255 fejlagtigt
+
+**Severity:** MEDIUM | **Status:** FIXED (v4.7.3 Build #995) | **File:** cli_config_regs.cpp:56-64,118-123
+
+### Problem
+Validation blokerede HR200-299, men kun HR200-237 er faktisk reserveret af ST Logic.
+
+### Solution (BUG-142 FIX)
+```cpp
+// FØR: if (address >= 200 && address < 300)
+// EFTER:
+if (address >= 200 && address < 238) {  // Kun faktisk reserveret område
+  debug_println("ERROR - Address 200-237 reserved for ST Logic");
+  debug_println("  Use addresses 0-199 or 238+ for STATIC registers");
+}
+```
+
+**Impact:** 62 ekstra registers (HR238-299) nu tilgængelige for STATIC configuration.
+
+---
+
+## BUG-146: Use-After-Free i config_save.cpp
+
+**Severity:** CRITICAL | **Status:** FIXED (v4.7.3 Build #995) | **File:** config_save.cpp:148-178
+
+### Problem
+Debug print læste fra frigivet memory pointer → Memory corruption risk.
+
+### Solution (BUG-146 FIX)
+```cpp
+uint16_t saved_crc = cfg_with_crc->crc16;  // Gem værdi FØR free()
+free(cfg_with_crc);
+debug_print_uint(saved_crc);  // Brug saved værdi
+```
+
+**Impact:** Elimineret memory safety vulnerability + potentiel system crash.
+
+---
+
+## BUG-147: Buffer Underflow i modbus_frame.cpp
+
+**Severity:** CRITICAL | **Status:** FIXED (v4.7.3 Build #995) | **File:** modbus_frame.cpp:73-113
+
+### Problem
+Integer underflow: `data_len - 2` kunne blive negativ → wraps til 65535 → buffer overflow.
+
+### Solution (BUG-147 FIX)
+```cpp
+uint16_t data_len = frame->length - 2;
+if (data_len < 2) return false;  // Validér FØR subtraction
+memcpy(&frame_data[2], frame->data, data_len - 2);  // Nu safe
+```
+
+**Impact:** Elimineret buffer overflow vulnerability (security issue).
+
+---
+
+## BUG-148: Printf Format Mismatch i cli_config_regs.cpp
+
+**Severity:** HIGH | **Status:** FIXED (v4.7.3 Build #995) | **File:** cli_config_regs.cpp:18,398
+
+### Problem
+Format `%ld` med `int32_t` argument → portability issue (undefined på nogle platforme).
+
+### Solution (BUG-148 FIX)
+```cpp
+#include <inttypes.h>  // Add header
+snprintf(str, sizeof(str), "%" PRId32, dint_val);  // Portable format
+```
+
+**Impact:** Code now portable across platforms.
+
+---
+
+## BUG-149: Identical Condition i modbus_master.cpp
+
+**Severity:** MEDIUM | **Status:** FIXED (v4.7.3 Build #995) | **File:** modbus_master.cpp:174-183
+
+### Problem
+Redundant nested check: `if (bytes_received >= 5) { ... if (bytes_received >= 5) }` → confusing.
+
+### Solution (BUG-149 FIX)
+```cpp
+if (bytes_received >= 5) {
+  if (function_code & 0x80) {
+    // Exception response is always exactly 5 bytes
+    break;  // Direct break (already validated >= 5 in outer check)
+  }
+}
+```
+
+**Impact:** Cleaner logic, fjernet code smell.
+
+---
+
+**Build #995 Samlet Fix:** 5 bugs fixed (2 CRITICAL, 1 HIGH, 2 MEDIUM)
+

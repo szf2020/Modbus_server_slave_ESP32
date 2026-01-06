@@ -177,10 +177,10 @@ mb_error_code_t modbus_master_send_request(
         uint8_t function_code = response[1];
 
         if (function_code & 0x80) {
-          // Exception response
-          if (bytes_received >= 5) {
-            break; // Complete exception response
-          }
+          // BUG-149 FIX: Exception response is always exactly 5 bytes
+          // (slave_id + function + exception_code + CRC)
+          // We already checked bytes_received >= 5 in outer condition, so break immediately
+          break; // Complete exception response
         } else {
           // Normal response - check expected length
           if (function_code == 0x01 || function_code == 0x02) {

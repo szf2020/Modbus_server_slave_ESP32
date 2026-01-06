@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <inttypes.h>  // BUG-148 FIX: For PRId32 portable int32_t printf format
 
 /**
  * set holding-reg STATIC <address> Value [type] <value>
@@ -52,13 +53,15 @@ void cli_cmd_set_reg_static(uint8_t argc, char* argv[]) {
     return;
   }
 
-  // Validate address against ST Logic reserved range (HR200-299)
-  if (address >= 200 && address < 300) {
-    debug_println("SET HOLDING-REG STATIC: ERROR - Address 200-299 reserved for ST Logic system");
+  // BUG-142 FIX: Validate address against actual ST Logic reserved range (HR200-237)
+  // ST Logic uses: HR200-203 (control), HR204-235 (var inputs), HR236-237 (exec interval)
+  // HR238-299 are available for STATIC registers
+  if (address >= 200 && address < 238) {
+    debug_println("SET HOLDING-REG STATIC: ERROR - Address 200-237 reserved for ST Logic system");
     debug_println("  HR200-203: Logic control registers");
     debug_println("  HR204-235: Logic variable inputs");
     debug_println("  HR236-237: Execution interval");
-    debug_println("  Use addresses 0-199 for STATIC registers");
+    debug_println("  Use addresses 0-199 or 238+ for STATIC registers");
     return;
   }
 
@@ -113,10 +116,10 @@ void cli_cmd_set_reg_static(uint8_t argc, char* argv[]) {
       return;
     }
 
-    // Also check if second register crosses into ST Logic reserved range
-    if ((address < 200 && address + 1 >= 200) || (address >= 200 && address < 300)) {
-      debug_println("SET HOLDING-REG STATIC: ERROR - Multi-register type crosses into ST Logic reserved range (200-299)");
-      debug_println("  Use addresses 0-198 for 2-register types (DINT/DWORD/REAL)");
+    // BUG-142 FIX: Check if second register crosses into ST Logic reserved range (HR200-237)
+    if ((address < 200 && address + 1 >= 200) || (address >= 200 && address < 238)) {
+      debug_println("SET HOLDING-REG STATIC: ERROR - Multi-register type crosses into ST Logic reserved range (200-237)");
+      debug_println("  Use addresses 0-198 or 238+ for 2-register types (DINT/DWORD/REAL)");
       return;
     }
   }
@@ -395,7 +398,7 @@ void cli_cmd_show_regs(void) {
         debug_print("dint ");
         int32_t dint_val = (int32_t)map->value_32;
         char str[16];
-        snprintf(str, sizeof(str), "%ld", dint_val);
+        snprintf(str, sizeof(str), "%" PRId32, dint_val);  // BUG-148 FIX: Use PRId32 for portable int32_t formatting
         debug_print(str);
       } else if (map->value_type == MODBUS_TYPE_DWORD) {
         debug_print("dword ");
