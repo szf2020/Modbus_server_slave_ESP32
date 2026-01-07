@@ -376,6 +376,148 @@ sine_30 := SIN(PI / 6.0);    (* → 0.5 (30 degrees) *)
 cosine_60 := COS(PI / 3.0);  (* → 0.5 (60 degrees) *)
 ```
 
+### Counter Functions (v4.8.1+)
+
+IEC 61131-3 standard counter function blocks for counting events.
+
+**Note:** All counters maintain internal state and require stateful storage.
+
+---
+
+#### CTU - Count Up Counter
+
+Increments counter on rising edge of CU input. Output Q goes TRUE when count reaches preset value PV.
+
+```structured-text
+VAR
+  pulse: BOOL;
+  reset: BOOL;
+  batch_done: BOOL;
+END_VAR
+
+(* Count to 100 - batch complete *)
+batch_done := CTU(pulse, reset, 100);
+
+(* When batch_done = TRUE, counter reached 100 *)
+```
+
+**Parameters:**
+- `CU` (BOOL) - Count-up input (rising edge triggers increment)
+- `RESET` (BOOL) - Reset input (TRUE resets CV to 0)
+- `PV` (INT) - Preset value (count limit)
+
+**Returns:** Q (BOOL) - TRUE when CV >= PV
+
+---
+
+#### CTD - Count Down Counter
+
+Decrements counter on rising edge of CD input. Output Q goes TRUE when count reaches zero.
+
+```structured-text
+VAR
+  pulse: BOOL;
+  load: BOOL;
+  empty: BOOL;
+END_VAR
+
+(* Count down from 50 *)
+empty := CTD(pulse, load, 50);
+
+(* When empty = TRUE, counter reached 0 *)
+```
+
+**Parameters:**
+- `CD` (BOOL) - Count-down input (rising edge triggers decrement)
+- `LOAD` (BOOL) - Load input (TRUE loads PV into CV)
+- `PV` (INT) - Preset value (starting count)
+
+**Returns:** Q (BOOL) - TRUE when CV <= 0
+
+---
+
+#### CTUD - Count Up/Down Counter
+
+Bidirectional counter - increments on CU, decrements on CD. Two outputs: QU (reached upper limit) and QD (reached zero).
+
+```structured-text
+VAR
+  inc_pulse: BOOL;
+  dec_pulse: BOOL;
+  reset: BOOL;
+  load: BOOL;
+  up_done: BOOL;
+  down_done: BOOL;
+END_VAR
+
+(* Count up/down with dual limits *)
+up_done := CTUD(inc_pulse, dec_pulse, reset, load, 100);
+
+(* up_done = TRUE when CV >= 100 (QU output) *)
+(* Access QD via instance storage for down limit *)
+```
+
+**Parameters:**
+- `CU` (BOOL) - Count-up input (rising edge increments)
+- `CD` (BOOL) - Count-down input (rising edge decrements)
+- `RESET` (BOOL) - Reset input (TRUE resets CV to 0)
+- `LOAD` (BOOL) - Load input (TRUE loads PV into CV)
+- `PV` (INT) - Preset value (upper limit)
+
+**Returns:** QU (BOOL) - TRUE when CV >= PV
+
+**Note:** QD (down limit) is stored in instance but not directly returned. Use CTU/CTD for single-direction counting if only one limit is needed.
+
+**Priority (highest to lowest):**
+1. RESET (always wins)
+2. LOAD (loads PV if RESET is FALSE)
+3. CU/CD (count if neither RESET nor LOAD is TRUE)
+
+---
+
+#### Example: Product Batch Counter
+
+```structured-text
+VAR
+  sensor_trigger: BOOL;
+  reset_button: BOOL;
+  batch_complete: BOOL;
+  product_count: INT;
+END_VAR
+
+(* Count 100 products per batch *)
+batch_complete := CTU(sensor_trigger, reset_button, 100);
+
+IF batch_complete THEN
+  (* Trigger alarm, stop conveyor, etc. *)
+  product_count := 100;
+END_IF;
+```
+
+---
+
+#### Example: Parking Space Counter
+
+```structured-text
+VAR
+  entry_sensor: BOOL;
+  exit_sensor: BOOL;
+  reset: BOOL;
+  load: BOOL;
+  spaces_full: BOOL;
+  spaces_empty: BOOL;
+  max_spaces: INT := 50;
+END_VAR
+
+(* Count cars entering/leaving parking lot *)
+spaces_full := CTUD(entry_sensor, exit_sensor, reset, load, max_spaces);
+
+(* spaces_full = TRUE when lot is full (50 cars) *)
+(* spaces_empty would be TRUE when lot is empty (CV = 0) *)
+```
+
+---
+
 ### Modbus Master Functions (v4.4+)
 
 **Prerequisites:**
