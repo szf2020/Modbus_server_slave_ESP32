@@ -46,7 +46,9 @@
       "Bash(cat:*)",
       "Bash(git stash:*)",
       "Bash(off\"\n\n**Fordele:**\n- Copy/paste ready configuration restore\n- Tydeligt overblik over hvilke programmer der er aktive\n- Konsistent med counter/timer display stil\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFIX: Critical Security Bugs + Code Quality Issues \\(v4.7.3 Build #995\\)\n\nFixed 5 bugs identified by static code analysis \\(cppcheck\\):\n\nCRITICAL FIXES \\(Security\\):\n- BUG-146: Use-after-free i config_save.cpp \\(memory corruption risk\\)\n  * Gem CRC værdi før free\\(\\) for at undgå use-after-free\n  * Files: src/config_save.cpp:148-178\n\n- BUG-147: Buffer underflow i modbus_frame.cpp \\(buffer overflow risk\\)\n  * Validér data_len >= 2 før subtraction for at undgå integer underflow\n  * Files: src/modbus_frame.cpp:73-113\n\nHIGH PRIORITY:\n- BUG-148: Printf format mismatch i cli_config_regs.cpp \\(portability\\)\n  * Brug PRId32 macro i stedet for %ld for int32_t \\(portable\\)\n  * Files: src/cli_config_regs.cpp:18,398\n\nMEDIUM PRIORITY:\n- BUG-142: set reg STATIC validation blokerede HR238-299 fejlagtigt\n  * Korrigeret range fra HR200-299 til HR200-237 \\(faktisk reserveret\\)\n  * Frigiver 62 ekstra registers \\(HR238-299\\) til bruger\n  * Files: src/cli_config_regs.cpp:56-64,118-123\n\n- BUG-149: Identical condition i modbus_master.cpp \\(code smell\\)\n  * Fjernet redundant indre if-check \\(always true\\)\n  * Files: src/modbus_master.cpp:174-183\n\nDocumentation updated:\n- BUGS_INDEX.md: Added BUG-142, BUG-146, BUG-147, BUG-148, BUG-149\n- BUGS.md: Detailed descriptions for all 5 bugs\n\nBuild: #995 \\(2026-01-06\\)\nTesting: All builds successfully, no regressions\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

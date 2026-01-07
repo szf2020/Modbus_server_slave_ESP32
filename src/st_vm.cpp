@@ -12,6 +12,7 @@
 #include "st_builtin_edge.h"
 #include "st_builtin_timers.h"
 #include "st_builtin_counters.h"
+#include "st_builtin_latch.h"  // v4.7.3: SR/RS latches
 #include "debug.h"
 #include <stdlib.h>
 #include <string.h>
@@ -1027,6 +1028,22 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
       // For now, return error
       snprintf(vm->error_msg, sizeof(vm->error_msg), "CTUD not yet implemented in VM");
       return false;
+    }
+  }
+  else if (func_id == ST_BUILTIN_SR || func_id == ST_BUILTIN_RS) {
+    // Latch functions (v4.7.3)
+    uint8_t instance_id = instr->arg.builtin_call.instance_id;
+    st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
+    if (!stateful || instance_id >= stateful->latch_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Invalid latch instance ID: %d", instance_id);
+      return false;
+    }
+    st_latch_instance_t *instance = &stateful->latches[instance_id];
+    if (func_id == ST_BUILTIN_SR) {
+      result = st_builtin_sr(arg1, arg2, instance);
+    } else {
+      result = st_builtin_rs(arg1, arg2, instance);
     }
   }
   else {

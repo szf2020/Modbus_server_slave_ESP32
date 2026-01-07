@@ -66,6 +66,7 @@ typedef struct {
   uint8_t edge_instance_count;        // R_TRIG/F_TRIG instances allocated
   uint8_t timer_instance_count;       // TON/TOF/TP instances allocated
   uint8_t counter_instance_count;     // CTU/CTD/CTUD instances allocated
+  uint8_t latch_instance_count;       // SR/RS latch instances allocated (v4.7.3)
 } st_compiler_t;
 
 /**

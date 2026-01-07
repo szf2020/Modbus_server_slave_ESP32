@@ -82,6 +82,8 @@ typedef enum {
   ST_BUILTIN_CTU,           // CTU(CU, RESET, PV) → BOOL (count up)
   ST_BUILTIN_CTD,           // CTD(CD, LOAD, PV) → BOOL (count down)
   ST_BUILTIN_CTUD,          // CTUD(CU, CD, RESET, LOAD, PV) → BOOL (count up/down)
+  ST_BUILTIN_SR,            // SR(S1, R) → BOOL (set-reset latch, reset priority) v4.7.3
+  ST_BUILTIN_RS,            // RS(S, R1) → BOOL (reset-set latch, set priority) v4.7.3
 
   ST_BUILTIN_COUNT          // Total number of built-ins
 } st_builtin_func_t;

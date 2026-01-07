@@ -22,6 +22,7 @@ void st_stateful_init(st_stateful_storage_t* storage) {
   storage->timer_count = 0;
   storage->edge_count = 0;
   storage->counter_count = 0;
+  storage->latch_count = 0;  // v4.7.3: SR/RS latches
 
   // Mark as initialized
   storage->initialized = true;
@@ -53,6 +54,11 @@ void st_stateful_reset(st_stateful_storage_t* storage) {
     storage->counters[i].last_CD = false;
     storage->counters[i].last_RESET = false;
     storage->counters[i].last_LOAD = false;
+  }
+
+  // Reset all latches (v4.7.3)
+  for (uint8_t i = 0; i < storage->latch_count; i++) {
+    storage->latches[i].Q = false;
   }
 }
 
@@ -143,4 +149,30 @@ st_counter_instance_t* st_stateful_get_counter(st_stateful_storage_t* storage, u
   if (!storage || !storage->initialized) return NULL;
   if (instance_id >= storage->counter_count) return NULL;
   return &storage->counters[instance_id];
+}
+
+/* ============================================================================
+ * LATCH ALLOCATION
+ * ============================================================================ */
+
+st_latch_instance_t* st_stateful_alloc_latch(st_stateful_storage_t* storage, st_latch_type_t type) {
+  if (!storage || !storage->initialized) return NULL;
+  if (storage->latch_count >= ST_MAX_LATCH_INSTANCES) return NULL;
+
+  // Get next slot
+  st_latch_instance_t* latch = &storage->latches[storage->latch_count];
+  storage->latch_count++;
+
+  // Initialize latch
+  memset(latch, 0, sizeof(st_latch_instance_t));
+  latch->type = type;
+  latch->Q = false;
+
+  return latch;
+}
+
+st_latch_instance_t* st_stateful_get_latch(st_stateful_storage_t* storage, uint8_t instance_id) {
+  if (!storage || !storage->initialized) return NULL;
+  if (instance_id >= storage->latch_count) return NULL;
+  return &storage->latches[instance_id];
 }

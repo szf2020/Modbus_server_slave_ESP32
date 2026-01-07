@@ -31,6 +31,7 @@
 #define ST_MAX_TIMER_INSTANCES   8    // Max TON/TOF/TP instances per program
 #define ST_MAX_EDGE_INSTANCES    8    // Max R_TRIG/F_TRIG instances per program
 #define ST_MAX_COUNTER_INSTANCES 8    // Max CTU/CTD/CTUD instances per program
+#define ST_MAX_LATCH_INSTANCES   8    // Max SR/RS latch instances per program
 
 /* ============================================================================
  * TIMER INSTANCE (TON/TOF/TP)
@@ -126,6 +127,40 @@ typedef struct {
 } st_counter_instance_t;
 
 /* ============================================================================
+ * LATCH INSTANCE (SR/RS)
+ * ============================================================================ */
+
+/**
+ * @brief Latch type enumeration
+ */
+typedef enum {
+  ST_LATCH_SR = 0,  // Set-Reset (Reset priority)
+  ST_LATCH_RS = 1   // Reset-Set (Set priority)
+} st_latch_type_t;
+
+/**
+ * @brief Latch instance state
+ *
+ * Stores state for a single SR or RS bistable latch instance.
+ *
+ * SR (Set-Reset): Reset input has priority
+ * - If R=1, output Q=0 (regardless of S)
+ * - If R=0 and S=1, output Q=1
+ * - If both R=0 and S=0, output holds previous state
+ *
+ * RS (Reset-Set): Set input has priority
+ * - If S=1, output Q=1 (regardless of R)
+ * - If S=0 and R=1, output Q=0
+ * - If both S=0 and R=0, output holds previous state
+ *
+ * IEC 61131-3 Standard Function Blocks.
+ */
+typedef struct {
+  st_latch_type_t type;  // Latch type (SR or RS)
+  bool Q;                // Output state (latched value)
+} st_latch_instance_t;
+
+/* ============================================================================
  * STATEFUL STORAGE CONTAINER
  * ============================================================================ */
 
@@ -135,11 +170,12 @@ typedef struct {
  * Holds all stateful instances (timers, edges, counters) for a single
  * ST Logic program. Allocated per-program and persists across cycles.
  *
- * Memory: ~420 bytes per program (v4.7+ DRAM optimized)
+ * Memory: ~452 bytes per program (v4.7.3+ with SR/RS latches)
  * - Timers: 8 × ~24 bytes = 192 bytes
  * - Edges: 8 × 8 bytes = 64 bytes
  * - Counters: 8 × ~20 bytes = 160 bytes
- * - Total: ~420 bytes (50% reduction from 16 instances)
+ * - Latches: 8 × 4 bytes = 32 bytes (NEW v4.7.3)
+ * - Total: ~452 bytes
  */
 typedef struct {
   // Timer instances (TON/TOF/TP)
@@ -153,6 +189,10 @@ typedef struct {
   // Counter instances (CTU/CTD/CTUD)
   st_counter_instance_t counters[ST_MAX_COUNTER_INSTANCES];
   uint8_t counter_count;  // Number of allocated counter instances
+
+  // Latch instances (SR/RS) - v4.7.3
+  st_latch_instance_t latches[ST_MAX_LATCH_INSTANCES];
+  uint8_t latch_count;  // Number of allocated latch instances
 
   // Initialization flag
   bool initialized;
@@ -241,5 +281,25 @@ st_edge_instance_t* st_stateful_get_edge(st_stateful_storage_t* storage, uint8_t
  * @return Pointer to counter instance, or NULL if invalid ID
  */
 st_counter_instance_t* st_stateful_get_counter(st_stateful_storage_t* storage, uint8_t instance_id);
+
+/**
+ * @brief Allocate a new latch instance
+ *
+ * Returns pointer to next available latch slot, or NULL if full.
+ *
+ * @param storage Pointer to storage structure
+ * @param type Latch type (SR or RS)
+ * @return Pointer to allocated latch instance, or NULL if no slots available
+ */
+st_latch_instance_t* st_stateful_alloc_latch(st_stateful_storage_t* storage, st_latch_type_t type);
+
+/**
+ * @brief Get latch instance by ID
+ *
+ * @param storage Pointer to storage structure
+ * @param instance_id Latch instance ID (0-7)
+ * @return Pointer to latch instance, or NULL if invalid ID
+ */
+st_latch_instance_t* st_stateful_get_latch(st_stateful_storage_t* storage, uint8_t instance_id);
 
 #endif // ST_STATEFUL_H

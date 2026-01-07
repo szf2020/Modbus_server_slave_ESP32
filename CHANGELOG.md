@@ -4,6 +4,60 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [4.7.3] - 2026-01-07 ✨ (SR/RS Bistable Latches)
+
+### ✨ NEW FEATURES
+
+**SR/RS Bistable Latches (IEC 61131-3 Standard Function Blocks)**
+- **Feature:** Added SR (Set-Reset) and RS (Reset-Set) bistable latch function blocks
+- **Standard:** Fully compliant with IEC 61131-3 standard specifications
+- **Files Added:**
+  - `include/st_builtin_latch.h` - Latch function declarations
+  - `src/st_builtin_latch.cpp` - SR/RS implementations
+- **Files Modified:**
+  - `include/st_stateful.h` - Added latch instance storage (8 latches per program)
+  - `src/st_stateful.cpp` - Added allocation and getter functions
+  - `include/st_builtins.h` - Added ST_BUILTIN_SR and ST_BUILTIN_RS enums
+  - `include/st_compiler.h` - Added latch_instance_count field
+  - `src/st_compiler.cpp` - Added latch instance allocation during compilation
+  - `src/st_vm.cpp` - Added latch execution in VM
+
+**SR Latch (Set-Reset, Reset Priority):**
+```structured-text
+(* Alarm system with reset button priority *)
+VAR
+  sensor_triggered : BOOL;
+  reset_button : BOOL;
+  alarm_active : BOOL;
+END_VAR
+
+alarm_active := SR(sensor_triggered, reset_button);
+(* If both S=1 and R=1, output = 0 (reset wins) *)
+```
+
+**RS Latch (Reset-Set, Set Priority):**
+```structured-text
+(* Motor control with start button priority *)
+VAR
+  start_button : BOOL;
+  stop_button : BOOL;
+  motor_running : BOOL;
+END_VAR
+
+motor_running := RS(start_button, stop_button);
+(* If both S=1 and R=1, output = 1 (set wins) *)
+```
+
+**Memory Usage:**
+- Latch instance: 4 bytes (type + state)
+- Max 8 latches per ST program
+- Total: 32 bytes per program (added to stateful storage)
+
+**Build:** #999
+**Status:** ✅ IMPLEMENTED and TESTED
+
+---
+
 ## [4.6.1] - 2026-01-01 🔴 (Critical Type-Handling Bug Fixes)
 
 ### 🔴 CRITICAL BUG FIXES

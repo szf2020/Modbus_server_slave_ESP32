@@ -31,6 +31,7 @@ void st_compiler_init(st_compiler_t *compiler) {
   compiler->edge_instance_count = 0;
   compiler->timer_instance_count = 0;
   compiler->counter_instance_count = 0;
+  compiler->latch_instance_count = 0;  // v4.7.3: SR/RS latches
 }
 
 /* ============================================================================
@@ -313,6 +314,9 @@ bool st_compiler_compile_expr(st_compiler_t *compiler, st_ast_node_t *node) {
       else if (strcasecmp(node->data.function_call.func_name, "CTU") == 0) func_id = ST_BUILTIN_CTU;
       else if (strcasecmp(node->data.function_call.func_name, "CTD") == 0) func_id = ST_BUILTIN_CTD;
       else if (strcasecmp(node->data.function_call.func_name, "CTUD") == 0) func_id = ST_BUILTIN_CTUD;
+      // v4.7.3: Bistable latches
+      else if (strcasecmp(node->data.function_call.func_name, "SR") == 0) func_id = ST_BUILTIN_SR;
+      else if (strcasecmp(node->data.function_call.func_name, "RS") == 0) func_id = ST_BUILTIN_RS;
       else {
         char msg[128];
         snprintf(msg, sizeof(msg), "Unknown function: %s", node->data.function_call.func_name);
@@ -358,6 +362,16 @@ bool st_compiler_compile_expr(st_compiler_t *compiler, st_ast_node_t *node) {
         }
         instance_id = compiler->counter_instance_count++;
         debug_printf("[COMPILER] Allocated counter instance %d for %s\n",
+                     instance_id, node->data.function_call.func_name);
+      }
+      // Latch functions (v4.7.3)
+      else if (func_id == ST_BUILTIN_SR || func_id == ST_BUILTIN_RS) {
+        if (compiler->latch_instance_count >= 8) {
+          st_compiler_error(compiler, "Too many latch instances (max 8)");
+          return false;
+        }
+        instance_id = compiler->latch_instance_count++;
+        debug_printf("[COMPILER] Allocated latch instance %d for %s\n",
                      instance_id, node->data.function_call.func_name);
       }
       // Stateless functions use instance_id = 0

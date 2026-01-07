@@ -1,8 +1,8 @@
 # ST Functions v4.7+ - Komplet Brugerdokumentation
 
-**Version:** 4.7.0
-**Build:** #920+
-**Dato:** 2026-01-01
+**Version:** 4.7.3
+**Build:** #999+
+**Dato:** 2026-01-07
 **Status:** ✅ Production Ready
 
 ---
@@ -15,6 +15,7 @@
    - [Edge Detection](#edge-detection-r_trig--f_trig)
    - [Timers](#timers-ton--tof--tp)
    - [Counters](#counters-ctu--ctd--ctud)
+   - [Bistable Latches](#bistable-latches-srrs) (NEW v4.7.3)
 4. [Memory Usage](#memory-usage)
 5. [Limitations](#limitations)
 6. [Eksempler](#eksempler)
@@ -28,10 +29,13 @@ v4.7 tilføjer **13 nye ST funktioner** med fokus på:
 - **Avanceret matematik**: EXP, LN, LOG, POW
 - **Stateful function blocks**: R_TRIG, F_TRIG, TON, TOF, TP, CTU, CTD, CTUD
 
+v4.7.3 tilføjer **2 nye bistable latches**:
+- **SR/RS latches**: IEC 61131-3 standard set-reset og reset-set function blocks
+
 ### Nøglefunktioner
 
 ✅ **IEC 61131-3 Compliance** - Følger international PLC standard
-✅ **DRAM Optimeret** - Kun 420 bytes per program
+✅ **DRAM Optimeret** - Kun 452 bytes per program (v4.7.3+)
 ✅ **Input Validation** - Automatisk håndtering af ugyldige værdier
 ✅ **Zero Copy** - Effektiv pointer-baseret arkitektur
 ✅ **Compile-time Instance Allocation** - Ingen runtime overhead
@@ -650,23 +654,146 @@ up_done := CTUD(increment, decrement, reset, load, setpoint);
 
 ---
 
+## Bistable Latches (SR/RS)
+
+### SR(S1, R) - Set-Reset Latch (Reset Priority)
+
+**Syntax:**
+```st
+output := SR(set_input, reset_input);
+```
+
+**Beskrivelse:**
+Bistable latch med Reset-prioritet. Når både S og R er TRUE, vil output være FALSE (reset vinder).
+
+**Parametre:**
+- `S1` (BOOL) - Set input (sætter output til TRUE)
+- `R` (BOOL) - Reset input (nulstiller output til FALSE) **PRIORITY**
+
+**Return:**
+- (BOOL) - Q output (latched state)
+
+**Truth Table:**
+
+| S1 | R | Q (Output) |
+|----|---|------------|
+| 0  | 0 | Hold (forrige tilstand) |
+| 0  | 1 | 0 (reset) |
+| 1  | 0 | 1 (set) |
+| 1  | 1 | **0 (reset priority!)** |
+
+**Validation:**
+- ✅ **State persistence**: Output holder værdi mellem cycles
+- ✅ **Edge insensitive**: Reagerer på niveau, ikke kanter
+
+**Eksempel:**
+```st
+VAR
+  sensor_triggered : BOOL;
+  reset_button : BOOL;
+  alarm_active : BOOL;
+END_VAR
+
+(* Alarm system - reset button has priority *)
+alarm_active := SR(sensor_triggered, reset_button);
+
+IF alarm_active THEN
+  (* Activate siren *)
+END_IF;
+```
+
+**Use Cases:**
+- Alarm systems (reset priority)
+- Emergency stop circuits
+- Safety interlocks
+- Fault latching
+
+---
+
+### RS(S, R1) - Reset-Set Latch (Set Priority)
+
+**Syntax:**
+```st
+output := RS(set_input, reset_input);
+```
+
+**Beskrivelse:**
+Bistable latch med Set-prioritet. Når både S og R er TRUE, vil output være TRUE (set vinder).
+
+**Parametre:**
+- `S` (BOOL) - Set input (sætter output til TRUE) **PRIORITY**
+- `R1` (BOOL) - Reset input (nulstiller output til FALSE)
+
+**Return:**
+- (BOOL) - Q output (latched state)
+
+**Truth Table:**
+
+| S  | R1 | Q (Output) |
+|----|----|-----------|
+| 0  | 0  | Hold (forrige tilstand) |
+| 0  | 1  | 0 (reset) |
+| 1  | 0  | 1 (set) |
+| 1  | 1  | **1 (set priority!)** |
+
+**Validation:**
+- ✅ **State persistence**: Output holder værdi mellem cycles
+- ✅ **Edge insensitive**: Reagerer på niveau, ikke kanter
+
+**Eksempel:**
+```st
+VAR
+  start_button : BOOL;
+  stop_button : BOOL;
+  motor_running : BOOL;
+END_VAR
+
+(* Motor control - start button has priority *)
+motor_running := RS(start_button, stop_button);
+
+IF motor_running THEN
+  (* Run motor *)
+END_IF;
+```
+
+**Use Cases:**
+- Motor control (start priority)
+- Process sequencing
+- ON/OFF control with override
+- State machines
+
+---
+
+### SR vs RS - Når skal man bruge hvad?
+
+| Anvendelse | Anbefalet Latch | Begrundelse |
+|------------|-----------------|-------------|
+| **Alarm systemer** | SR (reset priority) | Sikkerhed: Reset skal altid virke |
+| **Emergency stop** | SR (reset priority) | Stop-knap skal have prioritet |
+| **Motor start/stop** | RS (set priority) | Start-kommando skal kunne overrule |
+| **Process override** | RS (set priority) | Manuel start skal kunne forcere |
+| **Fault latching** | SR (reset priority) | Reset skal kunne cleare fejl |
+
+---
+
 ## Memory Usage
 
-### Per Program
+### Per Program (v4.7.3+)
 
 | Component | Instances | Size Each | Total |
 |-----------|-----------|-----------|-------|
 | **Timers** | 8 | 24 bytes | 192 bytes |
 | **Edges** | 8 | 8 bytes | 64 bytes |
 | **Counters** | 8 | 20 bytes | 160 bytes |
+| **Latches** (v4.7.3) | 8 | 4 bytes | 32 bytes |
 | **Overhead** | - | 4 bytes | 4 bytes |
-| **TOTAL** | - | - | **420 bytes** |
+| **TOTAL** | - | - | **452 bytes** |
 
 ### System-Wide (4 Programs)
 
-- **Maximum**: 4 × 420 = **1.68 KB**
+- **Maximum**: 4 × 452 = **1.81 KB**
 - **Actual usage**: Allocated only when stateful functions used
-- **DRAM Impact**: +32 bytes vs. baseline (optimized via union)
+- **DRAM Impact**: +64 bytes vs. baseline (optimized via union)
 
 ---
 
@@ -683,12 +810,15 @@ Per program:
 - ✅ Max 8 CTU instances
 - ✅ Max 8 CTD instances
 - ✅ Max 8 CTUD instances (teoretisk - VM support mangler)
+- ✅ Max 8 SR instances (v4.7.3)
+- ✅ Max 8 RS instances (v4.7.3)
 
 **Compiler Error:**
 ```
 Too many timer instances (max 8)
 Too many edge detector instances (max 8)
 Too many counter instances (max 8)
+Too many latch instances (max 8)
 ```
 
 ### Function Support
