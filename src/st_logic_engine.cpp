@@ -10,6 +10,7 @@
 #include "st_compiler.h"
 #include "st_parser.h"
 #include "st_vm.h"
+#include "st_stateful.h"  // BUG-153 FIX: For cycle_time_ms update
 #include "st_builtin_modbus.h"  // BUG-133 FIX: For g_mb_request_count reset
 #include "config_struct.h"
 #include "constants.h"
@@ -47,6 +48,12 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
   // Create VM and initialize with bytecode
   st_vm_t vm;
   st_vm_init(&vm, &prog->bytecode);
+
+  // BUG-153 FIX: Update cycle time in stateful storage before execution
+  if (prog->bytecode.stateful) {
+    st_stateful_storage_t *stateful = (st_stateful_storage_t*)prog->bytecode.stateful;
+    stateful->cycle_time_ms = state->execution_interval_ms;
+  }
 
   // BUG-007 FIX: Add timing wrapper for execution monitoring (use micros for precision)
   uint32_t start_us = micros();

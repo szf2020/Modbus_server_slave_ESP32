@@ -1210,7 +1210,9 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
                                 0;
 
     st_filter_instance_t *instance = &stateful->filters[instance_id];
-    result = st_builtin_filter(in_real, time_constant_int, instance);
+
+    // BUG-153 FIX: Pass actual cycle time to filter
+    result = st_builtin_filter(in_real, time_constant_int, instance, stateful->cycle_time_ms);
   }
   else {
     result = st_builtin_call(func_id, arg1, arg2);

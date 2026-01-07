@@ -140,7 +140,7 @@ st_value_t st_builtin_blink(st_value_t enable, st_value_t on_time, st_value_t of
  * ============================================================================ */
 
 st_value_t st_builtin_filter(st_value_t in, st_value_t time_constant,
-                              st_filter_instance_t* instance) {
+                              st_filter_instance_t* instance, uint32_t cycle_time_ms) {
   st_value_t result;
   result.real_val = 0.0f;
 
@@ -160,9 +160,13 @@ st_value_t st_builtin_filter(st_value_t in, st_value_t time_constant,
     return result;
   }
 
-  // Cycle time (DT) - assume 10ms for 100Hz execution
-  // TODO: Get actual cycle time from system
-  float DT = 10.0f;  // milliseconds
+  // BUG-153 FIX: Use actual cycle time from engine state
+  float DT = (float)cycle_time_ms;  // milliseconds
+
+  // Avoid invalid cycle time
+  if (DT <= 0.0f) {
+    DT = 10.0f;  // Fallback to 10ms default
+  }
 
   // Calculate smoothing factor: α = DT / (τ + DT)
   float alpha = DT / (tau + DT);

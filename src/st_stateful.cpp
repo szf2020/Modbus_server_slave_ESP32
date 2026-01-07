@@ -27,6 +27,9 @@ void st_stateful_init(st_stateful_storage_t* storage) {
   storage->blink_count = 0;
   storage->filter_count = 0;
 
+  // BUG-153 FIX: Default cycle time (will be overridden by engine)
+  storage->cycle_time_ms = 10;  // 10ms default (100Hz)
+
   // Mark as initialized
   storage->initialized = true;
 }

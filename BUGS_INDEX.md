@@ -128,7 +128,7 @@
 | BUG-150 | CTUD ikke implementeret i VM | ⚠️ OPEN | 🔴 CRITICAL | v4.8.0 | Compiler accepterer CTUD, men VM returnerer "not implemented" runtime error (st_vm.cpp:1036) |
 | BUG-151 | Type stack corruption i AND/OR/XOR/NOT operationer | ✅ FIXED | 🔴 HIGH | v4.8.0 | Legacy st_vm_pop() korrupterer type_stack → downstream type inference fejler (st_vm.cpp:483-527) (Build #1010) |
 | BUG-152 | Signal processing antager REAL type uden validering | ✅ FIXED | 🟡 MEDIUM | v4.8.0 | SCALE/HYSTERESIS/BLINK/FILTER bruger direkte .real_val uden type check (st_vm.cpp:1070-1213) (Build #1011) |
-| BUG-153 | FILTER hardcoded cycle time (10ms) | ⚠️ OPEN | 🟠 MEDIUM | v4.8.0 | Cycle time antages 10ms - forkert hvis execution interval er anderledes (st_builtin_signal.cpp:164) |
+| BUG-153 | FILTER hardcoded cycle time (10ms) | ✅ FIXED | 🟠 MEDIUM | v4.8.1 | Cycle time læses nu fra stateful->cycle_time_ms (st_logic_engine.cpp:51-55, st_builtin_signal.cpp:163-169) (Build #1015) |
 | BUG-154 | Jump target validation manglede | ✅ FIXED | 🟠 MEDIUM | v4.8.0 | JMP/JMP_IF_FALSE/JMP_IF_TRUE validerer ikke target < instr_count (st_vm.cpp:1275-1329) (Build #1012) |
 
 ## Feature Requests / Enhancements

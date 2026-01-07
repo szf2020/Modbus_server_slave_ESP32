@@ -247,6 +247,9 @@ typedef struct {
   st_filter_instance_t filters[ST_MAX_FILTER_INSTANCES];
   uint8_t filter_count;
 
+  // Execution cycle time (v4.8.1 - BUG-153 fix)
+  uint32_t cycle_time_ms;  // Actual execution interval from engine state
+
   // Initialization flag
   bool initialized;
 } st_stateful_storage_t;

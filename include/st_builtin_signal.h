@@ -121,6 +121,7 @@ st_value_t st_builtin_blink(st_value_t enable, st_value_t on_time, st_value_t of
  * @param in Input signal (REAL)
  * @param time_constant Filter time constant in milliseconds (INT)
  * @param instance Pointer to filter instance storage
+ * @param cycle_time_ms Execution cycle time in milliseconds (BUG-153 fix)
  * @return Filtered output (REAL)
  *
  * @example
@@ -128,8 +129,9 @@ st_value_t st_builtin_blink(st_value_t enable, st_value_t on_time, st_value_t of
  *   (* 500ms time constant → ~0.3 Hz cutoff *)
  *
  * @note Requires stateful storage for previous output
+ * @note cycle_time_ms should match actual program execution interval
  */
 st_value_t st_builtin_filter(st_value_t in, st_value_t time_constant,
-                              st_filter_instance_t* instance);
+                              st_filter_instance_t* instance, uint32_t cycle_time_ms);
 
 #endif // ST_BUILTIN_SIGNAL_H
