@@ -482,8 +482,11 @@ static bool st_vm_exec_neg(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_and(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
+
+  // BUG-151 FIX: Use typed pop to maintain type stack consistency
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
 
   result.bool_val = (left.bool_val != 0) && (right.bool_val != 0);
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
@@ -491,8 +494,11 @@ static bool st_vm_exec_and(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_or(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
+
+  // BUG-151 FIX: Use typed pop to maintain type stack consistency
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
 
   result.bool_val = (left.bool_val != 0) || (right.bool_val != 0);
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
@@ -500,8 +506,11 @@ static bool st_vm_exec_or(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_xor(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
-  if (!st_vm_pop(vm, &right)) return false;
-  if (!st_vm_pop(vm, &left)) return false;
+  st_datatype_t right_type, left_type;
+
+  // BUG-151 FIX: Use typed pop to maintain type stack consistency
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
 
   result.bool_val = (left.bool_val != 0) != (right.bool_val != 0);
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
@@ -509,7 +518,10 @@ static bool st_vm_exec_xor(st_vm_t *vm, st_bytecode_instr_t *instr) {
 
 static bool st_vm_exec_not(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t val, result;
-  if (!st_vm_pop(vm, &val)) return false;
+  st_datatype_t val_type;
+
+  // BUG-151 FIX: Use typed pop to maintain type stack consistency
+  if (!st_vm_pop_typed(vm, &val, &val_type)) return false;
 
   result.bool_val = (val.bool_val == 0);
   return st_vm_push_typed(vm, result, ST_TYPE_BOOL);
@@ -1056,12 +1068,45 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
     }
   }
   else if (func_id == ST_BUILTIN_SCALE) {
-    // SCALE - stateless, uses 5 arguments
+    // BUG-152 FIX: SCALE - type-aware conversion to REAL
     // arg1=IN, arg2=IN_MIN, arg3=IN_MAX, arg4=OUT_MIN, arg5=OUT_MAX
-    result = st_builtin_scale(arg1, arg2, arg3, arg4, arg5);
+    st_value_t in_real, in_min_real, in_max_real, out_min_real, out_max_real;
+
+    // Convert arg1 (IN) to REAL
+    in_real.real_val = (arg1_type == ST_TYPE_REAL) ? arg1.real_val :
+                       (arg1_type == ST_TYPE_INT) ? (float)arg1.int_val :
+                       (arg1_type == ST_TYPE_DINT) ? (float)arg1.dint_val :
+                       (float)arg1.dword_val;
+
+    // Convert arg2 (IN_MIN) to REAL
+    in_min_real.real_val = (arg2_type == ST_TYPE_REAL) ? arg2.real_val :
+                           (arg2_type == ST_TYPE_INT) ? (float)arg2.int_val :
+                           (arg2_type == ST_TYPE_DINT) ? (float)arg2.dint_val :
+                           (float)arg2.dword_val;
+
+    // Convert arg3 (IN_MAX) to REAL
+    in_max_real.real_val = (arg3_type == ST_TYPE_REAL) ? arg3.real_val :
+                           (arg3_type == ST_TYPE_INT) ? (float)arg3.int_val :
+                           (arg3_type == ST_TYPE_DINT) ? (float)arg3.dint_val :
+                           (float)arg3.dword_val;
+
+    // Convert arg4 (OUT_MIN) to REAL
+    out_min_real.real_val = (arg4_type == ST_TYPE_REAL) ? arg4.real_val :
+                            (arg4_type == ST_TYPE_INT) ? (float)arg4.int_val :
+                            (arg4_type == ST_TYPE_DINT) ? (float)arg4.dint_val :
+                            (float)arg4.dword_val;
+
+    // Convert arg5 (OUT_MAX) to REAL
+    out_max_real.real_val = (arg5_type == ST_TYPE_REAL) ? arg5.real_val :
+                            (arg5_type == ST_TYPE_INT) ? (float)arg5.int_val :
+                            (arg5_type == ST_TYPE_DINT) ? (float)arg5.dint_val :
+                            (float)arg5.dword_val;
+
+    result = st_builtin_scale(in_real, in_min_real, in_max_real, out_min_real, out_max_real);
   }
   else if (func_id == ST_BUILTIN_HYSTERESIS) {
-    // HYSTERESIS - stateful (arg1=IN, arg2=HIGH, arg3=LOW)
+    // BUG-152 FIX: HYSTERESIS - type-aware conversion to REAL
+    // arg1=IN, arg2=HIGH, arg3=LOW
     uint8_t instance_id = instr->arg.builtin_call.instance_id;
     st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
     if (!stateful || instance_id >= stateful->hysteresis_count) {
@@ -1069,11 +1114,33 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
                "Invalid hysteresis instance ID: %d", instance_id);
       return false;
     }
+
+    st_value_t in_real, high_real, low_real;
+
+    // Convert arg1 (IN) to REAL
+    in_real.real_val = (arg1_type == ST_TYPE_REAL) ? arg1.real_val :
+                       (arg1_type == ST_TYPE_INT) ? (float)arg1.int_val :
+                       (arg1_type == ST_TYPE_DINT) ? (float)arg1.dint_val :
+                       (float)arg1.dword_val;
+
+    // Convert arg2 (HIGH) to REAL
+    high_real.real_val = (arg2_type == ST_TYPE_REAL) ? arg2.real_val :
+                         (arg2_type == ST_TYPE_INT) ? (float)arg2.int_val :
+                         (arg2_type == ST_TYPE_DINT) ? (float)arg2.dint_val :
+                         (float)arg2.dword_val;
+
+    // Convert arg3 (LOW) to REAL
+    low_real.real_val = (arg3_type == ST_TYPE_REAL) ? arg3.real_val :
+                        (arg3_type == ST_TYPE_INT) ? (float)arg3.int_val :
+                        (arg3_type == ST_TYPE_DINT) ? (float)arg3.dint_val :
+                        (float)arg3.dword_val;
+
     st_hysteresis_instance_t *instance = &stateful->hysteresis[instance_id];
-    result = st_builtin_hysteresis(arg1, arg2, arg3, instance);
+    result = st_builtin_hysteresis(in_real, high_real, low_real, instance);
   }
   else if (func_id == ST_BUILTIN_BLINK) {
-    // BLINK - stateful (arg1=ENABLE, arg2=ON_TIME, arg3=OFF_TIME)
+    // BUG-152 FIX: BLINK - type-aware conversion
+    // arg1=ENABLE (BOOL), arg2=ON_TIME (INT ms), arg3=OFF_TIME (INT ms)
     uint8_t instance_id = instr->arg.builtin_call.instance_id;
     st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
     if (!stateful || instance_id >= stateful->blink_count) {
@@ -1081,11 +1148,44 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
                "Invalid blink instance ID: %d", instance_id);
       return false;
     }
+
+    st_value_t enable_bool, on_time_int, off_time_int;
+
+    // Convert arg1 (ENABLE) to BOOL
+    if (arg1_type == ST_TYPE_BOOL) {
+      enable_bool.bool_val = arg1.bool_val;
+    } else if (arg1_type == ST_TYPE_INT) {
+      enable_bool.bool_val = (arg1.int_val != 0);
+    } else if (arg1_type == ST_TYPE_DINT) {
+      enable_bool.bool_val = (arg1.dint_val != 0);
+    } else if (arg1_type == ST_TYPE_DWORD) {
+      enable_bool.bool_val = (arg1.dword_val != 0);
+    } else if (arg1_type == ST_TYPE_REAL) {
+      enable_bool.bool_val = (fabs(arg1.real_val) > 0.001f);
+    } else {
+      enable_bool.bool_val = false;
+    }
+
+    // Convert arg2 (ON_TIME) to INT
+    on_time_int.int_val = (arg2_type == ST_TYPE_INT) ? arg2.int_val :
+                          (arg2_type == ST_TYPE_DINT) ? (int16_t)arg2.dint_val :
+                          (arg2_type == ST_TYPE_DWORD) ? (int16_t)arg2.dword_val :
+                          (arg2_type == ST_TYPE_REAL) ? (int16_t)arg2.real_val :
+                          0;
+
+    // Convert arg3 (OFF_TIME) to INT
+    off_time_int.int_val = (arg3_type == ST_TYPE_INT) ? arg3.int_val :
+                           (arg3_type == ST_TYPE_DINT) ? (int16_t)arg3.dint_val :
+                           (arg3_type == ST_TYPE_DWORD) ? (int16_t)arg3.dword_val :
+                           (arg3_type == ST_TYPE_REAL) ? (int16_t)arg3.real_val :
+                           0;
+
     st_blink_instance_t *instance = &stateful->blinks[instance_id];
-    result = st_builtin_blink(arg1, arg2, arg3, instance);
+    result = st_builtin_blink(enable_bool, on_time_int, off_time_int, instance);
   }
   else if (func_id == ST_BUILTIN_FILTER) {
-    // FILTER - stateful (arg1=IN, arg2=TIME_CONSTANT)
+    // BUG-152 FIX: FILTER - type-aware conversion
+    // arg1=IN (REAL), arg2=TIME_CONSTANT (INT ms)
     uint8_t instance_id = instr->arg.builtin_call.instance_id;
     st_stateful_storage_t *stateful = (st_stateful_storage_t*)vm->program->stateful;
     if (!stateful || instance_id >= stateful->filter_count) {
@@ -1093,8 +1193,24 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
                "Invalid filter instance ID: %d", instance_id);
       return false;
     }
+
+    st_value_t in_real, time_constant_int;
+
+    // Convert arg1 (IN) to REAL
+    in_real.real_val = (arg1_type == ST_TYPE_REAL) ? arg1.real_val :
+                       (arg1_type == ST_TYPE_INT) ? (float)arg1.int_val :
+                       (arg1_type == ST_TYPE_DINT) ? (float)arg1.dint_val :
+                       (float)arg1.dword_val;
+
+    // Convert arg2 (TIME_CONSTANT) to INT
+    time_constant_int.int_val = (arg2_type == ST_TYPE_INT) ? arg2.int_val :
+                                (arg2_type == ST_TYPE_DINT) ? (int16_t)arg2.dint_val :
+                                (arg2_type == ST_TYPE_DWORD) ? (int16_t)arg2.dword_val :
+                                (arg2_type == ST_TYPE_REAL) ? (int16_t)arg2.real_val :
+                                0;
+
     st_filter_instance_t *instance = &stateful->filters[instance_id];
-    result = st_builtin_filter(arg1, arg2, instance);
+    result = st_builtin_filter(in_real, time_constant_int, instance);
   }
   else {
     result = st_builtin_call(func_id, arg1, arg2);
@@ -1157,7 +1273,16 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
  * ============================================================================ */
 
 static bool st_vm_exec_jmp(st_vm_t *vm, st_bytecode_instr_t *instr) {
-  vm->pc = (uint16_t)instr->arg.int_arg;
+  uint16_t target = (uint16_t)instr->arg.int_arg;
+
+  // BUG-154: Validate jump target is within bytecode bounds
+  if (target >= vm->program->instr_count) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg),
+             "Jump target %u out of bounds (max %u)", target, vm->program->instr_count - 1);
+    return false;
+  }
+
+  vm->pc = target;
   return true;
 }
 
@@ -1166,7 +1291,16 @@ static bool st_vm_exec_jmp_if_false(st_vm_t *vm, st_bytecode_instr_t *instr) {
   if (!st_vm_pop(vm, &cond)) return false;
 
   if (cond.bool_val == 0) {
-    vm->pc = (uint16_t)instr->arg.int_arg;  // Jump to target
+    uint16_t target = (uint16_t)instr->arg.int_arg;
+
+    // BUG-154: Validate jump target is within bytecode bounds
+    if (target >= vm->program->instr_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Jump target %u out of bounds (max %u)", target, vm->program->instr_count - 1);
+      return false;
+    }
+
+    vm->pc = target;  // Jump to target
   } else {
     vm->pc = vm->pc + 1;  // Continue to next instruction
   }
@@ -1178,7 +1312,16 @@ static bool st_vm_exec_jmp_if_true(st_vm_t *vm, st_bytecode_instr_t *instr) {
   if (!st_vm_pop(vm, &cond)) return false;
 
   if (cond.bool_val != 0) {
-    vm->pc = (uint16_t)instr->arg.int_arg;  // Jump to target
+    uint16_t target = (uint16_t)instr->arg.int_arg;
+
+    // BUG-154: Validate jump target is within bytecode bounds
+    if (target >= vm->program->instr_count) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "Jump target %u out of bounds (max %u)", target, vm->program->instr_count - 1);
+      return false;
+    }
+
+    vm->pc = target;  // Jump to target
   } else {
     vm->pc = vm->pc + 1;  // Continue to next instruction
   }
