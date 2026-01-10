@@ -262,6 +262,7 @@ static bool lexer_read_string(st_lexer_t *lexer, st_token_t *token) {
   char buffer[256] = {0};
   int i = 0;
 
+  // BUG-155 FIX: Read string with explicit length limit
   while (lexer->current_char != quote && lexer->current_char != '\0' && i < 255) {  // BUG-068: Changed from 250 to 255
     if (lexer->current_char == '\\' && lexer_peek(lexer, 1) == quote) {
       // Escaped quote
@@ -272,6 +273,20 @@ static bool lexer_read_string(st_lexer_t *lexer, st_token_t *token) {
       buffer[i++] = lexer->current_char;
       lexer_advance(lexer);
     }
+  }
+
+  // BUG-155 FIX: Check if string was truncated (hit length limit before closing quote)
+  if (i >= 255 && lexer->current_char != quote && lexer->current_char != '\0') {
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "String literal too long (max 255 chars)");
+    // Skip to closing quote or EOF
+    while (lexer->current_char != quote && lexer->current_char != '\0') {
+      lexer_advance(lexer);
+    }
+    if (lexer->current_char == quote) {
+      lexer_advance(lexer); // skip closing quote
+    }
+    return false;
   }
 
   if (lexer->current_char != quote) {
@@ -298,9 +313,22 @@ static bool lexer_read_identifier(st_lexer_t *lexer, st_token_t *token) {
   char buffer[64] = {0};
   int i = 0;
 
-  while ((isalnum(lexer->current_char) || lexer->current_char == '_') && i < 63) {  // BUG-067: Changed from 60 to 63
+  // BUG-155 FIX: Read identifier with explicit length limit
+  while ((isalnum(lexer->current_char) || lexer->current_char == '_') && i < 63) {
     buffer[i++] = lexer->current_char;
     lexer_advance(lexer);
+  }
+
+  // BUG-155 FIX: Check if identifier was truncated (more characters available)
+  if (isalnum(lexer->current_char) || lexer->current_char == '_') {
+    // Identifier exceeds maximum length - return error
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "Identifier too long (max 63 chars)");
+    // Skip remaining characters
+    while (isalnum(lexer->current_char) || lexer->current_char == '_') {
+      lexer_advance(lexer);
+    }
+    return false;
   }
 
   buffer[i] = '\0';  // BUG-067: Explicit null terminator

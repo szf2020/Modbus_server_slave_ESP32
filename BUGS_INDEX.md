@@ -130,7 +130,7 @@
 | BUG-152 | Signal processing antager REAL type uden validering | ✅ FIXED | 🟡 MEDIUM | v4.8.0 | SCALE/HYSTERESIS/BLINK/FILTER bruger direkte .real_val uden type check (st_vm.cpp:1070-1213) (Build #1011) |
 | BUG-153 | FILTER hardcoded cycle time (10ms) | ✅ FIXED | 🟠 MEDIUM | v4.8.1 | Cycle time læses nu fra stateful->cycle_time_ms (st_logic_engine.cpp:51-55, st_builtin_signal.cpp:163-169) (Build #1015) |
 | BUG-154 | Jump target validation manglede | ✅ FIXED | 🟠 MEDIUM | v4.8.0 | JMP/JMP_IF_FALSE/JMP_IF_TRUE validerer ikke target < instr_count (st_vm.cpp:1275-1329) (Build #1012) |
-| BUG-155 | Buffer overflow i st_token_t.value | ❌ OPEN | 🔴 CRITICAL | v4.8.2 | Token buffer kun 256 bytes, lexer kan skrive mere → stack corruption (st_types.h:129) |
+| BUG-155 | Buffer overflow i st_token_t.value | ✅ FIXED | 🔴 CRITICAL | v4.8.2 | Token buffer kun 256 bytes, lexer kan skrive mere → stack corruption (FIXED Build #1020) |
 | BUG-156 | Manglende validation af function argument count | ✅ FIXED | 🔴 CRITICAL | v4.8.2 | Compiler validerer ikke antal argumenter → stack corruption (st_compiler.cpp:335-344) (Build #1018) |
 | BUG-157 | Stack overflow risk i parser recursion | ✅ FIXED | 🔴 CRITICAL | v4.8.2 | Rekursiv descent uden depth limit → ESP32 crash (st_parser.h:27, st_parser.cpp:28,353-374) (Build #1018) |
 | BUG-158 | NULL pointer dereference i st_vm_exec_call_builtin | ✅ FIXED | 🔴 CRITICAL | v4.8.2 | Stateful check EFTER brug → NULL deref (st_vm.cpp:1000-1272) (Build #1018) |
@@ -198,7 +198,7 @@
 - **BUG-136:** MB_WRITE_COIL mangler value type validering (FIXED v4.6.1 Build #919)
 - **BUG-146:** Use-after-free i config_save.cpp (FIXED v4.7.3 Build #995)
 - **BUG-147:** Buffer underflow i modbus_frame.cpp (FIXED v4.7.3 Build #995)
-- **BUG-155:** Buffer overflow i st_token_t.value (OPEN v4.8.2)
+- **BUG-155:** Buffer overflow i st_token_t.value (FIXED Build #1020)
 - **BUG-156:** Manglende validation af function argument count (FIXED Build #1018)
 - **BUG-157:** Stack overflow risk i parser recursion (FIXED Build #1018)
 - **BUG-158:** NULL pointer dereference i st_vm_exec_call_builtin (FIXED Build #1018)

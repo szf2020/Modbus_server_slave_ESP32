@@ -6857,10 +6857,10 @@ if (bytes_received >= 5) {
 
 ## BUG-155: Buffer Overflow i st_token_t.value
 
-**Severity:** CRITICAL | **Status:** OPEN (v4.8.2) | **File:** st_types.h:129, st_lexer.cpp
+**Severity:** CRITICAL | **Status:** ✅ FIXED (Build #1020) | **File:** st_lexer.cpp:297-328, 258-305
 
 ### Problem
-Token buffer er kun 256 bytes, men lexer kan potentielt skrive mere ved meget lange identifikatorer eller strings.
+Token buffer er kun 256 bytes, men lexer kan potentielt skrive mere ved meget lange identifikatorer eller strings. Selvom der var bounds checking, blev for lange tokens silent truncated uden fejlmelding.
 
 ```cpp
 // st_types.h:129
@@ -6872,39 +6872,77 @@ typedef struct {
 } st_token_t;
 ```
 
-Lexer funktioner som `lexer_read_identifier()` og `lexer_read_string()` bruger strcpy uden bounds checking.
-
 ### Root Cause
-- Ingen validering af identifier/string længde før kopiering
-- strcpy bruges i stedet for strncpy
-- Ingen max length konstant defineret
+- Ingen fejlmelding ved truncation af for lange identifiers/strings
+- Silent truncation kan føre til identifier collision (to forskellige navne bliver ens)
+- Ingen feedback til bruger om ugyldig kode
 
 ### Impact
 Stack corruption hvis:
-- Identifier > 255 karakterer (f.eks. `very_long_variable_name_that_exceeds_the_buffer_limit...`)
+- Identifier > 63 karakterer (f.eks. `very_long_variable_name_that_exceeds_the_buffer_limit...`)
 - String literal > 255 karakterer
 - Kan føre til ESP32 crash eller undefined behavior
 
 ### Reproduktion
 ```st
 VAR
-  this_is_an_extremely_long_variable_name_that_should_definitely_exceed_the_buffer_limit_of_256_bytes_and_cause_a_stack_corruption_when_the_lexer_tries_to_copy_it_into_the_token_value_field_without_proper_bounds_checking_this_should_trigger_BUG_155 : INT;
+  this_is_an_extremely_long_variable_name_that_should_definitely_exceed_the_buffer_limit_of_64_bytes : INT;
 END_VAR
 ```
 
-### Recommended Fix
+Før fix: Silent truncation
+Efter fix: Error: "Identifier too long (max 63 chars)"
+
+### Implemented Fix (Build #1020)
 ```cpp
 // st_lexer.cpp - lexer_read_identifier()
-char buffer[256];
-int pos = 0;
-while (is_alpha_or_digit(lexer->current_char) && pos < 255) {  // ADD LIMIT
-  buffer[pos++] = lexer->current_char;
-  lexer_advance(lexer);
+static bool lexer_read_identifier(st_lexer_t *lexer, st_token_t *token) {
+  char buffer[64] = {0};
+  int i = 0;
+
+  // BUG-155 FIX: Read identifier with explicit length limit
+  while ((isalnum(lexer->current_char) || lexer->current_char == '_') && i < 63) {
+    buffer[i++] = lexer->current_char;
+    lexer_advance(lexer);
+  }
+
+  // BUG-155 FIX: Check if identifier was truncated
+  if (isalnum(lexer->current_char) || lexer->current_char == '_') {
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "Identifier too long (max 63 chars)");
+    // Skip remaining characters
+    while (isalnum(lexer->current_char) || lexer->current_char == '_') {
+      lexer_advance(lexer);
+    }
+    return false;
+  }
+  // ... rest of function
 }
-buffer[pos] = '\0';
-strncpy(token->value, buffer, 255);  // Use strncpy
-token->value[255] = '\0';  // Ensure null termination
+
+// st_lexer.cpp - lexer_read_string()
+  // BUG-155 FIX: Check if string was truncated
+  if (i >= 255 && lexer->current_char != quote && lexer->current_char != '\0') {
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "String literal too long (max 255 chars)");
+    // Skip to closing quote or EOF
+    while (lexer->current_char != quote && lexer->current_char != '\0') {
+      lexer_advance(lexer);
+    }
+    if (lexer->current_char == quote) {
+      lexer_advance(lexer); // skip closing quote
+    }
+    return false;
+  }
 ```
+
+### Test Results
+✅ Valid identifier (63 chars): PASS
+✅ Too long identifier (64+ chars): Error returned
+✅ Valid string (255 chars): PASS
+✅ Too long string (256+ chars): Error returned
+
+### Status
+✅ FIXED i Build #1020 (2026-01-10)
 
 ---
 
