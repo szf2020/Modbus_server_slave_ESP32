@@ -519,27 +519,239 @@ Sample 5: angle=0.90, x= 62.2, y= 78.3, r=100.0
 
 ---
 
-## 📝 Næste Tests
+## 🧪 Test: MUX - 4-Way Multiplexer (v4.8.4+)
 
-Når R_TRIG/F_TRIG er implementeret:
+**Use Case:** Vælg mellem 3 driftsmodes baseret på selector værdi
+
+### ST Program:
 ```structured-text
+PROGRAM
 VAR
-  button_count: INT;
+  mode_selector: INT;     (* 0=OFF, 1=ECO, 2=COMFORT *)
+  temp_setpoint: INT;
 END_VAR
-
-IF R_TRIG(button_input) THEN
-  button_count := button_count + 1;
-END_IF;
+BEGIN
+  (* MUX selects between 3 setpoint values *)
+  temp_setpoint := MUX(mode_selector, 0, 18, 22);
+END_PROGRAM
 ```
 
-Når TON timer er implementeret:
-```structured-text
-VAR
-  motor_running: BOOL;
-END_VAR
-
-motor_running := TON(start_button, 5000);  (* 5 sec delay *)
+### CLI Upload:
+```bash
+set logic 1 upload "PROGRAM VAR mode_selector: INT; temp_setpoint: INT; END_VAR BEGIN temp_setpoint := MUX(mode_selector, 0, 18, 22); END_PROGRAM"
 ```
+
+### Binding Setup:
+```bash
+# Bind mode_selector til HR100 (input)
+set logic 1 bind mode_selector reg:100
+
+# Bind temp_setpoint til HR101 (output)
+set logic 1 bind temp_setpoint reg:101
+
+# Enable program
+set logic 1 enabled:true
+```
+
+### Test via Modbus:
+```python
+# Test 1: Mode 0 (OFF)
+client.write_register(100, 0)
+time.sleep(0.1)
+result = client.read_holding_registers(101, 1)
+print(f"MUX(0, 0, 18, 22) = {result.registers[0]}")  # Expect: 0
+
+# Test 2: Mode 1 (ECO)
+client.write_register(100, 1)
+time.sleep(0.1)
+result = client.read_holding_registers(101, 1)
+print(f"MUX(1, 0, 18, 22) = {result.registers[0]}")  # Expect: 18
+
+# Test 3: Mode 2 (COMFORT)
+client.write_register(100, 2)
+time.sleep(0.1)
+result = client.read_holding_registers(101, 1)
+print(f"MUX(2, 0, 18, 22) = {result.registers[0]}")  # Expect: 22
+
+# Test 4: Invalid mode (default til IN0)
+client.write_register(100, 5)
+time.sleep(0.1)
+result = client.read_holding_registers(101, 1)
+print(f"MUX(5, 0, 18, 22) = {result.registers[0]}")  # Expect: 0 (default)
+```
+
+### Forventet Resultat:
+```
+✓ MUX(0, 0, 18, 22) = 0     (mode OFF)
+✓ MUX(1, 0, 18, 22) = 18    (mode ECO)
+✓ MUX(2, 0, 18, 22) = 22    (mode COMFORT)
+✓ MUX(5, 0, 18, 22) = 0     (invalid → default til IN0)
+```
+
+---
+
+## 🧪 Test: ROL - Rotate Left (v4.8.4+)
+
+**Use Case:** Roter bits i en 16-bit værdi til venstre
+
+### ST Program:
+```structured-text
+PROGRAM
+VAR
+  input_val: INT;
+  shift_count: INT;
+  output_val: INT;
+END_VAR
+BEGIN
+  (* Rotate input_val left by shift_count bits *)
+  output_val := ROL(input_val, shift_count);
+END_PROGRAM
+```
+
+### CLI Upload:
+```bash
+set logic 1 upload "PROGRAM VAR input_val: INT; shift_count: INT; output_val: INT; END_VAR BEGIN output_val := ROL(input_val, shift_count); END_PROGRAM"
+```
+
+### Binding Setup:
+```bash
+# Bind input_val til HR100
+set logic 1 bind input_val reg:100
+
+# Bind shift_count til HR101
+set logic 1 bind shift_count reg:101
+
+# Bind output_val til HR102
+set logic 1 bind output_val reg:102
+
+# Enable program
+set logic 1 enabled:true
+```
+
+### Test via Modbus:
+```python
+# Test 1: ROL(0x1234, 4) → 0x2341
+client.write_registers(100, [0x1234, 4])  # input=0x1234, shift=4
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROL(0x1234, 4) = 0x{result.registers[0]:04X}")  # Expect: 0x2341
+
+# Test 2: ROL(0x0001, 1) → 0x0002
+client.write_registers(100, [0x0001, 1])  # input=0x0001, shift=1
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROL(0x0001, 1) = 0x{result.registers[0]:04X}")  # Expect: 0x0002
+
+# Test 3: ROL(0x8000, 1) → 0x0001 (wrap around)
+client.write_registers(100, [0x8000, 1])  # input=0x8000, shift=1
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROL(0x8000, 1) = 0x{result.registers[0]:04X}")  # Expect: 0x0001
+
+# Test 4: ROL(0xABCD, 8) → 0xCDAB
+client.write_registers(100, [0xABCD, 8])  # input=0xABCD, shift=8
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROL(0xABCD, 8) = 0x{result.registers[0]:04X}")  # Expect: 0xCDAB
+```
+
+### Forventet Resultat:
+```
+✓ ROL(0x1234, 4) = 0x2341   (rotate 4 bits left)
+✓ ROL(0x0001, 1) = 0x0002   (single bit shift)
+✓ ROL(0x8000, 1) = 0x0001   (MSB wraps to LSB)
+✓ ROL(0xABCD, 8) = 0xCDAB   (byte swap)
+```
+
+---
+
+## 🧪 Test: ROR - Rotate Right (v4.8.4+)
+
+**Use Case:** Roter bits i en 16-bit værdi til højre
+
+### ST Program:
+```structured-text
+PROGRAM
+VAR
+  input_val: INT;
+  shift_count: INT;
+  output_val: INT;
+END_VAR
+BEGIN
+  (* Rotate input_val right by shift_count bits *)
+  output_val := ROR(input_val, shift_count);
+END_PROGRAM
+```
+
+### CLI Upload:
+```bash
+set logic 1 upload "PROGRAM VAR input_val: INT; shift_count: INT; output_val: INT; END_VAR BEGIN output_val := ROR(input_val, shift_count); END_PROGRAM"
+```
+
+### Binding Setup:
+```bash
+# Bind input_val til HR100
+set logic 1 bind input_val reg:100
+
+# Bind shift_count til HR101
+set logic 1 bind shift_count reg:101
+
+# Bind output_val til HR102
+set logic 1 bind output_val reg:102
+
+# Enable program
+set logic 1 enabled:true
+```
+
+### Test via Modbus:
+```python
+# Test 1: ROR(0x1234, 4) → 0x4123
+client.write_registers(100, [0x1234, 4])  # input=0x1234, shift=4
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROR(0x1234, 4) = 0x{result.registers[0]:04X}")  # Expect: 0x4123
+
+# Test 2: ROR(0x0002, 1) → 0x0001
+client.write_registers(100, [0x0002, 1])  # input=0x0002, shift=1
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROR(0x0002, 1) = 0x{result.registers[0]:04X}")  # Expect: 0x0001
+
+# Test 3: ROR(0x0001, 1) → 0x8000 (wrap around)
+client.write_registers(100, [0x0001, 1])  # input=0x0001, shift=1
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROR(0x0001, 1) = 0x{result.registers[0]:04X}")  # Expect: 0x8000
+
+# Test 4: ROR(0xABCD, 8) → 0xCDAB
+client.write_registers(100, [0xABCD, 8])  # input=0xABCD, shift=8
+time.sleep(0.1)
+result = client.read_holding_registers(102, 1)
+print(f"ROR(0xABCD, 8) = 0x{result.registers[0]:04X}")  # Expect: 0xCDAB
+```
+
+### Forventet Resultat:
+```
+✓ ROR(0x1234, 4) = 0x4123   (rotate 4 bits right)
+✓ ROR(0x0002, 1) = 0x0001   (single bit shift)
+✓ ROR(0x0001, 1) = 0x8000   (LSB wraps to MSB)
+✓ ROR(0xABCD, 8) = 0xCDAB   (byte swap, same as ROL)
+```
+
+---
+
+## 📝 Opdatering Historie
+
+**v4.8.4** (Build #1027+):
+- ✅ MUX: 4-way multiplexer implementeret og testet
+- ✅ ROL: Rotate left implementeret og testet
+- ✅ ROR: Rotate right implementeret og testet
+
+**v4.8.1** (Build #1018-1019):
+- ✅ CTU/CTD/CTUD: Counter funktioner implementeret og testet
+- ✅ R_TRIG/F_TRIG: Edge detection funktioner implementeret og testet
+- ✅ TON/TOF/TP: Timer funktioner implementeret og testet
+- ✅ SR/RS: Latch funktioner implementeret og testet
 
 ---
 

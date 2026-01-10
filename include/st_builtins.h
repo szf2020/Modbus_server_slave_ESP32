@@ -92,6 +92,10 @@ typedef enum {
   ST_BUILTIN_FILTER,        // FILTER(IN, TIME_CONSTANT) → REAL (low-pass filter)
   ST_BUILTIN_MUX,           // MUX(K, IN0, IN1, IN2) → ANY (4-way multiplexer, select by index)
 
+  // Bit Rotation (v4.8.4)
+  ST_BUILTIN_ROL,           // ROL(IN, N) → INT/DINT/DWORD (rotate left by N bits)
+  ST_BUILTIN_ROR,           // ROR(IN, N) → INT/DINT/DWORD (rotate right by N bits)
+
   ST_BUILTIN_COUNT          // Total number of built-ins
 } st_builtin_func_t;
 
@@ -323,5 +327,27 @@ st_value_t st_builtin_dword_to_int(st_value_t d);
  * @return DWORD (unsigned)
  */
 st_value_t st_builtin_int_to_dword(st_value_t i);
+
+/* ============================================================================
+ * BIT ROTATION FUNCTIONS (v4.8.4)
+ * ============================================================================ */
+
+/**
+ * @brief Rotate bits left
+ * @param in Input value (INT/DINT/DWORD)
+ * @param n Number of positions to rotate (INT)
+ * @param in_type Data type of input value
+ * @return Rotated value (same type as input)
+ */
+st_value_t st_builtin_rol(st_value_t in, st_value_t n, st_datatype_t in_type);
+
+/**
+ * @brief Rotate bits right
+ * @param in Input value (INT/DINT/DWORD)
+ * @param n Number of positions to rotate (INT)
+ * @param in_type Data type of input value
+ * @return Rotated value (same type as input)
+ */
+st_value_t st_builtin_ror(st_value_t in, st_value_t n, st_datatype_t in_type);
 
 #endif // ST_BUILTINS_H

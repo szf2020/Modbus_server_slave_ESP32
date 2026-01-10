@@ -345,6 +345,55 @@ output := SEL(selector, value_0, value_1);
 
 (* Example: Choose heating or cooling setpoint *)
 setpoint := SEL(mode, 18, 24);  (* mode=FALSE → 18°C, mode=TRUE → 24°C *)
+
+(* MUX: 4-way multiplexer - select one of three inputs by index *)
+output := MUX(K, IN0, IN1, IN2);
+(* K=0 → returns IN0 (default) *)
+(* K=1 → returns IN1 *)
+(* K=2 → returns IN2 *)
+(* K<0 or K>2 → returns IN0 (default) *)
+
+(* Example 1: Select temperature setpoint based on mode *)
+VAR
+  mode: INT;          (* 0=OFF, 1=ECO, 2=COMFORT *)
+  setpoint: INT;
+END_VAR
+
+setpoint := MUX(mode, 0, 18, 22);
+(* mode=0 → 0°C (OFF) *)
+(* mode=1 → 18°C (ECO) *)
+(* mode=2 → 22°C (COMFORT) *)
+
+(* Example 2: Select pump speed based on sensor level *)
+VAR
+  level: INT;         (* Water level sensor 0-100 *)
+  level_zone: INT;    (* 0=LOW, 1=MEDIUM, 2=HIGH *)
+  pump_speed: INT;
+END_VAR
+
+IF level < 30 THEN
+  level_zone := 0;
+ELSIF level < 70 THEN
+  level_zone := 1;
+ELSE
+  level_zone := 2;
+END_IF;
+
+pump_speed := MUX(level_zone, 0, 50, 100);
+(* Low level → 0% (pump off) *)
+(* Medium level → 50% (half speed) *)
+(* High level → 100% (full speed) *)
+
+(* Example 3: Multi-source sensor selection *)
+VAR
+  sensor_select: INT;  (* 0=internal, 1=external_A, 2=external_B *)
+  temp_internal: INT;
+  temp_ext_A: INT;
+  temp_ext_B: INT;
+  temperature: INT;
+END_VAR
+
+temperature := MUX(sensor_select, temp_internal, temp_ext_A, temp_ext_B);
 ```
 
 ### Trigonometric Functions (v4.4+)
@@ -666,6 +715,87 @@ END_IF;
 - Keep Modbus calls minimal per program
 - Use local variables to cache remote values
 - Check `mb_success` flag after critical operations
+
+---
+
+### Bit Rotation Functions (v4.8.4+)
+
+Rotate bits left or right within INT (16-bit), DINT (32-bit), or DWORD (32-bit) values.
+
+**Note:** Return type matches input type (type-polymorphic).
+
+```structured-text
+(* ROL: Rotate bits left by N positions *)
+result := ROL(value, N);
+
+(* ROR: Rotate bits right by N positions *)
+result := ROR(value, N);
+
+(* Example 1: 16-bit rotation (INT) *)
+VAR
+  value: INT := 16#1234;     (* 0001 0010 0011 0100 binary *)
+  rotated_left: INT;
+  rotated_right: INT;
+END_VAR
+
+rotated_left := ROL(value, 4);   (* → 0x2341 = 0010 0011 0100 0001 *)
+rotated_right := ROR(value, 4);  (* → 0x4123 = 0100 0001 0010 0011 *)
+
+(* Example 2: 32-bit rotation (DINT/DWORD) *)
+VAR
+  flags: DWORD := 16#12345678;
+  shifted: DWORD;
+END_VAR
+
+shifted := ROL(flags, 8);   (* → 0x34567812 *)
+shifted := ROR(flags, 8);   (* → 0x78123456 *)
+
+(* Example 3: Circular buffer pointer with ROL *)
+VAR
+  buffer_ptr: INT := 1;      (* Pointer bit position *)
+  step: INT;
+END_VAR
+
+FOR step := 1 TO 8 DO
+  buffer_ptr := ROL(buffer_ptr, 1);  (* Rotate bit left *)
+  (* buffer_ptr cycles: 0x0001 → 0x0002 → 0x0004 → ... → 0x8000 → 0x0001 *)
+END_FOR;
+
+(* Example 4: Shift register simulation *)
+VAR
+  shift_reg: INT := 0;
+  input_bit: BOOL;
+  output_bit: BOOL;
+END_VAR
+
+(* Shift left and insert new bit *)
+IF input_bit THEN
+  shift_reg := ROL(shift_reg, 1) OR 1;  (* Insert 1 at LSB *)
+ELSE
+  shift_reg := ROL(shift_reg, 1) AND 16#FFFE;  (* Insert 0 at LSB *)
+END_IF;
+
+(* Extract MSB before rotation *)
+output_bit := (shift_reg AND 16#8000) <> 0;
+
+(* Negative shift values are normalized *)
+VAR
+  val: INT := 16#ABCD;
+END_VAR
+
+result := ROL(val, -4);  (* Same as ROL(val, 12) for 16-bit *)
+result := ROR(val, -4);  (* Same as ROR(val, 12) for 16-bit *)
+```
+
+**Supported Types:**
+- INT (16-bit): Rotation within 0-15 bit positions
+- DINT (32-bit signed): Rotation within 0-31 bit positions
+- DWORD (32-bit unsigned): Rotation within 0-31 bit positions
+
+**Behavior:**
+- Negative N values are normalized (N = N % bit_width + bit_width)
+- N values > bit_width are wrapped (N = N % bit_width)
+- No bits are lost - they wrap around from one end to the other
 
 ---
 

@@ -135,6 +135,76 @@ st_value_t st_builtin_mux(st_value_t k, st_value_t in0, st_value_t in1, st_value
 }
 
 /* ============================================================================
+ * BIT ROTATION FUNCTIONS (v4.8.4)
+ * ============================================================================ */
+
+st_value_t st_builtin_rol(st_value_t in, st_value_t n, st_datatype_t in_type) {
+  // ROL: Rotate Left
+  // Shifts bits to the left, wrapping MSB to LSB
+  st_value_t result;
+
+  int16_t shift = n.int_val;
+
+  if (in_type == ST_TYPE_DINT || in_type == ST_TYPE_DWORD) {
+    // 32-bit rotation
+    shift = shift % 32;  // Normalize shift amount
+    if (shift < 0) shift += 32;  // Handle negative shifts
+
+    uint32_t val = (in_type == ST_TYPE_DINT) ? (uint32_t)in.dint_val : in.dword_val;
+    uint32_t rotated = (val << shift) | (val >> (32 - shift));
+
+    if (in_type == ST_TYPE_DINT) {
+      result.dint_val = (int32_t)rotated;
+    } else {
+      result.dword_val = rotated;
+    }
+  } else {
+    // 16-bit rotation (INT)
+    shift = shift % 16;  // Normalize shift amount
+    if (shift < 0) shift += 16;  // Handle negative shifts
+
+    uint16_t val = (uint16_t)in.int_val;
+    uint16_t rotated = (val << shift) | (val >> (16 - shift));
+    result.int_val = (int16_t)rotated;
+  }
+
+  return result;
+}
+
+st_value_t st_builtin_ror(st_value_t in, st_value_t n, st_datatype_t in_type) {
+  // ROR: Rotate Right
+  // Shifts bits to the right, wrapping LSB to MSB
+  st_value_t result;
+
+  int16_t shift = n.int_val;
+
+  if (in_type == ST_TYPE_DINT || in_type == ST_TYPE_DWORD) {
+    // 32-bit rotation
+    shift = shift % 32;  // Normalize shift amount
+    if (shift < 0) shift += 32;  // Handle negative shifts
+
+    uint32_t val = (in_type == ST_TYPE_DINT) ? (uint32_t)in.dint_val : in.dword_val;
+    uint32_t rotated = (val >> shift) | (val << (32 - shift));
+
+    if (in_type == ST_TYPE_DINT) {
+      result.dint_val = (int32_t)rotated;
+    } else {
+      result.dword_val = rotated;
+    }
+  } else {
+    // 16-bit rotation (INT)
+    shift = shift % 16;  // Normalize shift amount
+    if (shift < 0) shift += 16;  // Handle negative shifts
+
+    uint16_t val = (uint16_t)in.int_val;
+    uint16_t rotated = (val >> shift) | (val << (16 - shift));
+    result.int_val = (int16_t)rotated;
+  }
+
+  return result;
+}
+
+/* ============================================================================
  * TRIGONOMETRIC FUNCTIONS (v4.4+)
  * ============================================================================ */
 
@@ -323,6 +393,13 @@ st_value_t st_builtin_call(st_builtin_func_t func_id, st_value_t arg1, st_value_
       result.int_val = 0;
       break;
 
+    case ST_BUILTIN_ROL:
+    case ST_BUILTIN_ROR:
+      // NOTE: 2-arg type-dependent functions are handled directly in VM (st_vm.cpp)
+      // This case should not be reached
+      result.int_val = 0;
+      break;
+
     // Trigonometric (v4.4+)
     case ST_BUILTIN_SIN:
       result = st_builtin_sin(arg1);
@@ -440,6 +517,8 @@ const char *st_builtin_name(st_builtin_func_t func_id) {
     case ST_BUILTIN_LIMIT:         return "LIMIT";
     case ST_BUILTIN_SEL:           return "SEL";
     case ST_BUILTIN_MUX:           return "MUX";
+    case ST_BUILTIN_ROL:           return "ROL";
+    case ST_BUILTIN_ROR:           return "ROR";
     case ST_BUILTIN_SIN:           return "SIN";
     case ST_BUILTIN_COS:           return "COS";
     case ST_BUILTIN_TAN:           return "TAN";
@@ -501,6 +580,8 @@ uint8_t st_builtin_arg_count(st_builtin_func_t func_id) {
     case ST_BUILTIN_MAX:
     case ST_BUILTIN_SUM:
     case ST_BUILTIN_POW:
+    case ST_BUILTIN_ROL:               // ROL(IN, N)
+    case ST_BUILTIN_ROR:               // ROR(IN, N)
     case ST_BUILTIN_MB_READ_COIL:      // MB_READ_COIL(slave_id, address)
     case ST_BUILTIN_MB_READ_INPUT:     // MB_READ_INPUT(slave_id, address)
     case ST_BUILTIN_MB_READ_HOLDING:   // MB_READ_HOLDING(slave_id, address)
@@ -607,6 +688,8 @@ st_datatype_t st_builtin_return_type(st_builtin_func_t func_id) {
     case ST_BUILTIN_LIMIT:
     case ST_BUILTIN_SEL:
     case ST_BUILTIN_MUX:          // MUX returns same type as inputs (defaults to INT)
+    case ST_BUILTIN_ROL:          // ROL returns same type as input (INT/DINT/DWORD)
+    case ST_BUILTIN_ROR:          // ROR returns same type as input (INT/DINT/DWORD)
     case ST_BUILTIN_REAL_TO_INT:
     case ST_BUILTIN_BOOL_TO_INT:
     case ST_BUILTIN_DWORD_TO_INT:

@@ -1012,6 +1012,12 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
       // arg1 = K (selector), arg2 = IN0, arg3 = IN1, arg4 = IN2
       result = st_builtin_mux(arg1, arg2, arg3, arg4);
     }
+  } else if (func_id == ST_BUILTIN_ROL && arg_count == 2) {
+    // ROL: Rotate left (type-dependent)
+    result = st_builtin_rol(arg1, arg2, arg1_type);
+  } else if (func_id == ST_BUILTIN_ROR && arg_count == 2) {
+    // ROR: Rotate right (type-dependent)
+    result = st_builtin_ror(arg1, arg2, arg1_type);
   } else if (func_id == ST_BUILTIN_ABS && arg_count == 1) {
     // BUG-118 FIX: ABS is type-polymorphic
     if (arg1_type == ST_TYPE_REAL) {
@@ -1352,6 +1358,10 @@ static bool st_vm_exec_call_builtin(st_vm_t *vm, st_bytecode_instr_t *instr) {
     } else {
       return_type = arg2_type;  // All are INT/BOOL → use first
     }
+  } else if (func_id == ST_BUILTIN_ROL || func_id == ST_BUILTIN_ROR) {
+    // ROL/ROR returns same type as input (arg1)
+    // Preserves INT/DINT/DWORD type for bit rotation
+    return_type = arg1_type;
   } else if (func_id == ST_BUILTIN_LIMIT) {
     // BUG-121 FIX: LIMIT returns same type as min/val/max with proper promotion
     // Type promotion: INT → DINT → REAL
