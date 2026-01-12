@@ -91,4 +91,11 @@ void ir_pool_init(st_logic_engine_state_t *state);
  */
 void ir_pool_reallocate_all(st_logic_engine_state_t *state);
 
+/**
+ * @brief Write EXPORT variables to IR 220-251 (BUG-178 FIX)
+ * @param prog Logic program with compiled bytecode
+ * @note Call this after program execution to sync EXPORT vars to input registers
+ */
+void ir_pool_write_exports(st_logic_program_config_t *prog);
+
 #endif // IR_POOL_MANAGER_H

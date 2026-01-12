@@ -164,6 +164,77 @@ void ir_pool_compact(st_logic_engine_state_t *state) {
 }
 
 /* ============================================================================
+ * EXPORT VARIABLE WRITE-BACK (BUG-178 FIX)
+ * ============================================================================ */
+
+void ir_pool_write_exports(st_logic_program_config_t *prog) {
+  if (!prog || !prog->compiled || prog->ir_pool_offset == 65535) {
+    return;  // No IR pool allocated
+  }
+
+  // Get registers.h functions (extern)
+  extern void registers_set_input_register(uint16_t addr, uint16_t value);
+
+  uint16_t export_slot = 0;  // Slot offset within IR pool
+  for (uint8_t var_idx = 0; var_idx < prog->bytecode.var_count; var_idx++) {
+    if (!prog->bytecode.var_export_flags[var_idx]) {
+      continue;  // Not exported
+    }
+
+    st_datatype_t var_type = prog->bytecode.var_types[var_idx];
+    st_value_t var_value = prog->bytecode.variables[var_idx];
+    uint16_t base_reg = 220 + prog->ir_pool_offset + export_slot;
+
+    // Write value to input registers based on type
+    switch (var_type) {
+      case ST_TYPE_BOOL:
+        // BOOL: 0 = FALSE, 1 = TRUE
+        registers_set_input_register(base_reg, var_value.bool_val ? 1 : 0);
+        export_slot += 1;
+        break;
+
+      case ST_TYPE_INT:
+        // INT: Single 16-bit register (signed)
+        registers_set_input_register(base_reg, (uint16_t)var_value.int_val);
+        export_slot += 1;
+        break;
+
+      case ST_TYPE_DINT:
+      case ST_TYPE_DWORD: {
+        // DINT/DWORD: Two 16-bit registers (low word, high word)
+        uint32_t dint_val = (uint32_t)var_value.dint_val;
+        uint16_t low_word = (uint16_t)(dint_val & 0xFFFF);
+        uint16_t high_word = (uint16_t)((dint_val >> 16) & 0xFFFF);
+        registers_set_input_register(base_reg, low_word);
+        registers_set_input_register(base_reg + 1, high_word);
+        export_slot += 2;
+        break;
+      }
+
+      case ST_TYPE_REAL: {
+        // REAL: Two 16-bit registers (IEEE 754 float as uint32)
+        union {
+          float f;
+          uint32_t u32;
+        } real_converter;
+        real_converter.f = var_value.real_val;
+        uint16_t low_word = (uint16_t)(real_converter.u32 & 0xFFFF);
+        uint16_t high_word = (uint16_t)((real_converter.u32 >> 16) & 0xFFFF);
+        registers_set_input_register(base_reg, low_word);
+        registers_set_input_register(base_reg + 1, high_word);
+        export_slot += 2;
+        break;
+      }
+
+      default:
+        // Unknown type - skip
+        export_slot += 1;
+        break;
+    }
+  }
+}
+
+/* ============================================================================
  * POOL INITIALIZATION
  * ============================================================================ */
 

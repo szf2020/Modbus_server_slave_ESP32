@@ -105,6 +105,10 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
   memcpy(prog->bytecode.variables, vm.variables, vm.var_count * sizeof(st_value_t));
   portEXIT_CRITICAL(&st_var_spinlock);
 
+  // BUG-178 FIX: Write EXPORT variables to IR 220-251 after execution
+  extern void ir_pool_write_exports(st_logic_program_config_t *prog);
+  ir_pool_write_exports(prog);
+
   return true;
 }
 

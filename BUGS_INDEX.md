@@ -153,6 +153,7 @@
 | BUG-175 | FILTER function med zero cycle time | ✅ FIXED | 🔵 LOW | v5.1.1 | Fallback dokumenteret med forklaring (st_builtin_signal.cpp:184-189) (Build #1040) |
 | BUG-176 | HYSTERESIS function med inverterede thresholds | ✅ FIXED | 🔵 LOW | v4.8.2 | Ingen validation af high > low (st_builtin_signal.cpp:69-76) (Build #1019) |
 | BUG-177 | strcpy uden bounds check i lexer operators | ✅ FIXED | 🔵 LOW | v5.1.1 | strcpy → strncpy for 2-char operators (:=, <>, <=, >=, **) (st_lexer.cpp:412-445) (Build #1038) |
+| BUG-178 | EXPORT variables ikke skrevet til IR 220-251 | ✅ FIXED | 🔴 CRITICAL | v5.1.1 | EXPORT keyword allokerede pool men skrev aldrig værdier til IR → Modbus read viste altid 0 (ir_pool_manager.cpp:166-236, st_logic_engine.cpp:108-110) (Build #1044) |
 
 ## Feature Requests / Enhancements
 
