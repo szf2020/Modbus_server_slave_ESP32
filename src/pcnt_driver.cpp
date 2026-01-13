@@ -66,7 +66,15 @@ void pcnt_unit_configure(uint8_t unit, uint8_t gpio_pin,
   ESP_LOGI(TAG, "  PCNT_COUNT_DIS=%d, PCNT_COUNT_INC=%d",
            PCNT_COUNT_DIS, PCNT_COUNT_INC);
 
-  // Configure PCNT unit
+  // BUG-182 FIX: PCNT limits must allow full 16-bit unsigned range (0-65535)
+  // PCNT hardware is signed 16-bit, but we want unsigned behavior:
+  // - For UP counting: need to count from 0 to 65535 (via signed -32768 to 32767 mapping)
+  // - Set h_lim very high to avoid premature wrapping at 32767
+  // - Set l_lim very low to allow full negative range (maps to 32768-65535 unsigned)
+  //
+  // NOTE: ESP32 PCNT is ALWAYS signed! We convert to unsigned in pcnt_unit_get_count()
+  // Setting limits to INT16_MIN/MAX allows natural signed overflow at ±32768,
+  // which maps to continuous unsigned sequence 0→65535 after uint16_t cast.
   pcnt_config_t pcnt_config = {
     .pulse_gpio_num = gpio_pin,
     .ctrl_gpio_num = PCNT_PIN_NOT_USED,
@@ -74,13 +82,21 @@ void pcnt_unit_configure(uint8_t unit, uint8_t gpio_pin,
     .hctrl_mode = PCNT_MODE_KEEP,
     .pos_mode = pos_mode,
     .neg_mode = neg_mode,
-    .counter_h_lim = 32767,    // Max count (will wrap, we handle in software)
-    .counter_l_lim = -32768,   // Min count
+    .counter_h_lim = INT16_MAX,    // 32767 - full positive range
+    .counter_l_lim = INT16_MIN,    // -32768 - full negative range
     .unit = (pcnt_unit_t)unit,
     .channel = PCNT_CHANNEL_0,
   };
 
   pcnt_unit_config(&pcnt_config);
+
+  // BUG-182 FIX: DISABLE watchpoint events at limits (prevent hardware interrupt triggers)
+  // We handle overflow in software (counter_hw.cpp), not via hardware events
+  pcnt_set_event_value((pcnt_unit_t)unit, PCNT_EVT_H_LIM, INT16_MAX);
+  pcnt_set_event_value((pcnt_unit_t)unit, PCNT_EVT_L_LIM, INT16_MIN);
+  pcnt_event_disable((pcnt_unit_t)unit, PCNT_EVT_H_LIM);
+  pcnt_event_disable((pcnt_unit_t)unit, PCNT_EVT_L_LIM);
+  pcnt_event_disable((pcnt_unit_t)unit, PCNT_EVT_ZERO);
 
   // BUG FIX P0.1: DISABLE filter for high-frequency counting
   // Filter/debounce only for low-frequency (manual button press, noisy environments)
