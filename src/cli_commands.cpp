@@ -121,7 +121,10 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
       debug_println("  Use smart defaults instead (no manual overload-reg allowed)");
       continue;
     } else if (!strcmp(key, "start-value")) {
-      cfg.start_value = atol(value);
+      // BUG-182 FIX: Use strtoul (unsigned) instead of atol (signed)
+      // atol() max = 2147483647 (signed 32-bit)
+      // strtoul() max = 4294967295 (unsigned 32-bit)
+      cfg.start_value = strtoul(value, NULL, 10);
     } else if (!strcmp(key, "scale")) {
       cfg.scale_factor = atof(value);
     } else if (!strcmp(key, "bit-width")) {
@@ -165,7 +168,10 @@ void cli_cmd_set_counter(uint8_t argc, char* argv[]) {
     else if (!strcmp(key, "compare") || !strcmp(key, "compare-enabled")) {
       cfg.compare_enabled = (!strcmp(value, "on") || !strcmp(value, "1")) ? 1 : 0;
     } else if (!strcmp(key, "compare-value")) {
-      cfg.compare_value = atoll(value);  // 64-bit value
+      // BUG-182 FIX: Use strtoull (unsigned) instead of atoll (signed)
+      // atoll() max = 9223372036854775807 (signed 64-bit)
+      // strtoull() max = 18446744073709551615 (unsigned 64-bit)
+      cfg.compare_value = strtoull(value, NULL, 10);  // 64-bit unsigned value
     } else if (!strcmp(key, "compare-mode")) {
       cfg.compare_mode = atoi(value);  // 0=≥, 1=>, 2===
     } else if (!strcmp(key, "compare-source")) {
