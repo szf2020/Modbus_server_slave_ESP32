@@ -139,7 +139,8 @@ static const char* normalize_alias(const char* s) {
   if (!strcmp(s, "COILS") || !strcmp(s, "coils")) return "COILS";
   if (!strcmp(s, "INPUTS") || !strcmp(s, "inputs") || !strcmp(s, "INS") || !strcmp(s, "ins")) return "INPUTS";
   if (!strcmp(s, "INPUT") || !strcmp(s, "input") || !strcmp(s, "IN") || !strcmp(s, "in")) return "INPUT";
-  if (!strcmp(s, "INPUT-REG") || !strcmp(s, "input-reg") || !strcmp(s, "INPUT_REG") || !strcmp(s, "input_reg")) return "INPUT-REG";
+  if (!strcmp(s, "INPUT-REG") || !strcmp(s, "input-reg") || !strcmp(s, "INPUT_REG") || !strcmp(s, "input_reg") ||
+      !strcmp(s, "I-REG") || !strcmp(s, "i-reg") || !strcmp(s, "IREG") || !strcmp(s, "ireg")) return "I-REG";
   if (!strcmp(s, "VERSION") || !strcmp(s, "version") || !strcmp(s, "VER") || !strcmp(s, "ver") || !strcmp(s, "V") || !strcmp(s, "v")) return "VERSION";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ECHO") || !strcmp(s, "echo")) return "ECHO";
@@ -171,7 +172,9 @@ static const char* normalize_alias(const char* s) {
   // System commands (for SET context)
   if (!strcmp(s, "REG") || !strcmp(s, "reg") ||
       !strcmp(s, "HOLDING-REG") || !strcmp(s, "holding-reg") ||
-      !strcmp(s, "HOLDING_REG") || !strcmp(s, "holding_reg")) return "REG";
+      !strcmp(s, "HOLDING_REG") || !strcmp(s, "holding_reg") ||
+      !strcmp(s, "H-REG") || !strcmp(s, "h-reg") ||
+      !strcmp(s, "HREG") || !strcmp(s, "hreg")) return "H-REG";
   if (!strcmp(s, "COIL") || !strcmp(s, "coil")) return "COIL";
   if (!strcmp(s, "GPIO") || !strcmp(s, "gpio")) return "GPIO";
   if (!strcmp(s, "ID") || !strcmp(s, "id")) return "ID";
@@ -611,8 +614,8 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "MODBUS-SLAVE") || !strcmp(what, "MB-SLAVE")) {
       cli_cmd_show_modbus_slave();
       return true;
-    } else if (!strcmp(what, "REG")) {
-      // show reg - Display register configuration
+    } else if (!strcmp(what, "H-REG")) {
+      // show h-reg - Display register configuration
       cli_cmd_show_regs();
       return true;
     } else if (!strcmp(what, "COIL")) {
@@ -800,11 +803,11 @@ bool cli_parser_execute(char* line) {
       uint8_t id = atoi(argv[2]);
       cli_cmd_set_id(id);
       return true;
-    } else if (!strcmp(what, "REG")) {
+    } else if (!strcmp(what, "H-REG")) {
       if (argc < 3) {
         debug_println("SET HOLDING-REG: missing parameters");
-        debug_println("  Usage: set holding-reg STATIC <address> Value [type] <value>  (eller: set reg)");
-        debug_println("         set holding-reg DYNAMIC <address> counter<id>:<function> or timer<id>:<function>");
+        debug_println("  Usage: set h-reg STATIC <address> Value [type] <value>");
+        debug_println("         set h-reg DYNAMIC <address> counter<id>:<function> or timer<id>:<function>");
         debug_println("  Types: uint (default), int, dint, dword, real");
         return false;
       }
@@ -1357,13 +1360,13 @@ bool cli_parser_execute(char* line) {
     debug_println("  set echo on|off         - Remote echo\n");
 
     debug_println("Modbus Read/Write (r, w):");
-    debug_println("  read holding-reg <addr> [count]  - Read holding registers (or: read reg)");
-    debug_println("  read coil <addr> [count]          - Read coils");
-    debug_println("  read input <addr> [count]         - Read discrete inputs");
-    debug_println("  read input-reg <addr> [count]     - Read input registers");
-    debug_println("  write reg <addr> value uint <val> - Write unsigned holding register");
-    debug_println("  write reg <addr> value int <val>  - Write signed holding register");
-    debug_println("  write coil <addr> value <0|1>     - Write coil\n");
+    debug_println("  read h-reg <addr> [count] [type]  - Read holding registers");
+    debug_println("  read coil <addr> [count]           - Read coils");
+    debug_println("  read input <addr> [count]          - Read discrete inputs");
+    debug_println("  read i-reg <addr> [count] [type]   - Read input registers");
+    debug_println("  write h-reg <addr> value uint <val> - Write unsigned holding register");
+    debug_println("  write h-reg <addr> value int <val>  - Write signed holding register");
+    debug_println("  write coil <addr> value <0|1>      - Write coil\n");
 
     debug_println("Network:");
     debug_println("  connect wifi, con       - Connect to WiFi");
@@ -1410,16 +1413,16 @@ bool cli_parser_execute(char* line) {
     // read <what> <params...>
     if (argc < 2) {
       debug_println("READ: manglende argument");
-      debug_println("  Brug: read holding-reg <id> <antal>  (eller: read reg)");
-      debug_println("        read input-reg <id> <antal>");
-      debug_println("        read coil <id> <antal>");
-      debug_println("        read input <id> <antal>");
+      debug_println("  Brug: read h-reg <id> [antal] [type]");
+      debug_println("        read i-reg <id> [antal] [type]");
+      debug_println("        read coil <id> [antal]");
+      debug_println("        read input <id> [antal]");
       return false;
     }
 
     const char* what = normalize_alias(argv[1]);
 
-    if (!strcmp(what, "REG")) {
+    if (!strcmp(what, "H-REG")) {
       cli_cmd_read_reg(argc - 2, argv + 2);
       return true;
     } else if (!strcmp(what, "COIL")) {
@@ -1428,11 +1431,11 @@ bool cli_parser_execute(char* line) {
     } else if (!strcmp(what, "INPUT")) {
       cli_cmd_read_input(argc - 2, argv + 2);
       return true;
-    } else if (!strcmp(what, "INPUT-REG")) {
+    } else if (!strcmp(what, "I-REG")) {
       cli_cmd_read_input_reg(argc - 2, argv + 2);
       return true;
     } else {
-      debug_println("READ: ukendt argument (brug: reg, coil, input, input-reg)");
+      debug_println("READ: ukendt argument (brug: h-reg, coil, input, i-reg)");
       return false;
     }
 
@@ -1440,15 +1443,15 @@ bool cli_parser_execute(char* line) {
     // write <what> <params...>
     if (argc < 2) {
       debug_println("WRITE: manglende argument");
-      debug_println("  Brug: write reg <addr> value uint <v\u00e6rdi>");
-      debug_println("        write reg <addr> value int <v\u00e6rdi>");
+      debug_println("  Brug: write h-reg <addr> value uint <v\u00e6rdi>");
+      debug_println("        write h-reg <addr> value int <v\u00e6rdi>");
       debug_println("        write coil <id> value <on|off>");
       return false;
     }
 
     const char* what = normalize_alias(argv[1]);
 
-    if (!strcmp(what, "REG")) {
+    if (!strcmp(what, "H-REG")) {
       cli_cmd_write_reg(argc - 2, argv + 2);
       return true;
     } else if (!strcmp(what, "COIL")) {
@@ -1518,12 +1521,12 @@ void cli_parser_print_help(void) {
   debug_println("");
   debug_println("Modbus Read/Write Commands:");
   debug_println("  === HOLDING REGISTERS (FC03 Read / FC06-FC10 Write) ===");
-  debug_println("  read holding-reg <id> [count]             - Read holding registers (HR)");
-  debug_println("  write reg <addr> value uint <0..65535>    - Write unsigned holding register");
-  debug_println("  write reg <addr> value int <-32768..32767> - Write signed holding register (two's complement)");
+  debug_println("  read h-reg <id> [count] [type]             - Read holding registers (HR)");
+  debug_println("  write h-reg <addr> value uint <0..65535>   - Write unsigned holding register");
+  debug_println("  write h-reg <addr> value int <-32768..32767> - Write signed holding register (two's complement)");
   debug_println("");
   debug_println("  === INPUT REGISTERS (FC04 Read only) ===");
-  debug_println("  read input-reg <id> <count>        - Read input registers (IR 0-1023)");
+  debug_println("  read i-reg <id> [count] [type]      - Read input registers (IR 0-1023)");
   debug_println("    IR 200-203:   ST Logic Status (enabled, compiled, running, error)");
   debug_println("    IR 204-207:   Execution Count");
   debug_println("    IR 208-211:   Error Count");
@@ -1621,15 +1624,15 @@ void cli_parser_print_help(void) {
   debug_println("        input-dis: COIL address to monitor (can be virtual GPIO 100-255)");
   debug_println("");
   debug_println("    Control Register (ctrl_reg) - Control timer via Modbus register:");
-  debug_println("      write reg <ctrl-reg> value uint 1   - START timer (Bit 0)");
-  debug_println("      write reg <ctrl-reg> value uint 2   - STOP timer (Bit 1)");
-  debug_println("      write reg <ctrl-reg> value uint 4   - RESET timer (Bit 2)");
+  debug_println("      write h-reg <ctrl-reg> value uint 1   - START timer (Bit 0)");
+  debug_println("      write h-reg <ctrl-reg> value uint 2   - STOP timer (Bit 1)");
+  debug_println("      write h-reg <ctrl-reg> value uint 4   - RESET timer (Bit 2)");
   debug_println("      Bits auto-clear after execution");
   debug_println("");
   debug_println("    Timer examples:");
   debug_println("      Mode 1 with START: set timer 1 mode 1 p1-dur:500 p1-out:1 ctrl-reg:100 \\");
   debug_println("                         output-coil:200");
-  debug_println("                         write reg 100 value uint 1   ← START!");
+  debug_println("                         write h-reg 100 value uint 1   ← START!");
   debug_println("      Mode 3: set timer 1 mode 3 on-ms:1000 off-ms:1000 \\");
   debug_println("              p1-output:1 p2-output:0 output-coil:200 enabled:1");
   debug_println("      Mode 4: set timer 2 mode 4 input-dis:30 trigger-edge:1 \\");
@@ -1687,8 +1690,8 @@ void cli_parser_print_help(void) {
   debug_println("    set logic <id> bind <var> coil:<addr>      - Bind ST var → Coil");
   debug_println("");
   debug_println("  Modbus Direct Write (NEW v4.2.0 - temporary, no setup needed):");
-  debug_println("    write reg <addr> value uint <value> - Write unsigned to ST Logic variables");
-  debug_println("    write reg <addr> value int <value>  - Write signed to ST Logic variables");
+  debug_println("    write h-reg <addr> value uint <value> - Write unsigned to ST Logic variables");
+  debug_println("    write h-reg <addr> value int <value>  - Write signed to ST Logic variables");
   debug_println("      HR 204-211: Logic1 var[0-7]");
   debug_println("      HR 212-219: Logic2 var[0-7]");
   debug_println("      HR 220-227: Logic3 var[0-7]");
@@ -1696,13 +1699,13 @@ void cli_parser_print_help(void) {
   debug_println("      Type-aware: BOOL/INT/REAL conversion automatic");
   debug_println("");
   debug_println("  Read ST Logic Status (via Modbus FC04 - INPUT REGISTERS):");
-  debug_println("    read input-reg 200 10     - Status, counts, binding count");
-  debug_println("    read input-reg 220 32     - Variable values (all programs)");
-  debug_println("    read input-reg 252 42     - Timing stats (min/max/avg µs)");
+  debug_println("    read i-reg 200 10     - Status, counts, binding count");
+  debug_println("    read i-reg 220 32     - Variable values (all programs)");
+  debug_println("    read i-reg 252 42     - Timing stats (min/max/avg µs)");
   debug_println("");
   debug_println("  Control via Modbus (HOLDING REGISTERS):");
-  debug_println("    write reg 200 <bits>      - Logic1 control (enable, reset error)");
-  debug_println("    write reg 236 <interval>  - Execution interval (ms)");
+  debug_println("    write h-reg 200 <bits>      - Logic1 control (enable, reset error)");
+  debug_println("    write h-reg 236 <interval>  - Execution interval (ms)");
   debug_println("");
   debug_println("Persistence (NVS - Non-Volatile Storage):");
   debug_println("  save                     - Save all configs to NVS (persistent across reboot)");
