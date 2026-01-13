@@ -153,8 +153,10 @@ void counter_sw_loop(uint8_t id) {
           break;
       }
 
+      // BUG-180 FIX: Preserve overflow counts when wrapping to start_value
       if (state->counter_value > max_val) {
-        state->counter_value = cfg.start_value;  // Wrap to start value
+        uint64_t overflow_amt = state->counter_value - max_val - 1;
+        state->counter_value = (cfg.start_value + overflow_amt) & max_val;
         state->overflow_flag = 1;  // BUG FIX 1.1: Set overflow flag
       }
     }
