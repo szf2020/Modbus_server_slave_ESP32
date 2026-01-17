@@ -255,6 +255,27 @@ static st_ast_node_t *parser_parse_primary(st_parser_t *parser) {
     return node;
   }
 
+  // FEAT-006: TIME literal (T#5s, T#100ms, etc.) → stored as DINT milliseconds
+  if (parser_match(parser, ST_TOK_TIME)) {
+    st_ast_node_t *node = ast_node_alloc(ST_AST_LITERAL, line);
+    if (!node) {
+      parser_error(parser, "Out of memory");
+      return NULL;
+    }
+    // TIME literals are stored as DINT (milliseconds)
+    node->data.literal.type = ST_TYPE_DINT;
+    errno = 0;
+    long val = strtol(parser->current_token.value, NULL, 10);
+    if (errno == ERANGE) {
+      parser_error(parser, "TIME literal overflow");
+      free(node);
+      return NULL;
+    }
+    node->data.literal.value.dint_val = (int32_t)val;
+    parser_advance(parser);
+    return node;
+  }
+
   // Variable or Function Call
   if (parser_match(parser, ST_TOK_IDENT)) {
     char identifier[64];
@@ -1443,6 +1464,7 @@ void st_ast_node_print(st_ast_node_t *node, int indent) {
       switch (node->data.literal.type) {
         case ST_TYPE_BOOL: debug_printf("BOOL(%d)\n", node->data.literal.value.bool_val); break;
         case ST_TYPE_INT: debug_printf("INT(%d)\n", node->data.literal.value.int_val); break;
+        case ST_TYPE_DINT: debug_printf("DINT(%ld)\n", (long)node->data.literal.value.dint_val); break;  // FEAT-006: TIME literals
         case ST_TYPE_DWORD: debug_printf("DWORD(%u)\n", node->data.literal.value.dword_val); break;
         case ST_TYPE_REAL: debug_printf("REAL(%f)\n", node->data.literal.value.real_val); break;
         default: debug_printf("?\n");

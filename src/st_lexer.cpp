@@ -306,6 +306,114 @@ static bool lexer_read_string(st_lexer_t *lexer, st_token_t *token) {
 }
 
 /* ============================================================================
+ * TIME LITERAL PARSING (FEAT-006: IEC 61131-3 TIME literals)
+ * ============================================================================ */
+
+/**
+ * @brief Parse TIME literal: T#5s, T#100ms, T#1h30m, T#2d5h30m15s100ms
+ *
+ * IEC 61131-3 TIME format:
+ *   T#[days]d[hours]h[minutes]m[seconds]s[milliseconds]ms
+ *
+ * Examples:
+ *   T#5s      → 5000 ms
+ *   T#100ms   → 100 ms
+ *   T#1h30m   → 5400000 ms
+ *   T#1d      → 86400000 ms
+ *   T#2h30m15s → 9015000 ms
+ *
+ * The value is stored as DINT (int32_t) milliseconds in token->value.
+ * Max representable: ~24.8 days (2147483647 ms)
+ */
+static bool lexer_read_time(st_lexer_t *lexer, st_token_t *token) {
+  // Skip 'T' or 't'
+  lexer_advance(lexer);
+
+  // Expect '#'
+  if (lexer->current_char != '#') {
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "Expected '#' after 'T' in TIME literal");
+    return false;
+  }
+  lexer_advance(lexer);  // skip '#'
+
+  int32_t total_ms = 0;
+  bool has_value = false;
+
+  // Parse components: [number][unit] where unit is d/h/m/s/ms
+  while (isdigit(lexer->current_char)) {
+    // Read number
+    int32_t num = 0;
+    while (isdigit(lexer->current_char)) {
+      num = num * 10 + (lexer->current_char - '0');
+      // Overflow check
+      if (num < 0) {
+        token->type = ST_TOK_ERROR;
+        snprintf(token->value, sizeof(token->value), "TIME literal overflow");
+        return false;
+      }
+      lexer_advance(lexer);
+    }
+
+    // Read unit (case-insensitive)
+    char unit1 = tolower(lexer->current_char);
+    char unit2 = tolower(lexer_peek(lexer, 1));
+
+    if (unit1 == 'm' && unit2 == 's') {
+      // Milliseconds
+      total_ms += num;
+      lexer_advance(lexer);  // skip 'm'
+      lexer_advance(lexer);  // skip 's'
+      has_value = true;
+    } else if (unit1 == 's') {
+      // Seconds → milliseconds
+      total_ms += num * 1000;
+      lexer_advance(lexer);  // skip 's'
+      has_value = true;
+    } else if (unit1 == 'm') {
+      // Minutes → milliseconds
+      total_ms += num * 60 * 1000;
+      lexer_advance(lexer);  // skip 'm'
+      has_value = true;
+    } else if (unit1 == 'h') {
+      // Hours → milliseconds
+      total_ms += num * 60 * 60 * 1000;
+      lexer_advance(lexer);  // skip 'h'
+      has_value = true;
+    } else if (unit1 == 'd') {
+      // Days → milliseconds
+      total_ms += num * 24 * 60 * 60 * 1000;
+      lexer_advance(lexer);  // skip 'd'
+      has_value = true;
+    } else {
+      // Unknown unit
+      token->type = ST_TOK_ERROR;
+      snprintf(token->value, sizeof(token->value),
+               "Unknown TIME unit '%c' (expected d/h/m/s/ms)", lexer->current_char);
+      return false;
+    }
+
+    // Overflow check after each component
+    if (total_ms < 0) {
+      token->type = ST_TOK_ERROR;
+      snprintf(token->value, sizeof(token->value), "TIME literal overflow (max ~24.8 days)");
+      return false;
+    }
+  }
+
+  if (!has_value) {
+    token->type = ST_TOK_ERROR;
+    snprintf(token->value, sizeof(token->value), "Empty TIME literal (expected T#<value><unit>)");
+    return false;
+  }
+
+  // Store as string representation of milliseconds
+  snprintf(token->value, sizeof(token->value), "%ld", (long)total_ms);
+  token->type = ST_TOK_TIME;
+  return true;
+}
+
+/* ============================================================================
  * IDENTIFIER PARSING
  * ============================================================================ */
 
@@ -374,6 +482,12 @@ bool st_lexer_next_token(st_lexer_t *lexer, st_token_t *token) {
   if (lexer->current_char == '\0') {
     token->type = ST_TOK_EOF;
     return true;
+  }
+
+  // FEAT-006: TIME literals (T#5s, T#100ms, etc.) - check before identifiers
+  if ((lexer->current_char == 'T' || lexer->current_char == 't') &&
+      lexer_peek(lexer, 1) == '#') {
+    return lexer_read_time(lexer, token);
   }
 
   // Identifiers and keywords

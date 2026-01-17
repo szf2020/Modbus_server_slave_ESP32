@@ -29,6 +29,7 @@
    - [1.16 Kontrolstrukturer - REPEAT Loop](#116-kontrolstrukturer---repeat-loop)
    - [1.17 Type System - INT vs DINT](#117-type-system---int-vs-dint)
    - [1.18 EXPORT Keyword & IR Pool Allocation](#118-export-keyword--ir-pool-allocation)
+   - [1.19 TIME Literals (FEAT-006)](#119-time-literals-feat-006)
 4. [Fase 2: Kombinerede Tests](#fase-2-kombinerede-tests)
 5. [Test Execution Workflow](#test-execution-workflow)
 6. [Fejlhåndtering](#fejlhåndtering)
@@ -55,9 +56,10 @@
 | Kontrolstrukturer | 5 | 5 min |
 | Type System (INT/DINT) | 3 | 5 min |
 | EXPORT keyword & IR pool | 5 | 8 min |
-| **Fase 1 Total** | **66** | **56 min** |
+| TIME literals (FEAT-006) | 4 | 5 min |
+| **Fase 1 Total** | **70** | **61 min** |
 | Kombinerede tests | 10 | 15 min |
-| **Total** | **76** | **71 min** |
+| **Total** | **80** | **76 min** |
 | **Udsat (Modbus Master)** | **6** | *Senere* |
 
 ### Test Konventioner
@@ -3147,8 +3149,7 @@ set logic 1 enabled:true
 **Setup:**
 ```bash
 # Configure counter 1 for GPIO25 (hardware pulse counter)
-set counter 1 mode:hw pin:25 scale:1 prescale:1 enabled:true
-set counter 1 mode 1 hw-mode:hw edge:risingprescaler:16 start-value:1000 bit-width:16 direction:up hw-gpio:25 enable:on 
+set counter 1 mode 1 hw-mode:hw edge:risingprescaler:16 start-value:30000 bit-width:16 direction:up hw-gpio:25 enable:on 
 set counter 1 control running:on
 
 # Counter 1 registers (default):
@@ -4059,6 +4060,217 @@ show logic 2
 set logic 1 delete
 set logic 2 delete
 set logic 3 delete
+```
+
+---
+
+## 1.19 TIME Literals (FEAT-006)
+
+**Feature:** v5.2.0 - IEC 61131-3 TIME literal syntax for mere læsbar timer konfiguration.
+
+**Formål:**
+- Verificer TIME literal parsing i lexer
+- Verificer korrekt konvertering til DINT millisekunder
+- Verificer brug med timer funktioner (TON, TOF, TP)
+
+---
+
+### Test 1.19.1: Basis TIME Literal Parsing
+
+**Formål:** Verificer at alle TIME units parses korrekt
+
+**CLI Kommandoer (Copy/Paste):**
+```bash
+set logic 1 delete
+set logic 1 upload
+PROGRAM time_test
+VAR
+  ms_val : DINT EXPORT;
+  sec_val : DINT EXPORT;
+  min_val : DINT EXPORT;
+  hour_val : DINT EXPORT;
+  day_val : DINT EXPORT;
+END_VAR
+BEGIN
+  ms_val := T#100ms;
+  sec_val := T#5s;
+  min_val := T#2m;
+  hour_val := T#1h;
+  day_val := T#1d;
+END_PROGRAM
+END_UPLOAD
+
+set logic 1 enabled:true
+```
+
+**Test Cases:**
+```bash
+# Vent 1 sekund
+delay 1000
+
+# Læs IR pool (10 registers: 5 DINT vars × 2 regs)
+read input-reg 220 10 dint
+
+# Forventede værdier (millisekunder):
+# ms_val = 100
+# sec_val = 5000
+# min_val = 120000
+# hour_val = 3600000
+# day_val = 86400000
+```
+
+**Forventet Resultat:**
+```
+✅ T#100ms → 100
+✅ T#5s → 5000
+✅ T#2m → 120000
+✅ T#1h → 3600000
+✅ T#1d → 86400000
+```
+
+---
+
+### Test 1.19.2: Kombinerede TIME Units
+
+**Formål:** Verificer komplekse TIME literals med multiple units
+
+**CLI Kommandoer (Copy/Paste):**
+```bash
+set logic 1 delete
+set logic 1 upload
+PROGRAM time_combo
+VAR
+  combo1 : DINT EXPORT;
+  combo2 : DINT EXPORT;
+  combo3 : DINT EXPORT;
+END_VAR
+BEGIN
+  combo1 := T#1h30m;
+  combo2 := T#2m30s;
+  combo3 := T#1h30m45s500ms;
+END_PROGRAM
+END_UPLOAD
+
+set logic 1 enabled:true
+```
+
+**Test Cases:**
+```bash
+delay 1000
+read input-reg 220 6 dint
+
+# Forventede værdier:
+# combo1 = 1h30m = 3600000 + 1800000 = 5400000 ms
+# combo2 = 2m30s = 120000 + 30000 = 150000 ms
+# combo3 = 1h30m45s500ms = 3600000 + 1800000 + 45000 + 500 = 5445500 ms
+```
+
+**Forventet Resultat:**
+```
+✅ T#1h30m → 5400000
+✅ T#2m30s → 150000
+✅ T#1h30m45s500ms → 5445500
+```
+
+---
+
+### Test 1.19.3: TIME Literals med Timer Funktioner
+
+**Formål:** Verificer praktisk brug af TIME literals med TON/TOF/TP
+
+**CLI Kommandoer (Copy/Paste):**
+```bash
+set logic 1 delete
+set logic 1 upload
+PROGRAM timer_time_test
+VAR
+  enable : BOOL;
+  ton_out : BOOL EXPORT;
+  tof_out : BOOL EXPORT;
+  tp_out : BOOL EXPORT;
+END_VAR
+BEGIN
+  enable := TRUE;
+  ton_out := TON(enable, T#500ms);
+  tof_out := TOF(enable, T#1s);
+  tp_out := TP(enable, T#2s);
+END_PROGRAM
+END_UPLOAD
+
+set logic 1 enabled:true
+```
+
+**Test Cases:**
+```bash
+# Timer funktionerne bruger TIME literal værdier direkte
+# TON: 500ms on-delay
+# TOF: 1000ms off-delay
+# TP: 2000ms pulse
+
+delay 600
+read input-reg 220 3
+# ton_out skulle være TRUE efter 500ms
+# tp_out skulle være TRUE (inden for 2s pulse)
+
+delay 2000
+read input-reg 220 3
+# tp_out skulle være FALSE (efter 2s pulse)
+```
+
+**Forventet Resultat:**
+```
+✅ TON(enable, T#500ms) aktiverer efter 500ms
+✅ TP(enable, T#2s) giver 2 sekund pulse
+✅ TIME literals fungerer som timer preset værdier
+```
+
+---
+
+### Test 1.19.4: Case-Insensitivity og Edge Cases
+
+**Formål:** Verificer case-insensitivity og grænsetilfælde
+
+**CLI Kommandoer (Copy/Paste):**
+```bash
+set logic 1 delete
+set logic 1 upload
+PROGRAM time_edge
+VAR
+  lower : DINT EXPORT;
+  upper : DINT EXPORT;
+  mixed : DINT EXPORT;
+END_VAR
+BEGIN
+  lower := t#100ms;
+  upper := T#100MS;
+  mixed := T#1H30M;
+END_PROGRAM
+END_UPLOAD
+
+set logic 1 enabled:true
+```
+
+**Test Cases:**
+```bash
+delay 1000
+read input-reg 220 6 dint
+
+# Alle tre skulle give samme resultat
+# lower = upper = 100 (case insensitive)
+# mixed = 5400000 (1h30m)
+```
+
+**Forventet Resultat:**
+```
+✅ t#100ms = T#100MS = 100 (case insensitive)
+✅ T#1H30M = 5400000 (mixed case units)
+```
+
+---
+
+**Cleanup:**
+```bash
+set logic 1 delete
 ```
 
 ---
@@ -5043,8 +5255,125 @@ END_PROGRAM
 
 ---
 
-**Version:** 1.0
-**Last Updated:** 2025-12-27
-**Status:** ✅ Ready for Execution (59 tests aktive, 6 udsat)
+## 🔄 Counter & Timer Tests (Build #1074+)
+
+### Counter Direction-Aware Frequency Test (BUG-184)
+
+**Test C1: DOWN counting frequency measurement**
+```
+# Setup: Counter 1 med DOWN counting og start_value=1000
+set counter 1 mode 1 parameter hw-mode:sw edge:rising direction:down bit-width:16 start-value:1000 input-dis:45 enable:on
+
+# Start counter
+set h-reg 110 1    # Start bit (ctrl-reg)
+
+# Simuler 100 pulser/sekund (falling edge på DI 45)
+# Vent 1 sekund
+
+# Verificer frequency
+show counter 1
+# FORVENTET: freq = ~100 Hz (ikke 65000+ Hz som før fix)
+```
+
+**Test C2: UP counting frequency (regression test)**
+```
+# Setup: Counter 2 med UP counting
+set counter 2 mode 1 parameter hw-mode:sw edge:rising direction:up bit-width:16 start-value:0 input-dis:46 enable:on
+
+# Start counter og simuler pulser
+# Verificer frequency = ~100 Hz (same as before)
+```
+
+**Test C3: DOWN counting underflow wrap**
+```
+# Setup: Counter med start_value=100, DOWN mode
+set counter 1 mode 1 parameter hw-mode:hw edge:rising direction:down bit-width:16 start-value:100 hw-gpio:23 enable:on
+
+# Tæl fra 100 ned til 0
+# Ved 0→underflow: skal wrappe til 100, IKKE 65535
+
+# FORVENTET: value sekvens: 100→99→...→1→0→100→99...
+```
+
+### Timer ctrl_reg Default Test (BUG-187)
+
+**Test T1: Timer ctrl_reg auto-assign**
+```
+# Setup: Ny timer uden manuel ctrl_reg
+set timer 1 mode 1 parameter phase1-duration:1000 phase2-duration:1000 phase3-duration:1000 output-coil:10 enable:on
+
+# Verificer ctrl_reg er auto-assigned
+show config
+# FORVENTET: Timer 1 ctrl-reg = HR180 (ikke HR0)
+```
+
+**Test T2: Timer register overlap check**
+```
+# Setup: Verificer ingen overlap mellem timers
+set timer 1 mode 3 parameter on-duration:500 off-duration:500 output-coil:10 enable:on
+set timer 2 mode 3 parameter on-duration:500 off-duration:500 output-coil:11 enable:on
+
+show config
+# FORVENTET: Timer 1 → HR180, Timer 2 → HR185 (ingen overlap)
+```
+
+### Edge Case Tests
+
+**Test E1: start_value=0 med DOWN counting**
+```
+# Setup: DOWN med start_value=0 (degenerate case)
+set counter 1 mode 1 parameter direction:down start-value:0 bit-width:16 hw-mode:sw input-dis:45 enable:on
+
+# FORVENTET: Counter forbliver på 0 (ingen counting muligt)
+# Frequency = 0 Hz
+```
+
+**Test E2: 64-bit counter overflow**
+```
+# Setup: 64-bit counter med høj start_value
+set counter 1 mode 1 parameter bit-width:64 start-value:18446744073709551600 direction:up hw-mode:sw input-dis:45 enable:on
+
+# Tæl op 20 counts
+# FORVENTET: Wraparound håndteres korrekt ved 2^64-1
+```
+
+**Test E3: Frequency ved counter reset**
+```
+# Setup: Counter med aktiv frequency measurement
+set counter 1 mode 1 parameter direction:up hw-mode:sw input-dis:45 enable:on
+
+# Tæl til 1000 Hz måling
+reset counter 1
+# Vent 1 sekund
+show counter 1
+
+# FORVENTET: Frequency = 0 Hz efter reset (ikke negative eller garbage)
+```
+
+### PCNT Hardware Tests (HW mode)
+
+**Test H1: PCNT 16-bit signed→unsigned conversion**
+```
+# Setup: HW mode counter
+set counter 1 mode 1 parameter hw-mode:hw edge:rising bit-width:16 hw-gpio:23 enable:on
+
+# Tæl til 32768 (PCNT signed boundary)
+# FORVENTET: Seamless transition 32767→32768→32769 (ingen reset)
+```
+
+**Test H2: PCNT BOTH edge counting**
+```
+# Setup: BOTH edges
+set counter 1 mode 1 parameter hw-mode:hw edge:both hw-gpio:23 enable:on
+
+# Send square wave
+# FORVENTET: 2x counts per cycle (rising + falling)
+```
+
+---
+
+**Version:** 1.1
+**Last Updated:** 2026-01-17
+**Status:** ✅ Ready for Execution (59+9 tests = 68 tests total)
 
 **God test! 🚀**

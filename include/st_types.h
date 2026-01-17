@@ -29,6 +29,7 @@ typedef enum {
   ST_TOK_INT,               // 123, -456, 0x1A2B, 2#1010
   ST_TOK_REAL,              // 1.23, 4.56e-10
   ST_TOK_STRING,            // 'hello'
+  ST_TOK_TIME,              // T#5s, T#100ms, T#1h30m (IEC 61131-3 TIME literal)
 
   // Variables/Identifiers
   ST_TOK_IDENT,             // variable_name
