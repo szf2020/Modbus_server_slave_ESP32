@@ -89,30 +89,51 @@ uint16_t counter_frequency_update(uint8_t id, uint64_t current_value) {
     uint64_t delta_count = 0;
     uint8_t valid_delta = 1;
 
-    if (current_value >= state->last_count) {
-      // Normal: count increased
-      delta_count = current_value - state->last_count;
-    } else {
-      // BUG FIX 1.8: Wrap-around - use actual bit_width from config
-      uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;  // Default 64-bit
-      switch (cfg.bit_width) {
-        case 8:
-          max_val = 0xFFULL;
-          break;
-        case 16:
-          max_val = 0xFFFFULL;
-          break;
-        case 32:
-          max_val = 0xFFFFFFFFULL;
-          break;
-        // 64-bit: use default
+    // BUG-184 FIX: Direction-aware frequency calculation
+    // UP counting: current_value >= last_count is normal
+    // DOWN counting: current_value <= last_count is normal
+    uint64_t max_val = 0xFFFFFFFFFFFFFFFFULL;  // Default 64-bit
+    switch (cfg.bit_width) {
+      case 8:
+        max_val = 0xFFULL;
+        break;
+      case 16:
+        max_val = 0xFFFFULL;
+        break;
+      case 32:
+        max_val = 0xFFFFFFFFULL;
+        break;
+      // 64-bit: use default
+    }
+
+    if (cfg.direction == COUNTER_DIR_DOWN) {
+      // DOWN counting: value decreases over time
+      if (current_value <= state->last_count) {
+        // Normal: count decreased
+        delta_count = state->last_count - current_value;
+      } else {
+        // Underflow wrap-around: counter wrapped from 0 to start_value
+        // Example: last=5, current=995, start=1000 → wrapped, delta = 5 + (1000 - 995) = 10
+        delta_count = state->last_count + (cfg.start_value - current_value) + 1;
+
+        // Sanity check: if delta is unreasonably large (>50% of start_value), skip
+        if (cfg.start_value > 0 && delta_count > cfg.start_value / 2) {
+          valid_delta = 0;
+        }
       }
+    } else {
+      // UP counting: value increases over time (original logic)
+      if (current_value >= state->last_count) {
+        // Normal: count increased
+        delta_count = current_value - state->last_count;
+      } else {
+        // Overflow wrap-around
+        delta_count = (max_val - state->last_count) + current_value + 1;
 
-      delta_count = (max_val - state->last_count) + current_value + 1;
-
-      // Sanity check: if delta is unreasonably large (>50% of max), skip
-      if (delta_count > max_val / 2) {
-        valid_delta = 0;
+        // Sanity check: if delta is unreasonably large (>50% of max), skip
+        if (delta_count > max_val / 2) {
+          valid_delta = 0;
+        }
       }
     }
 

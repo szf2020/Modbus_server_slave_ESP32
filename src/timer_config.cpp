@@ -61,6 +61,11 @@ TimerConfig timer_config_defaults(uint8_t id) {
   // Output
   cfg.output_coil = 0;
 
+  // BUG-187 FIX: Smart defaults for ctrl_reg (like counters)
+  // Timer 1 → HR180, Timer 2 → HR185, Timer 3 → HR190, Timer 4 → HR195
+  // This prevents overlap with Counter registers (HR100-174) and ST Logic (HR200-237)
+  cfg.ctrl_reg = 180 + ((id - 1) * 5);
+
   return cfg;
 }
 
