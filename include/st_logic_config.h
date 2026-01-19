@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include "st_types.h"
 #include "config_struct.h"
+#include "st_debug.h"  // FEAT-008: Debugger support
 
 /* ============================================================================
  * LOGIC PROGRAM CONFIGURATION
@@ -84,6 +85,9 @@ typedef struct {
   uint32_t cycle_max_ms;      // Maximum total cycle time
   uint32_t cycle_overrun_count; // Number of cycles where time > interval
   uint32_t total_cycles;      // Total number of cycles executed
+
+  // FEAT-008: Per-program debugger state
+  st_debug_state_t debugger[4];  // Debugger state for each program
 
 } st_logic_engine_state_t;
 

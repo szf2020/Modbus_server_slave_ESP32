@@ -690,8 +690,31 @@ bool cli_parser_execute(char* line) {
             debug_printf("ERROR: Invalid program ID '%s' (expected 1-4)\n", subcommand);
             return false;
           }
+        } else if (!strcmp(subcommand2_norm, "DEBUG")) {
+          // FEAT-008: show logic <id> debug [vars|stack]
+          uint8_t program_id = atoi(subcommand);
+          if (program_id < 1 || program_id > 4) {
+            debug_printf("ERROR: Invalid program ID '%s' (expected 1-4)\n", subcommand);
+            return false;
+          }
+
+          // Check for optional 4th argument (vars, stack)
+          if (argc >= 5) {
+            const char* debug_subcmd = argv[4];
+            const char* debug_subcmd_norm = normalize_alias(debug_subcmd);
+            if (!strcmp(debug_subcmd_norm, "VARS")) {
+              cli_cmd_show_logic_debug_vars(st_logic_get_state(), program_id - 1);
+              return true;
+            } else if (!strcmp(debug_subcmd_norm, "STACK")) {
+              cli_cmd_show_logic_debug_stack(st_logic_get_state(), program_id - 1);
+              return true;
+            }
+          }
+          // Default: show debug state
+          cli_cmd_show_logic_debug(st_logic_get_state(), program_id - 1);
+          return true;
         }
-        // If argv[3] exists but is not "code"/"timing"/"bytecode"/"st", fall through to normal handling
+        // If argv[3] exists but is not "code"/"timing"/"bytecode"/"st"/"debug", fall through to normal handling
       }
 
       // Handle other subcommands (without code)
@@ -1046,6 +1069,54 @@ bool cli_parser_execute(char* line) {
 
         cli_cmd_set_logic_bind(st_logic_get_state(), prog_idx, var_idx, register_addr, direction, input_type, output_type);
         return true;
+      } else if (!strcmp(cmd_normalized, "DEBUG")) {
+        // FEAT-008: set logic <id> debug <pause|continue|step|break|clear|stop>
+        if (argc < 5) {
+          debug_println("SET LOGIC DEBUG: missing subcommand");
+          debug_println("  Usage: set logic <id> debug pause");
+          debug_println("         set logic <id> debug continue");
+          debug_println("         set logic <id> debug step");
+          debug_println("         set logic <id> debug break <pc>");
+          debug_println("         set logic <id> debug clear [<pc>]");
+          debug_println("         set logic <id> debug stop");
+          return false;
+        }
+
+        const char* debug_cmd = normalize_alias(argv[4]);
+
+        if (!strcmp(debug_cmd, "PAUSE")) {
+          cli_cmd_set_logic_debug_pause(st_logic_get_state(), prog_idx);
+          return true;
+        } else if (!strcmp(debug_cmd, "CONTINUE")) {
+          cli_cmd_set_logic_debug_continue(st_logic_get_state(), prog_idx);
+          return true;
+        } else if (!strcmp(debug_cmd, "STEP")) {
+          cli_cmd_set_logic_debug_step(st_logic_get_state(), prog_idx);
+          return true;
+        } else if (!strcmp(debug_cmd, "BREAK")) {
+          if (argc < 6) {
+            debug_println("SET LOGIC DEBUG BREAK: missing PC address");
+            debug_println("  Usage: set logic <id> debug break <pc>");
+            return false;
+          }
+          uint16_t pc = atoi(argv[5]);
+          cli_cmd_set_logic_debug_breakpoint(st_logic_get_state(), prog_idx, pc);
+          return true;
+        } else if (!strcmp(debug_cmd, "CLEAR")) {
+          int pc = -1;  // Default: clear all
+          if (argc >= 6) {
+            pc = atoi(argv[5]);  // Clear specific breakpoint
+          }
+          cli_cmd_set_logic_debug_clear(st_logic_get_state(), prog_idx, pc);
+          return true;
+        } else if (!strcmp(debug_cmd, "STOP")) {
+          cli_cmd_set_logic_debug_stop(st_logic_get_state(), prog_idx);
+          return true;
+        } else {
+          debug_printf("SET LOGIC DEBUG: unknown command '%s'\n", argv[4]);
+          debug_println("  Valid: pause, continue, step, break, clear, stop");
+          return false;
+        }
       } else {
         debug_println("SET LOGIC: unknown subcommand");
         return false;

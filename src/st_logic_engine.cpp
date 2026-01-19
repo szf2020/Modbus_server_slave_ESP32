@@ -12,6 +12,7 @@
 #include "st_vm.h"
 #include "st_stateful.h"  // BUG-153 FIX: For cycle_time_ms update
 #include "st_builtin_modbus.h"  // BUG-133 FIX: For g_mb_request_count reset
+#include "st_debug.h"  // FEAT-008: Debugger support
 #include "config_struct.h"
 #include "constants.h"
 #include "debug.h"
@@ -45,6 +46,14 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
   st_logic_program_config_t *prog = st_logic_get_program(state, program_id);
   if (!prog || !prog->compiled || !prog->enabled) return false;
 
+  // FEAT-008: Get debug state for this program
+  st_debug_state_t *debug = &state->debugger[program_id];
+
+  // FEAT-008: If paused, skip execution entirely (wait for step/continue)
+  if (debug->mode == ST_DEBUG_PAUSED) {
+    return true;  // Not an error, just paused
+  }
+
   // Create VM and initialize with bytecode
   st_vm_t vm;
   st_vm_init(&vm, &prog->bytecode);
@@ -58,8 +67,50 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
   // BUG-007 FIX: Add timing wrapper for execution monitoring (use micros for precision)
   uint32_t start_us = micros();
 
-  // Execute until halt or error (max 10000 steps for safety)
-  bool success = st_vm_run(&vm, 10000);
+  // FEAT-008: Debug-aware execution loop
+  bool success = true;
+  uint32_t steps = 0;
+  const uint32_t max_steps = 10000;
+
+  while (!vm.halted && !vm.error) {
+    // Max steps check (safety)
+    if (steps >= max_steps) {
+      snprintf(vm.error_msg, sizeof(vm.error_msg), "Max steps exceeded (%u)", max_steps);
+      vm.error = 1;
+      success = false;
+      break;
+    }
+
+    // FEAT-008: Check for breakpoint BEFORE executing instruction
+    if (debug->mode != ST_DEBUG_OFF && st_debug_check_breakpoint(debug, vm.pc)) {
+      // Hit a breakpoint - pause and save snapshot
+      st_debug_save_snapshot(debug, &vm, ST_DEBUG_REASON_BREAKPOINT);
+      debug->hit_breakpoint_pc = vm.pc;
+      debug->breakpoints_hit_count++;
+      debug->mode = ST_DEBUG_PAUSED;
+      break;  // Exit execution loop
+    }
+
+    // Execute one instruction
+    if (!st_vm_step(&vm)) {
+      break;  // Halted or error
+    }
+
+    steps++;
+    debug->total_steps_debugged++;
+
+    // FEAT-008: Single-step mode - pause after one instruction
+    if (debug->mode == ST_DEBUG_STEP) {
+      st_debug_save_snapshot(debug, &vm, ST_DEBUG_REASON_STEP);
+      debug->mode = ST_DEBUG_PAUSED;
+      break;  // Exit execution loop
+    }
+  }
+
+  // Check final state
+  if (vm.error) {
+    success = false;
+  }
 
   uint32_t elapsed_us = micros() - start_us;
   uint32_t elapsed_ms = elapsed_us / 1000;

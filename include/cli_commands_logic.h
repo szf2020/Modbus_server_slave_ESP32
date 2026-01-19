@@ -124,4 +124,62 @@ int cli_cmd_show_logic_bytecode(st_logic_engine_state_t *logic_state, uint8_t pr
  */
 int cli_cmd_reset_logic_stats(st_logic_engine_state_t *logic_state, const char *target);
 
+/* ============================================================================
+ * FEAT-008: DEBUGGER COMMANDS
+ * ============================================================================ */
+
+/**
+ * @brief set logic <id> debug pause
+ * Pause program at next instruction
+ */
+int cli_cmd_set_logic_debug_pause(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief set logic <id> debug continue
+ * Continue execution until breakpoint or halt
+ */
+int cli_cmd_set_logic_debug_continue(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief set logic <id> debug step
+ * Execute one instruction then pause
+ */
+int cli_cmd_set_logic_debug_step(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief set logic <id> debug break <pc>
+ * Add breakpoint at PC address
+ */
+int cli_cmd_set_logic_debug_breakpoint(st_logic_engine_state_t *logic_state, uint8_t program_id, uint16_t pc);
+
+/**
+ * @brief set logic <id> debug clear [<pc>]
+ * Clear breakpoint at PC, or all breakpoints if no PC given
+ */
+int cli_cmd_set_logic_debug_clear(st_logic_engine_state_t *logic_state, uint8_t program_id, int pc);
+
+/**
+ * @brief set logic <id> debug stop
+ * Stop debugging and return to normal execution
+ */
+int cli_cmd_set_logic_debug_stop(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief show logic <id> debug
+ * Show debug state (mode, PC, breakpoints)
+ */
+int cli_cmd_show_logic_debug(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief show logic <id> debug vars
+ * Show all variables with current values
+ */
+int cli_cmd_show_logic_debug_vars(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
+/**
+ * @brief show logic <id> debug stack
+ * Show execution stack
+ */
+int cli_cmd_show_logic_debug_stack(st_logic_engine_state_t *logic_state, uint8_t program_id);
+
 #endif /* CLI_COMMANDS_LOGIC_H */

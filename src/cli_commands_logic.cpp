@@ -23,6 +23,7 @@
 #include "st_logic_config.h"
 #include "st_logic_engine.h"
 #include "st_compiler.h"
+#include "st_debug.h"  // FEAT-008: Debugger support
 
 /* Config & Mapping includes */
 #include "config_struct.h"
@@ -1258,6 +1259,196 @@ int cli_cmd_reset_logic_stats(st_logic_engine_state_t *logic_state, const char *
     st_logic_reset_stats(logic_state, prog_num - 1);
     debug_printf("Logic%d statistics reset.\n", prog_num);
   }
+
+  return 0;
+}
+
+/* ============================================================================
+ * FEAT-008: DEBUGGER COMMANDS
+ * ============================================================================ */
+
+int cli_cmd_set_logic_debug_pause(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  if (!prog || !prog->compiled) {
+    debug_println("ERROR: Program not compiled. Upload source code first.");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+  st_debug_pause(debug);
+
+  debug_printf("[OK] Logic%d debug: PAUSE requested\n", program_id + 1);
+  debug_println("     Program will pause at next instruction.");
+  debug_println("     Use 'show logic X debug' to inspect state.");
+  return 0;
+}
+
+int cli_cmd_set_logic_debug_continue(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  if (debug->mode == ST_DEBUG_OFF) {
+    debug_println("ERROR: Debug mode is OFF. Use 'debug pause' first.");
+    return -1;
+  }
+
+  st_debug_continue(debug);
+
+  debug_printf("[OK] Logic%d debug: CONTINUE\n", program_id + 1);
+  debug_println("     Execution will continue until breakpoint or halt.");
+  return 0;
+}
+
+int cli_cmd_set_logic_debug_step(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  if (!prog || !prog->compiled) {
+    debug_println("ERROR: Program not compiled. Upload source code first.");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+  st_debug_step(debug);
+
+  debug_printf("[OK] Logic%d debug: STEP\n", program_id + 1);
+  debug_println("     Will execute one instruction.");
+  debug_println("     Use 'show logic X debug' to see result.");
+  return 0;
+}
+
+int cli_cmd_set_logic_debug_breakpoint(st_logic_engine_state_t *logic_state, uint8_t program_id, uint16_t pc) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  if (!prog || !prog->compiled) {
+    debug_println("ERROR: Program not compiled. Upload source code first.");
+    return -1;
+  }
+
+  if (pc >= prog->bytecode.instr_count) {
+    debug_printf("ERROR: PC %u out of range (max %u)\n", pc, prog->bytecode.instr_count - 1);
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  if (!st_debug_add_breakpoint(debug, pc)) {
+    debug_println("ERROR: Max breakpoints reached (8) or already exists");
+    return -1;
+  }
+
+  debug_printf("[OK] Logic%d: Breakpoint added at PC=%u\n", program_id + 1, pc);
+  return 0;
+}
+
+int cli_cmd_set_logic_debug_clear(st_logic_engine_state_t *logic_state, uint8_t program_id, int pc) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  if (pc < 0) {
+    // Clear all breakpoints
+    st_debug_clear_breakpoints(debug);
+    debug_printf("[OK] Logic%d: All breakpoints cleared\n", program_id + 1);
+  } else {
+    // Clear specific breakpoint
+    if (!st_debug_remove_breakpoint(debug, (uint16_t)pc)) {
+      debug_printf("ERROR: No breakpoint at PC=%d\n", pc);
+      return -1;
+    }
+    debug_printf("[OK] Logic%d: Breakpoint at PC=%d removed\n", program_id + 1, pc);
+  }
+
+  return 0;
+}
+
+int cli_cmd_set_logic_debug_stop(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+  st_debug_stop(debug);
+
+  debug_printf("[OK] Logic%d debug: STOPPED\n", program_id + 1);
+  debug_println("     Normal execution resumed.");
+  return 0;
+}
+
+int cli_cmd_show_logic_debug(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  debug_printf("\n=== Logic%d Debug State ===\n", program_id + 1);
+  st_debug_print_state(debug, prog);
+  st_debug_print_breakpoints(debug);
+
+  if (debug->snapshot_valid) {
+    st_debug_print_instruction(debug, prog);
+  }
+
+  return 0;
+}
+
+int cli_cmd_show_logic_debug_vars(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, program_id);
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  debug_printf("\n=== Logic%d Variables ===", program_id + 1);
+  st_debug_print_variables(debug, prog);
+
+  return 0;
+}
+
+int cli_cmd_show_logic_debug_stack(st_logic_engine_state_t *logic_state, uint8_t program_id) {
+  if (!logic_state) return -1;
+  if (program_id >= 4) {
+    debug_println("ERROR: Invalid program ID (0-3)");
+    return -1;
+  }
+
+  st_debug_state_t *debug = &logic_state->debugger[program_id];
+
+  debug_printf("\n=== Logic%d Stack ===", program_id + 1);
+  st_debug_print_stack(debug);
 
   return 0;
 }

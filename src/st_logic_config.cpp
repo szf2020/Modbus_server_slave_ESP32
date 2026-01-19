@@ -61,6 +61,11 @@ void st_logic_init(st_logic_engine_state_t *state) {
 
   // v5.1.0 - Initialize IR pool manager
   ir_pool_init(state);
+
+  // FEAT-008: Initialize debug states for each program
+  for (int i = 0; i < 4; i++) {
+    st_debug_init(&state->debugger[i]);
+  }
 }
 
 /* ============================================================================
