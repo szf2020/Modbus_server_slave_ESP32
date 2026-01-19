@@ -177,7 +177,7 @@
 | FEAT-005 | ST Logic STRING type support | ❌ OPEN | 🟠 MEDIUM | v6.0.0 | IEC 61131-3 STRING type med LEN(), CONCAT(), LEFT(), RIGHT(), MID() funktioner. Kræver: heap allocation, garbage collection overvejelser. Nyttigt til logging, protokol parsing |
 | FEAT-006 | ST Logic TIME literal support | ✅ DONE | 🟠 MEDIUM | v5.2.0 | Native TIME literals: `T#5s`, `T#100ms`, `T#1h30m`. Lexer parser, gemmes som DINT millisekunder. (st_types.h, st_lexer.cpp, st_parser.cpp) |
 | FEAT-007 | ST Logic inter-program variable sharing | ❌ OPEN | 🟡 HIGH | v5.2.0 | Deling af variable mellem Logic1-4 programmer. Implementering via shared memory pool eller GLOBAL_VAR deklarationer. Tillader modulær programmering |
-| FEAT-008 | ST Logic debugging/single-step mode | ❌ OPEN | 🔵 LOW | v6.0.0 | CLI kommandoer: `debug logic 1 step`, `debug logic 1 watch var`, breakpoints. Kræver: VM pause/resume, variable inspection API |
+| FEAT-008 | ST Logic debugging/single-step mode | ✅ DONE | 🔵 LOW | v5.2.0 | CLI: `set logic <id> debug pause/step/continue`, breakpoints, variable inspection. Build #1082. (st_debug.h, st_debug.cpp) |
 | FEAT-009 | ST Logic STRUCT type support | ❌ OPEN | 🔵 LOW | v6.0.0 | Brugerdefinerede strukturer: `TYPE MyStruct: STRUCT x: INT; y: REAL; END_STRUCT END_TYPE`. Avanceret - lav prioritet |
 | FEAT-010 | ST Logic program prioriteter/scheduling | ❌ OPEN | 🔵 LOW | v6.0.0 | Differenteret execution interval per program, interrupt-drevet high-priority execution. Nyttigt til real-time krav |
 
