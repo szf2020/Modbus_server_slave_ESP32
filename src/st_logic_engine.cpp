@@ -97,13 +97,28 @@ bool st_logic_execute_program(st_logic_engine_state_t *state, uint8_t program_id
     }
 
     steps++;
-    debug->total_steps_debugged++;
+
+    // FEAT-008: Only count debugged steps when debugging is active
+    if (debug->mode != ST_DEBUG_OFF) {
+      debug->total_steps_debugged++;
+    }
 
     // FEAT-008: Single-step mode - pause after one instruction
     if (debug->mode == ST_DEBUG_STEP) {
       st_debug_save_snapshot(debug, &vm, ST_DEBUG_REASON_STEP);
       debug->mode = ST_DEBUG_PAUSED;
       break;  // Exit execution loop
+    }
+  }
+
+  // FEAT-008: Save snapshot on halt or error (if debugging)
+  if (debug->mode != ST_DEBUG_OFF && debug->mode != ST_DEBUG_PAUSED) {
+    if (vm.error) {
+      st_debug_save_snapshot(debug, &vm, ST_DEBUG_REASON_ERROR);
+      debug->mode = ST_DEBUG_PAUSED;
+    } else if (vm.halted) {
+      st_debug_save_snapshot(debug, &vm, ST_DEBUG_REASON_HALT);
+      debug->mode = ST_DEBUG_PAUSED;
     }
   }
 
