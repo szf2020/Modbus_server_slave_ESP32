@@ -1,6 +1,6 @@
 # Modbus RTU Server (ESP32)
 
-**Version:** v5.3.0 | **Build:** #1083 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
+**Version:** v5.3.0 | **Build:** #1084 | **Status:** Production-Ready | **Platform:** ESP32-WROOM-32
 
 En komplet, modulær **Modbus RTU Server** implementation til ESP32-WROOM-32 mikrocontroller med **dual Modbus interfaces** (Slave + Master), ST Structured Text Logic programmering med IEC 61131-3 type system, Wi-Fi netværk, telnet CLI interface, og komplet Modbus register dokumentation.
 
@@ -48,37 +48,198 @@ Remote I/O Boards (Modbus Slaves)
 
 ---
 
-## 📑 Table of Contents
+## 📑 Complete Documentation Index
 
-### 📚 Documentation Hub
-**Start here for different use cases:**
+> **Navigation Tip:** Use `Ctrl+F` to search this index. All documents are categorized by purpose.
 
-| Document | Description | Target Audience |
-|----------|-------------|-----------------|
-| **[README.md](#)** (This File) | Complete feature guide & user manual | End users, integrators |
-| **[CLAUDE.md](CLAUDE.md)** | Development guide (Danish) | Developers, Claude Code |
-| **[CHANGELOG.md](CHANGELOG.md)** | Detailed version history | All users |
+---
 
-**Claude Development Suite:**
-- **[CLAUDE_INDEX.md](CLAUDE_INDEX.md)** - Quick start & navigation (2 min read) ⭐ START HERE
-- **[CLAUDE_SETUP.md](CLAUDE_SETUP.md)** - Security rules & environment setup
-- **[CLAUDE_WORKFLOW.md](CLAUDE_WORKFLOW.md)** - Code modification & commit guidelines
-- **[CLAUDE_ARCH.md](CLAUDE_ARCH.md)** - Layered architecture & file reference
+### 📋 Quick Navigation
+
+| I Need To... | Read This |
+|--------------|-----------|
+| **Get started** | [Quick Start](#quick-start-first-boot) or [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) |
+| **Understand features** | [README.md](#) (this file) or [docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md) |
+| **Configure Modbus** | [MODBUS_REGISTER_MAP.md](MODBUS_REGISTER_MAP.md) |
+| **Learn ST Logic** | [docs/ST_USAGE_GUIDE.md](docs/ST_USAGE_GUIDE.md) or [docs/README_ST_LOGIC.md](docs/README_ST_LOGIC.md) |
+| **Debug ST programs** | [ST_DEBUG_GUIDE.md](ST_DEBUG_GUIDE.md) |
+| **Configure counters** | [docs/COUNTER_COMPARE_QUICK_START.md](docs/COUNTER_COMPARE_QUICK_START.md) |
+| **Set up GPIO** | [docs/GPIO_MAPPING_GUIDE.md](docs/GPIO_MAPPING_GUIDE.md) |
+| **Contribute code** | [CLAUDE_INDEX.md](CLAUDE_INDEX.md) → [CLAUDE_WORKFLOW.md](CLAUDE_WORKFLOW.md) |
+| **Check known bugs** | [BUGS_INDEX.md](BUGS_INDEX.md) |
+| **See version history** | [CHANGELOG.md](CHANGELOG.md) |
+
+---
+
+### 📚 Documentation Categories
+
+#### 1. User Documentation (End Users & Integrators)
+
+| Document | Description |
+|----------|-------------|
+| **[README.md](#)** | Complete feature guide, CLI reference, examples |
+| **[docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)** | Hardware setup, first boot guide |
+| **[docs/FEATURE_GUIDE.md](docs/FEATURE_GUIDE.md)** | Feature overview and capabilities |
+| **[CHANGELOG.md](CHANGELOG.md)** | Version history with all changes |
+| **[TODO.md](TODO.md)** | Planned features and roadmap |
+
+#### 2. Modbus Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[MODBUS_REGISTER_MAP.md](MODBUS_REGISTER_MAP.md)** | Complete register/coil mapping reference |
+| **[MODBUS_MASTER_ANALYSIS.md](MODBUS_MASTER_ANALYSIS.md)** | Modbus Master feature analysis |
+| **[MODBUS_MASTER_ENHANCEMENTS.md](MODBUS_MASTER_ENHANCEMENTS.md)** | Modbus Master improvements |
+
+#### 3. ST Logic Documentation
+
+**Getting Started:**
+| Document | Description |
+|----------|-------------|
+| **[docs/README_ST_LOGIC.md](docs/README_ST_LOGIC.md)** | ST Logic introduction |
+| **[docs/ST_USAGE_GUIDE.md](docs/ST_USAGE_GUIDE.md)** | Complete ST usage guide |
+| **[docs/GPIO2_ST_QUICK_START.md](docs/GPIO2_ST_QUICK_START.md)** | GPIO control with ST Logic |
+
+**Reference & Specification:**
+| Document | Description |
+|----------|-------------|
+| **[ST_SYNTAX_ANALYSIS.md](ST_SYNTAX_ANALYSIS.md)** | ST syntax reference |
+| **[docs/ST_IEC61131_COMPLIANCE.md](docs/ST_IEC61131_COMPLIANCE.md)** | IEC 61131-3 compliance details |
+| **[ST_FUNCTIONS_COMPLETE_ANALYSIS.md](ST_FUNCTIONS_COMPLETE_ANALYSIS.md)** | All builtin functions documented |
+| **[ST_FUNCTIONS_V47.md](ST_FUNCTIONS_V47.md)** | v4.7 function additions |
+| **[docs/ST_SIGNAL_PROCESSING_DESIGN.md](docs/ST_SIGNAL_PROCESSING_DESIGN.md)** | Signal processing functions |
+
+**Debugging & Performance:**
+| Document | Description |
+|----------|-------------|
+| **[ST_DEBUG_GUIDE.md](ST_DEBUG_GUIDE.md)** | Interactive debugger guide (v5.3.0) |
+| **[ST_MONITORING.md](ST_MONITORING.md)** | Performance monitoring |
+| **[TIMING_ANALYSIS.md](TIMING_ANALYSIS.md)** | Timing specifications |
+| **[ST_MONITORING_IMPLEMENTATION_STATUS.md](ST_MONITORING_IMPLEMENTATION_STATUS.md)** | Monitoring implementation status |
+
+**Testing:**
+| Document | Description |
+|----------|-------------|
+| **[ST_COMPLETE_TEST_PLAN.md](ST_COMPLETE_TEST_PLAN.md)** | 65 test cases (copy/paste ready) |
+| **[ST_COMPLEX_TEST_CASES.md](ST_COMPLEX_TEST_CASES.md)** | Advanced test scenarios |
+| **[docs/ST_FUNCTION_TESTS.md](docs/ST_FUNCTION_TESTS.md)** | Function-specific tests |
+| **[docs/ST_LATCH_TEST_CASES.md](docs/ST_LATCH_TEST_CASES.md)** | SR/RS latch test cases |
+| **[docs/TEST_GPIO2_ST_LOGIC.md](docs/TEST_GPIO2_ST_LOGIC.md)** | GPIO+ST integration tests |
+
+**Architecture & Design:**
+| Document | Description |
+|----------|-------------|
+| **[ST_MODULE_ANALYSIS.md](ST_MODULE_ANALYSIS.md)** | Module architecture |
+| **[ST_DEEP_ANALYSIS.md](ST_DEEP_ANALYSIS.md)** | Deep dive analysis |
+| **[ST_TYPE_REFACTOR_PLAN.md](ST_TYPE_REFACTOR_PLAN.md)** | IEC 61131-3 type system plan |
+| **[ST_REMOTE_WRITE_SYNTAX_DESIGN.md](ST_REMOTE_WRITE_SYNTAX_DESIGN.md)** | MB_WRITE syntax design |
+| **[CODE_REVIEW_ST_FUNCTIONS.md](CODE_REVIEW_ST_FUNCTIONS.md)** | Code review notes |
+| **[docs/ST_FUNCTIONS_TODO.md](docs/ST_FUNCTIONS_TODO.md)** | Planned function additions |
+
+#### 4. Counter & Timer Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[docs/COUNTER_COMPARE_QUICK_START.md](docs/COUNTER_COMPARE_QUICK_START.md)** | Counter compare feature quick start |
+| **[docs/COUNTER_COMPARE_REFERENCE.md](docs/COUNTER_COMPARE_REFERENCE.md)** | Complete compare reference |
+| **[docs/COUNTER_CONFIG_TEMPLATES.md](docs/COUNTER_CONFIG_TEMPLATES.md)** | Ready-to-use counter configs |
+
+#### 5. GPIO & Hardware Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[docs/GPIO_MAPPING_GUIDE.md](docs/GPIO_MAPPING_GUIDE.md)** | GPIO to Modbus mapping guide |
+| **[docs/GPIO2_ST_QUICK_START.md](docs/GPIO2_ST_QUICK_START.md)** | GPIO2 with ST Logic |
+| **[docs/ESP32_Migration_Analysis.md](docs/ESP32_Migration_Analysis.md)** | ESP32 migration from Mega2560 |
+| **[docs/ESP32_Module_Architecture.md](docs/ESP32_Module_Architecture.md)** | ESP32 module architecture |
+
+#### 6. Developer Documentation (Claude Code / Contributors)
+
+**Start Here:**
+| Document | Description |
+|----------|-------------|
+| **[CLAUDE.md](CLAUDE.md)** | Development guide hub (Danish) |
+| **[CLAUDE_INDEX.md](CLAUDE_INDEX.md)** | Quick start & navigation ⭐ |
+| **[CLAUDE_SETUP.md](CLAUDE_SETUP.md)** | Security rules & environment |
+| **[CLAUDE_WORKFLOW.md](CLAUDE_WORKFLOW.md)** | Code modification & commit guidelines |
+| **[CLAUDE_ARCH.md](CLAUDE_ARCH.md)** | Layered architecture & file reference |
 
 **Bug Tracking:**
-- **[BUGS_INDEX.md](BUGS_INDEX.md)** - Quick bug lookup (10 sec scan) ⚡ CHECK BEFORE CODING
-- **[BUGS.md](BUGS.md)** - Detailed bug analysis (use as reference)
+| Document | Description |
+|----------|-------------|
+| **[BUGS_INDEX.md](BUGS_INDEX.md)** | Quick bug lookup ⚡ CHECK BEFORE CODING |
+| **[BUGS.md](BUGS.md)** | Detailed bug analysis & history |
 
-**Technical Reference:**
-- **[MODBUS_REGISTER_MAP.md](MODBUS_REGISTER_MAP.md)** - Complete Modbus register mapping
-- **[ST_MONITORING.md](ST_MONITORING.md)** - ST Logic performance monitoring
-- **[TIMING_ANALYSIS.md](TIMING_ANALYSIS.md)** - ST Logic timing specifications
+#### 7. Design & Architecture Documents
 
-**Test & Analysis:**
-- **[ST_COMPLETE_TEST_PLAN.md](ST_COMPLETE_TEST_PLAN.md)** - 65 ST Logic test cases (copy/paste ready)
-- **[ST_MODULE_ANALYSIS.md](ST_MODULE_ANALYSIS.md)** - ST module architecture
-- **[ST_SYNTAX_ANALYSIS.md](ST_SYNTAX_ANALYSIS.md)** - ST syntax reference
-- **[ST_TYPE_REFACTOR_PLAN.md](ST_TYPE_REFACTOR_PLAN.md)** - IEC 61131-3 type refactor plan
+| Document | Description |
+|----------|-------------|
+| **[docs/LOGIC_BLOCK_HLD.md](docs/LOGIC_BLOCK_HLD.md)** | Logic block high-level design |
+| **[SYSTEM_FEATURE_ANALYSIS.md](SYSTEM_FEATURE_ANALYSIS.md)** | System feature analysis |
+
+#### 8. Release & Version Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[CHANGELOG.md](CHANGELOG.md)** | Complete version history |
+| **[RELEASE_NOTES_V47.md](RELEASE_NOTES_V47.md)** | v4.7 release notes |
+| **[IMPLEMENTATION_STATUS_v4.6.0.md](IMPLEMENTATION_STATUS_v4.6.0.md)** | v4.6.0 implementation status |
+| **[TEST_PLAN_v4.6.0.md](TEST_PLAN_v4.6.0.md)** | v4.6.0 test plan |
+
+#### 9. Future Plans
+
+| Document | Description |
+|----------|-------------|
+| **[docs/W5500_Ethernet_Integration_Plan.md](docs/W5500_Ethernet_Integration_Plan.md)** | Ethernet expansion plan |
+| **[TODO.md](TODO.md)** | Planned features and improvements |
+
+#### 10. Archived Documentation
+
+Historical test reports and analysis documents are preserved in `docs/ARCHIVED/` for reference.
+
+---
+
+### 📁 File Organization
+
+```
+📦 ESP32 Modbus RTU Server
+├── 📄 README.md                    ← You are here (main documentation)
+├── 📄 CHANGELOG.md                 ← Version history
+├── 📄 TODO.md                      ← Planned features
+│
+├── 📂 Development (CLAUDE_*.md)
+│   ├── CLAUDE.md                   ← Developer hub
+│   ├── CLAUDE_INDEX.md             ← Quick navigation
+│   ├── CLAUDE_SETUP.md             ← Security & rules
+│   ├── CLAUDE_WORKFLOW.md          ← Commit workflow
+│   └── CLAUDE_ARCH.md              ← Architecture reference
+│
+├── 📂 Bug Tracking (BUGS*.md)
+│   ├── BUGS_INDEX.md               ← Quick lookup table
+│   └── BUGS.md                     ← Detailed analysis
+│
+├── 📂 ST Logic (*ST*.md)
+│   ├── ST_DEBUG_GUIDE.md           ← Debugger guide
+│   ├── ST_SYNTAX_ANALYSIS.md       ← Syntax reference
+│   ├── ST_MONITORING.md            ← Performance monitoring
+│   └── ... (12+ more ST docs)
+│
+├── 📂 Modbus (MODBUS*.md)
+│   ├── MODBUS_REGISTER_MAP.md      ← Register reference
+│   └── MODBUS_MASTER_*.md          ← Master feature docs
+│
+├── 📂 docs/                        ← Additional documentation
+│   ├── SETUP_GUIDE.md              ← Hardware setup
+│   ├── FEATURE_GUIDE.md            ← Feature overview
+│   ├── ST_USAGE_GUIDE.md           ← ST programming guide
+│   ├── GPIO_MAPPING_GUIDE.md       ← GPIO configuration
+│   ├── COUNTER_*.md                ← Counter documentation
+│   └── ARCHIVED/                   ← Historical docs
+│
+├── 📂 src/                         ← C++ source files (30+)
+├── 📂 include/                     ← Header files
+└── 📄 platformio.ini               ← Build configuration
+```
 
 ---
 
