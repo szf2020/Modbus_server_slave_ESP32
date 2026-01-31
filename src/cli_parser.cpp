@@ -575,10 +575,19 @@ bool cli_parser_execute(char* line) {
     }
 
     if (!strcmp(what, "CONFIG")) {
-      // Support optional section filter: "show config wifi", "show config modbus", etc.
+      // Support section filter: "show config wifi" or "show config | s wifi"
       const char *section_filter = nullptr;
       if (argc >= 3) {
-        section_filter = argv[2];
+        int idx = 2;
+        // Skip pipe operator and "s"/"section" keyword if present
+        if (!strcmp(argv[idx], "|")) idx++;
+        if (idx < argc) {
+          const char *kw = normalize_alias(argv[idx]);
+          if (!strcmp(kw, "SHOW") || !strcmp(kw, "SECTION")) idx++;  // "s" normalizes to "SHOW"
+        }
+        if (idx < argc) {
+          section_filter = argv[idx];
+        }
       }
       cli_cmd_show_config(section_filter);
       return true;
