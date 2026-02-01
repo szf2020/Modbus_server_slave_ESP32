@@ -97,6 +97,8 @@ esp_err_t api_send_error(httpd_req_t *req, int status, const char *error_msg)
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+  httpd_resp_set_hdr(req, "Connection", "keep-alive");
+  httpd_resp_set_hdr(req, "Keep-Alive", "timeout=15, max=100");
   httpd_resp_set_status(req, status == 404 ? "404 Not Found" :
                              status == 400 ? "400 Bad Request" :
                              status == 401 ? "401 Unauthorized" :
@@ -129,6 +131,8 @@ esp_err_t api_send_json(httpd_req_t *req, const char *json_str)
 
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
+  httpd_resp_set_hdr(req, "Connection", "keep-alive");
+  httpd_resp_set_hdr(req, "Keep-Alive", "timeout=15, max=100");
   httpd_resp_sendstr(req, json_str);
   http_server_stat_success();
   return ESP_OK;

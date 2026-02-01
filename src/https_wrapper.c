@@ -70,12 +70,12 @@ int https_wrapper_start(httpd_handle_t *handle,
   ssl_config.httpd.server_port      = port;
   ssl_config.httpd.max_uri_handlers = max_uri;
   ssl_config.httpd.stack_size       = stack_size;
-  ssl_config.httpd.max_open_sockets = 1;
-  ssl_config.httpd.backlog_conn     = 1;
+  ssl_config.httpd.max_open_sockets = 3;
+  ssl_config.httpd.backlog_conn     = 3;
   ssl_config.httpd.uri_match_fn     = httpd_uri_match_wildcard;
   ssl_config.httpd.lru_purge_enable = true;
-  ssl_config.httpd.recv_wait_timeout  = 4;
-  ssl_config.httpd.send_wait_timeout  = 4;
+  ssl_config.httpd.recv_wait_timeout  = 15;
+  ssl_config.httpd.send_wait_timeout  = 10;
   ssl_config.httpd.core_id          = core_id;
   ssl_config.httpd.task_priority    = priority;
 
