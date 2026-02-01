@@ -70,7 +70,7 @@ void cli_cmd_show_config(const char *section) {
   bool show_modules  = show_all || show_section_match(section, "MODULE");
   bool show_persist  = show_all || show_section_match(section, "PERSIST");
   bool show_logic    = show_all || show_section_match(section, "LOGIC") || show_section_match(section, "ST");
-  bool show_commands = show_all;  // SET commands only in full output
+  bool show_commands = true;  // Always show SET commands (filtered by section)
 
   if (show_all) {
     debug_println("\n=== CONFIGURATION ===\n");
@@ -855,11 +855,17 @@ void cli_cmd_show_config(const char *section) {
   // CONFIGURATION AS SET COMMANDS (copy/paste ready)
   // =========================================================================
   if (show_commands) {
-  debug_println("\n=== CONFIGURATION AS SET COMMANDS ===");
-  debug_println("# Copy/paste these commands to recreate current config");
-  debug_println("# NOTE: Counter/Timer registers are AUTO-ASSIGNED (cannot be manually set)");
-  debug_println("#   Counter 1 -> HR100-114, Counter 2 -> HR120-134, Counter 3 -> HR140-154, Counter 4 -> HR160-174");
-  debug_println("#   Timer ctrl registers are manually specified via ctrl-reg parameter\n");
+  if (show_all) {
+    debug_println("\n=== CONFIGURATION AS SET COMMANDS ===");
+    debug_println("# Copy/paste these commands to recreate current config");
+    debug_println("# NOTE: Counter/Timer registers are AUTO-ASSIGNED (cannot be manually set)");
+    debug_println("#   Counter 1 -> HR100-114, Counter 2 -> HR120-134, Counter 3 -> HR140-154, Counter 4 -> HR160-174");
+    debug_println("#   Timer ctrl registers are manually specified via ctrl-reg parameter\n");
+  } else {
+    debug_println("\n=== SET COMMANDS ===");
+  }
+
+  if (show_modbus) {
   debug_println("# Modbus Slave");
   debug_print("set modbus-slave enabled ");
   debug_println(g_persist_config.modbus_slave.enabled ? "on" : "off");
@@ -909,7 +915,9 @@ void cli_cmd_show_config(const char *section) {
     debug_print_uint(g_persist_config.modbus_master.max_requests_per_cycle);
     debug_println("");
   }
+  } // end show_modbus
 
+  if (show_system) {
   // Hostname
   debug_println("\n# System");
   debug_print("set hostname ");
@@ -918,7 +926,9 @@ void cli_cmd_show_config(const char *section) {
   debug_println(g_persist_config.remote_echo ? "on" : "off");
   debug_print("set gpio 2 ");
   debug_println(g_persist_config.gpio2_user_mode ? "enable" : "disable");
+  } // end show_system
 
+  if (show_network) {
   // WiFi
   debug_println("\n# WiFi");
   debug_print("set wifi ");
@@ -966,7 +976,9 @@ void cli_cmd_show_config(const char *section) {
     debug_print("set wifi power-save ");
     debug_println(g_persist_config.network.wifi_power_save ? "on" : "off");
   }
+  } // end show_network
 
+  if (show_http) {
   // API HTTP
   debug_println("\n# API HTTP");
   debug_println(g_persist_config.network.http.enabled ? "set http enable" : "set http disable");
@@ -994,7 +1006,9 @@ void cli_cmd_show_config(const char *section) {
       default: debug_println("normal"); break;
     }
   }
+  } // end show_http
 
+  if (show_logic) {
   // ST Logic execution interval + enable/disable status
   debug_println("\n# ST Logic");
   debug_print("set logic interval ");
@@ -1015,7 +1029,9 @@ void cli_cmd_show_config(const char *section) {
       }
     }
   }
+  } // end show_logic
 
+  if (show_persist) {
   // Persistence
   // BUG-140: Clamp group_count to prevent out-of-bounds access
   uint8_t persist_group_count = g_persist_config.persist_regs.group_count;
@@ -1040,7 +1056,9 @@ void cli_cmd_show_config(const char *section) {
       debug_println("");
     }
   }
+  } // end show_persist
 
+  if (show_counters) {
   // Counters (always show all 4)
   debug_println("\n# Counters");
   for (uint8_t id = 1; id <= 4; id++) {
@@ -1122,7 +1140,9 @@ void cli_cmd_show_config(const char *section) {
       debug_println("");
     }
   }
+  } // end show_counters
 
+  if (show_timers) {
   // Timers (always show all 4)
   debug_println("\n# Timers");
   for (uint8_t id = 1; id <= 4; id++) {
@@ -1200,7 +1220,9 @@ void cli_cmd_show_config(const char *section) {
       debug_println("");
     }
   }
+  } // end show_timers
 
+  if (show_gpio) {
   // GPIO mappings (only GPIO source type, not ST Logic bindings)
   bool any_gpio_mapping = false;
   for (uint8_t i = 0; i < g_persist_config.var_map_count; i++) {
@@ -1228,6 +1250,7 @@ void cli_cmd_show_config(const char *section) {
 
     debug_println("");
   }
+  } // end show_gpio
 
   debug_println("\n# Note: Remember to run 'save' after making changes!");
   debug_println("");
