@@ -1,21 +1,21 @@
 /**
  * @file https_wrapper.c
- * @brief Custom HTTPS/TLS wrapper with heap-based connection limiting (FEAT-016)
+ * @brief HTTPS/TLS server wrapper using ESP-IDF esp_https_server (FEAT-016)
  *
- * Uses httpd_start() + esp_tls directly (instead of esp_https_server) to get
- * full control over the open_fn callback. This allows checking free heap
- * BEFORE starting a TLS handshake, gracefully denying connections when memory
- * is insufficient instead of flooding mbedTLS allocation errors.
+ * Uses the official esp_https_server component (httpd_ssl_start) which handles
+ * TLS session lifecycle internally. This avoids heap corruption issues that
+ * occur with custom open_fn/close_fn callbacks + esp_tls direct usage.
  *
- * IMPORTANT: This file MUST be compiled as C (not C++) because esp_tls.h
- * triggers a lwIP header conflict in C++ mode on Arduino-ESP32 v2.x.
+ * IMPORTANT: This file MUST be compiled as C (not C++) because esp_https_server.h
+ * includes esp_tls.h which pulls in lwIP headers through sys/socket.h. In
+ * Arduino-ESP32 v2.x C++ builds, this causes a compilation error in ip4_addr.h
+ * (u32_t not defined). By wrapping in a .c file, we avoid the C++ include chain.
  */
 
 #include "https_wrapper.h"
 #include <string.h>
 #include <stdio.h>
-#include <esp_tls.h>
-#include <esp_http_server.h>
+#include <esp_https_server.h>
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_heap_caps.h>
@@ -26,147 +26,12 @@
 
 static const char *TAG = "HTTPS_WRAP";
 
-/* Minimum heap thresholds for accepting a new TLS connection.
- * ECDSA P-256 handshake peak usage: ~50KB (2x 16KB I/O buffers + SSL context + MPI workspace).
- * Arduino-ESP32 pre-compiles mbedTLS with 16KB I/O buffers (CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=16384).
- * We cannot reduce these without rebuilding the framework.
- * With max_open_sockets=1, httpd uses less pre-allocated heap. */
-#define HTTPS_MIN_FREE_HEAP     55000
-#define HTTPS_MIN_CONTIG_BLOCK  30000
-
 /* Embedded TLS certificates (generated at build time via board_build.embed_txtfiles)
  * Symbol names include path prefix: certs/ -> certs_ */
 extern const uint8_t servercert_pem_start[] asm("_binary_certs_servercert_pem_start");
 extern const uint8_t servercert_pem_end[]   asm("_binary_certs_servercert_pem_end");
 extern const uint8_t prvtkey_pem_start[]    asm("_binary_certs_prvtkey_pem_start");
 extern const uint8_t prvtkey_pem_end[]      asm("_binary_certs_prvtkey_pem_end");
-
-/* Server TLS configuration (initialized once at start) */
-static esp_tls_cfg_server_t s_tls_cfg;
-
-/* ============================================================================
- * TLS TRANSPORT OVERRIDES
- * ============================================================================ */
-
-static int https_send(httpd_handle_t hd, int sockfd,
-                      const char *buf, size_t buf_len, int flags)
-{
-  (void)flags;
-  esp_tls_t *tls = (esp_tls_t *)httpd_sess_get_transport_ctx(hd, sockfd);
-  if (!tls) return -1;
-  return (int)esp_tls_conn_write(tls, buf, buf_len);
-}
-
-static int https_recv(httpd_handle_t hd, int sockfd,
-                      char *buf, size_t buf_len, int flags)
-{
-  (void)flags;
-  esp_tls_t *tls = (esp_tls_t *)httpd_sess_get_transport_ctx(hd, sockfd);
-  if (!tls) return -1;
-  return (int)esp_tls_conn_read(tls, (void *)buf, buf_len);
-}
-
-static int https_pending(httpd_handle_t hd, int sockfd)
-{
-  esp_tls_t *tls = (esp_tls_t *)httpd_sess_get_transport_ctx(hd, sockfd);
-  if (!tls) return 0;
-  return (int)esp_tls_get_bytes_avail(tls);
-}
-
-/* ============================================================================
- * CONNECTION LIFECYCLE
- * ============================================================================ */
-
-/**
- * @brief Open callback - checks heap BEFORE TLS handshake
- *
- * Called by httpd when a new TCP connection is accepted.
- * If free heap is insufficient, returns ESP_FAIL to deny the connection
- * immediately (no TLS allocation attempted, no error flooding).
- */
-static esp_err_t https_open_fn(httpd_handle_t hd, int sockfd)
-{
-  size_t free_heap = esp_get_free_heap_size();
-  size_t largest   = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-
-  DebugFlags *dbg = debug_flags_get();
-
-  if (dbg->http_server) {
-    debug_printf("[HTTPS] TLS open fd=%d heap=%u largest=%u\n", sockfd, (unsigned)free_heap, (unsigned)largest);
-  }
-
-  if (free_heap < HTTPS_MIN_FREE_HEAP || largest < HTTPS_MIN_CONTIG_BLOCK) {
-    ESP_LOGW(TAG, "TLS denied: heap=%u largest=%u (need %uKB)",
-             free_heap, largest, HTTPS_MIN_FREE_HEAP / 1024);
-    if (dbg->http_server) {
-      debug_printf("[HTTPS] TLS DENIED - insufficient heap\n");
-    }
-    return ESP_FAIL;
-  }
-
-  esp_tls_t *tls = esp_tls_init();
-  if (!tls) {
-    ESP_LOGE(TAG, "esp_tls_init() failed");
-    if (dbg->http_server) {
-      debug_printf("[HTTPS] esp_tls_init() FAILED\n");
-    }
-    return ESP_FAIL;
-  }
-
-  if (dbg->http_server) {
-    debug_printf("[HTTPS] Starting handshake (heap=%u before)\n", (unsigned)esp_get_free_heap_size());
-  }
-
-  int ret = esp_tls_server_session_create(&s_tls_cfg, sockfd, tls);
-  if (ret != 0) {
-    ESP_LOGW(TAG, "TLS handshake failed (err=%d, heap=%u)", ret, esp_get_free_heap_size());
-    if (dbg->http_server) {
-      debug_printf("[HTTPS] TLS handshake FAILED err=%d heap=%u\n", ret, (unsigned)esp_get_free_heap_size());
-    }
-    /* Prevent esp_tls_server_session_delete from closing the socket -
-     * httpd owns the socket and will close it when we return ESP_FAIL */
-    tls->sockfd = -1;
-    esp_tls_server_session_delete(tls);
-    return ESP_FAIL;
-  }
-
-  /* Store TLS context and override transport functions */
-  httpd_sess_set_transport_ctx(hd, sockfd, (void *)tls, NULL);
-  httpd_sess_set_send_override(hd, sockfd, https_send);
-  httpd_sess_set_recv_override(hd, sockfd, https_recv);
-  httpd_sess_set_pending_override(hd, sockfd, https_pending);
-
-  if (dbg->http_server) {
-    debug_printf("[HTTPS] TLS handshake OK fd=%d heap=%u\n", sockfd, (unsigned)esp_get_free_heap_size());
-  }
-  return ESP_OK;
-}
-
-/**
- * @brief Close callback - tears down TLS session
- *
- * Called by httpd when a session is terminated (timeout, LRU purge, client close).
- * IMPORTANT: httpd closes the socket fd AFTER calling close_fn, so we must
- * prevent esp_tls_server_session_delete() from also closing it (double-close
- * causes heap corruption when the fd is reused by another TLS session).
- */
-static void https_close_fn(httpd_handle_t hd, int sockfd)
-{
-  esp_tls_t *tls = (esp_tls_t *)httpd_sess_get_transport_ctx(hd, sockfd);
-  if (tls) {
-    httpd_sess_set_transport_ctx(hd, sockfd, NULL, NULL);
-    /* Prevent esp_tls from closing the socket - httpd owns it */
-    tls->sockfd = -1;
-    esp_tls_server_session_delete(tls);
-    DebugFlags *dbg = debug_flags_get();
-    if (dbg->http_server) {
-      debug_printf("[HTTPS] TLS session closed fd=%d heap=%u\n", sockfd, (unsigned)esp_get_free_heap_size());
-    }
-  } else {
-    /* No TLS context - httpd will close sockfd after this callback returns.
-     * Do NOT call close(sockfd) here - that would cause double-close heap corruption. */
-  }
-}
 
 /* ============================================================================
  * PUBLIC API
@@ -188,45 +53,52 @@ int https_wrapper_start(httpd_handle_t *handle,
            esp_get_free_heap_size(),
            heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 
-  /* Initialize TLS server config (cert + key) */
-  memset(&s_tls_cfg, 0, sizeof(s_tls_cfg));
-  s_tls_cfg.servercert_buf  = servercert_pem_start;
-  s_tls_cfg.servercert_bytes = (unsigned int)(servercert_pem_end - servercert_pem_start);
-  s_tls_cfg.serverkey_buf   = prvtkey_pem_start;
-  s_tls_cfg.serverkey_bytes = (unsigned int)(prvtkey_pem_end - prvtkey_pem_start);
+  /* Use the official ESP-IDF HTTPS server component.
+   * It handles TLS session create/delete internally via its own
+   * open_fn/close_fn callbacks - no manual esp_tls management needed. */
+  httpd_ssl_config_t ssl_config = HTTPD_SSL_CONFIG_DEFAULT();
 
-  /* Use plain httpd with custom TLS open/close callbacks.
-   * max_open_sockets = 4 (default), but the heap check in open_fn
-   * will deny connections when memory is insufficient. */
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port      = port;
-  config.max_uri_handlers = max_uri;
-  config.stack_size       = stack_size;
-  config.max_open_sockets = 1;
-  config.backlog_conn     = 1;
-  config.uri_match_fn     = httpd_uri_match_wildcard;
-  config.lru_purge_enable = true;
-  config.recv_wait_timeout  = 2;   // 2 sec (API calls complete in <100ms)
-  config.send_wait_timeout  = 2;
-  config.core_id          = core_id;
-  config.task_priority    = priority;
-  config.open_fn          = https_open_fn;
-  config.close_fn         = https_close_fn;
+  /* Server certificate and private key (embedded at build time).
+   * NOTE: In ESP-IDF 4.x, the server cert field is confusingly named "cacert_pem"
+   * (fixed in ESP-IDF 5.0 to "servercert"). This IS the server certificate. */
+  ssl_config.cacert_pem  = servercert_pem_start;
+  ssl_config.cacert_len  = (size_t)(servercert_pem_end - servercert_pem_start);
+  ssl_config.prvtkey_pem = prvtkey_pem_start;
+  ssl_config.prvtkey_len = (size_t)(prvtkey_pem_end - prvtkey_pem_start);
 
-  esp_err_t err = httpd_start(handle, &config);
+  /* httpd configuration (accessible via .httpd member) */
+  ssl_config.httpd.server_port      = port;
+  ssl_config.httpd.max_uri_handlers = max_uri;
+  ssl_config.httpd.stack_size       = stack_size;
+  ssl_config.httpd.max_open_sockets = 1;
+  ssl_config.httpd.backlog_conn     = 1;
+  ssl_config.httpd.uri_match_fn     = httpd_uri_match_wildcard;
+  ssl_config.httpd.lru_purge_enable = true;
+  ssl_config.httpd.recv_wait_timeout  = 4;
+  ssl_config.httpd.send_wait_timeout  = 4;
+  ssl_config.httpd.core_id          = core_id;
+  ssl_config.httpd.task_priority    = priority;
+
+  /* Force HTTPS transport mode */
+  ssl_config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
+
+  /* Port for HTTPS (overrides the default 443) */
+  ssl_config.port_secure = port;
+
+  esp_err_t err = httpd_ssl_start(handle, &ssl_config);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "httpd_start failed: %d (0x%x)", err, err);
+    ESP_LOGE(TAG, "httpd_ssl_start failed: %d (0x%x)", err, err);
     return -1;
   }
 
-  ESP_LOGI(TAG, "HTTPS server on port %d (custom TLS, heap-limited)", port);
+  ESP_LOGI(TAG, "HTTPS server on port %d (esp_https_server)", port);
   return 0;
 }
 
 void https_wrapper_stop(httpd_handle_t handle)
 {
   if (handle) {
-    httpd_stop(handle);
+    httpd_ssl_stop(handle);
     ESP_LOGI(TAG, "HTTPS server stopped");
   }
 }

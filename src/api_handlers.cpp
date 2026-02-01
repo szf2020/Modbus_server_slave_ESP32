@@ -44,9 +44,15 @@ extern void http_server_stat_server_error(void);
 extern void http_server_stat_auth_failure(void);
 extern bool http_server_check_auth(httpd_req_t *req);
 
-// Forward declarations for logic source handlers (defined later in this file)
+// Forward declarations for handlers used in suffix routing (defined later in this file)
 esp_err_t api_handler_logic_source_get(httpd_req_t *req);
 esp_err_t api_handler_logic_source_post(httpd_req_t *req);
+esp_err_t api_handler_logic_enable(httpd_req_t *req);
+esp_err_t api_handler_logic_disable(httpd_req_t *req);
+esp_err_t api_handler_logic_stats(httpd_req_t *req);
+esp_err_t api_handler_counter_reset(httpd_req_t *req);
+esp_err_t api_handler_counter_start(httpd_req_t *req);
+esp_err_t api_handler_counter_stop(httpd_req_t *req);
 
 /* ============================================================================
  * UTILITY FUNCTIONS
@@ -90,10 +96,17 @@ esp_err_t api_send_error(httpd_req_t *req, int status, const char *error_msg)
   snprintf(buf, sizeof(buf), "{\"error\":\"%s\",\"status\":%d}", error_msg, status);
 
   httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
   httpd_resp_set_status(req, status == 404 ? "404 Not Found" :
                              status == 400 ? "400 Bad Request" :
                              status == 401 ? "401 Unauthorized" :
                              status == 500 ? "500 Internal Server Error" : "400 Bad Request");
+
+  // For 401, add WWW-Authenticate header to trigger browser login dialog
+  if (status == 401) {
+    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"Modbus ESP32\"");
+  }
+
   httpd_resp_sendstr(req, buf);
 
   if (status == 401) {
@@ -115,6 +128,7 @@ esp_err_t api_send_json(httpd_req_t *req, const char *json_str)
   }
 
   httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate");
   httpd_resp_sendstr(req, json_str);
   http_server_stat_success();
   return ESP_OK;
@@ -127,7 +141,6 @@ esp_err_t api_send_json(httpd_req_t *req, const char *json_str)
 #define CHECK_AUTH(req) \
   do { \
     if (!http_server_check_auth(req)) { \
-      httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"Modbus ESP32\""); \
       return api_send_error(req, 401, "Authentication required"); \
     } \
   } while(0)
@@ -279,6 +292,23 @@ esp_err_t api_handler_counters(httpd_req_t *req)
 
 esp_err_t api_handler_counter_single(httpd_req_t *req)
 {
+  // Check for action suffixes (ESP-IDF wildcard only matches at end of URI,
+  // so /api/counters/*/reset etc. never match - we must route internally)
+  const char *uri = req->uri;
+  size_t uri_len = strlen(uri);
+
+  if (req->method == HTTP_POST) {
+    if (uri_len >= 6 && strcmp(uri + uri_len - 6, "/reset") == 0) {
+      return api_handler_counter_reset(req);
+    }
+    if (uri_len >= 6 && strcmp(uri + uri_len - 6, "/start") == 0) {
+      return api_handler_counter_start(req);
+    }
+    if (uri_len >= 5 && strcmp(uri + uri_len - 5, "/stop") == 0) {
+      return api_handler_counter_stop(req);
+    }
+  }
+
   http_server_stat_request();
   CHECK_AUTH(req);
 
@@ -702,20 +732,32 @@ esp_err_t api_handler_logic(httpd_req_t *req)
 
 esp_err_t api_handler_logic_single(httpd_req_t *req)
 {
-  // Check if URI ends with /source - route to source handlers
-  // (source handlers have their own stat/auth calls)
+  // Internal suffix routing - ESP-IDF wildcard only supports * at end of URI,
+  // so /api/logic/*/source, /api/logic/*/enable etc. never match.
+  // All requests to /api/logic/{id}/xxx land here via /api/logic/* wildcard.
   const char *uri = req->uri;
   size_t uri_len = strlen(uri);
-  const char *suffix = "/source";
-  size_t suffix_len = 7;
-  bool ends_with_source = (uri_len >= suffix_len &&
-                           strcmp(uri + uri_len - suffix_len, suffix) == 0);
-  if (ends_with_source) {
-    // Route to source handler based on method
-    if (req->method == HTTP_GET) {
+
+  // GET suffixes
+  if (req->method == HTTP_GET) {
+    if (uri_len >= 7 && strcmp(uri + uri_len - 7, "/source") == 0) {
       return api_handler_logic_source_get(req);
-    } else if (req->method == HTTP_POST) {
+    }
+    if (uri_len >= 6 && strcmp(uri + uri_len - 6, "/stats") == 0) {
+      return api_handler_logic_stats(req);
+    }
+  }
+
+  // POST suffixes
+  if (req->method == HTTP_POST) {
+    if (uri_len >= 7 && strcmp(uri + uri_len - 7, "/source") == 0) {
       return api_handler_logic_source_post(req);
+    }
+    if (uri_len >= 7 && strcmp(uri + uri_len - 7, "/enable") == 0) {
+      return api_handler_logic_enable(req);
+    }
+    if (uri_len >= 8 && strcmp(uri + uri_len - 8, "/disable") == 0) {
+      return api_handler_logic_disable(req);
     }
   }
 
@@ -818,27 +860,39 @@ esp_err_t api_handler_logic_source_get(httpd_req_t *req)
     return api_send_error(req, 500, "ST Logic not initialized");
   }
 
+  st_logic_program_config_t *prog = &state->programs[id - 1];
   const char *source = st_logic_get_source_code(state, id - 1);
-  if (!source || strlen(source) == 0) {
+  if (!source || prog->source_size == 0) {
     return api_send_error(req, 404, "No source code uploaded for this program");
   }
 
-  // Build JSON response with source code
-  size_t source_len = strlen(source);
+  // IMPORTANT: source_pool entries are NOT null-terminated (contiguous in shared pool).
+  // Must use prog->source_size, NOT strlen(source).
+  size_t source_len = prog->source_size;
   size_t buf_size = source_len + 256;  // Extra space for JSON wrapper
   char *buf = (char *)malloc(buf_size);
   if (!buf) {
     return api_send_error(req, 500, "Out of memory");
   }
 
-  // Escape source code for JSON (newlines, quotes, etc.)
+  // Make null-terminated copy for JSON serialization
+  char *source_copy = (char *)malloc(source_len + 1);
+  if (!source_copy) {
+    free(buf);
+    return api_send_error(req, 500, "Out of memory");
+  }
+  memcpy(source_copy, source, source_len);
+  source_copy[source_len] = '\0';
+
   JsonDocument doc;
   doc["id"] = id;
-  doc["name"] = state->programs[id - 1].name;
-  doc["source"] = source;
+  doc["name"] = prog->name;
+  doc["source"] = source_copy;
   doc["size"] = source_len;
 
   size_t json_len = serializeJson(doc, buf, buf_size);
+  free(source_copy);
+
   if (json_len >= buf_size) {
     free(buf);
     return api_send_error(req, 500, "Response too large");
@@ -1409,53 +1463,209 @@ esp_err_t api_handler_config_get(httpd_req_t *req)
   http_server_stat_request();
   CHECK_AUTH(req);
 
-  // Allocate larger buffer for full config
-  char *buf = (char *)malloc(HTTP_SERVER_MAX_RESP_SIZE);
+  // Full config can be 6-8KB JSON — allocate on heap
+  const size_t BUF_SIZE = 8192;
+  char *buf = (char *)malloc(BUF_SIZE);
   if (!buf) {
     return api_send_error(req, 500, "Out of memory");
   }
 
   JsonDocument doc;
 
-  // System
+  // ── SYSTEM ──
   JsonObject sys = doc["system"].to<JsonObject>();
   sys["version"] = PROJECT_VERSION;
   sys["build"] = BUILD_NUMBER;
   sys["hostname"] = g_persist_config.hostname;
   sys["schema_version"] = g_persist_config.schema_version;
 
-  // Modbus
-  JsonObject modbus = doc["modbus"].to<JsonObject>();
-  modbus["enabled"] = g_persist_config.modbus_slave.enabled ? true : false;
-  modbus["slave_id"] = g_persist_config.modbus_slave.slave_id;
-  modbus["baudrate"] = g_persist_config.modbus_slave.baudrate;
-  modbus["parity"] = g_persist_config.modbus_slave.parity;
-  modbus["stop_bits"] = g_persist_config.modbus_slave.stop_bits;
+  // ── MODBUS SLAVE ──
+  JsonObject slave = doc["modbus_slave"].to<JsonObject>();
+  slave["enabled"] = g_persist_config.modbus_slave.enabled ? true : false;
+  slave["slave_id"] = g_persist_config.modbus_slave.slave_id;
+  slave["baudrate"] = g_persist_config.modbus_slave.baudrate;
+  const char *par_str = "NONE";
+  if (g_persist_config.modbus_slave.parity == 1) par_str = "EVEN";
+  else if (g_persist_config.modbus_slave.parity == 2) par_str = "ODD";
+  slave["parity"] = par_str;
+  slave["stop_bits"] = g_persist_config.modbus_slave.stop_bits;
+  slave["inter_frame_delay_ms"] = g_persist_config.modbus_slave.inter_frame_delay;
 
-  // Network
+  // ── MODBUS MASTER ──
+  JsonObject master = doc["modbus_master"].to<JsonObject>();
+  master["enabled"] = g_persist_config.modbus_master.enabled ? true : false;
+  if (g_persist_config.modbus_master.enabled) {
+    master["baudrate"] = g_persist_config.modbus_master.baudrate;
+    const char *mpar = "NONE";
+    if (g_persist_config.modbus_master.parity == 1) mpar = "EVEN";
+    else if (g_persist_config.modbus_master.parity == 2) mpar = "ODD";
+    master["parity"] = mpar;
+    master["stop_bits"] = g_persist_config.modbus_master.stop_bits;
+    master["timeout_ms"] = g_persist_config.modbus_master.timeout_ms;
+    master["inter_frame_delay_ms"] = g_persist_config.modbus_master.inter_frame_delay;
+    master["max_requests_per_cycle"] = g_persist_config.modbus_master.max_requests_per_cycle;
+  }
+
+  // ── NETWORK ──
   JsonObject network = doc["network"].to<JsonObject>();
+  network["enabled"] = g_persist_config.network.enabled ? true : false;
   network["ssid"] = g_persist_config.network.ssid;
   network["dhcp"] = g_persist_config.network.dhcp_enabled ? true : false;
   network["power_save"] = g_persist_config.network.wifi_power_save ? true : false;
+  if (!g_persist_config.network.dhcp_enabled) {
+    char ip_buf[16];
+    struct in_addr addr;
+    addr.s_addr = g_persist_config.network.static_ip;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    network["static_ip"] = ip_buf;
+    addr.s_addr = g_persist_config.network.static_gateway;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    network["static_gateway"] = ip_buf;
+    addr.s_addr = g_persist_config.network.static_netmask;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    network["static_netmask"] = ip_buf;
+    addr.s_addr = g_persist_config.network.static_dns;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    network["static_dns"] = ip_buf;
+  }
 
-  // HTTP
-  JsonObject http = doc["http"].to<JsonObject>();
-  http["enabled"] = g_persist_config.network.http.enabled ? true : false;
-  http["port"] = g_persist_config.network.http.port;
-  http["auth_enabled"] = g_persist_config.network.http.auth_enabled ? true : false;
-  http["priority"] = g_persist_config.network.http.priority;
-
-  // Telnet
+  // ── TELNET ──
   JsonObject telnet = doc["telnet"].to<JsonObject>();
   telnet["enabled"] = g_persist_config.network.telnet_enabled ? true : false;
   telnet["port"] = g_persist_config.network.telnet_port;
 
-  // ST Logic
+  // ── HTTP API ──
+  JsonObject http = doc["http"].to<JsonObject>();
+  http["enabled"] = g_persist_config.network.http.enabled ? true : false;
+  http["port"] = g_persist_config.network.http.port;
+  http["tls_enabled"] = g_persist_config.network.http.tls_enabled ? true : false;
+  http["api_enabled"] = g_persist_config.network.http.api_enabled ? true : false;
+  http["auth_enabled"] = g_persist_config.network.http.auth_enabled ? true : false;
+  const char *prio_str = "NORMAL";
+  if (g_persist_config.network.http.priority == 0) prio_str = "LOW";
+  else if (g_persist_config.network.http.priority == 2) prio_str = "HIGH";
+  http["priority"] = prio_str;
+
+  // ── COUNTERS ──
+  JsonArray counters = doc["counters"].to<JsonArray>();
+  for (int i = 0; i < COUNTER_COUNT; i++) {
+    const CounterConfig *c = &g_persist_config.counters[i];
+    if (!c->enabled) continue;
+    JsonObject co = counters.add<JsonObject>();
+    co["id"] = i + 1;
+    const char *hw = "SW";
+    if (c->hw_mode == COUNTER_HW_SW_ISR) hw = "SW_ISR";
+    else if (c->hw_mode == COUNTER_HW_PCNT) hw = "HW_PCNT";
+    co["hw_mode"] = hw;
+    const char *edge = "rising";
+    if (c->edge_type == COUNTER_EDGE_FALLING) edge = "falling";
+    else if (c->edge_type == COUNTER_EDGE_BOTH) edge = "both";
+    co["edge"] = edge;
+    co["direction"] = (c->direction == COUNTER_DIR_DOWN) ? "down" : "up";
+    co["prescaler"] = c->prescaler;
+    co["bit_width"] = c->bit_width;
+    co["scale_factor"] = c->scale_factor;
+    co["input_dis"] = c->input_dis;
+    co["value_reg"] = c->value_reg;
+    if (c->raw_reg != 0xFFFF) co["raw_reg"] = c->raw_reg;
+    if (c->freq_reg != 0xFFFF) co["freq_reg"] = c->freq_reg;
+    if (c->ctrl_reg != 0xFFFF) co["ctrl_reg"] = c->ctrl_reg;
+    co["start_value"] = c->start_value;
+    if (c->hw_gpio > 0) co["hw_gpio"] = c->hw_gpio;
+    if (c->interrupt_pin > 0) co["interrupt_pin"] = c->interrupt_pin;
+    co["debounce"] = (c->debounce_enabled && c->debounce_ms > 0) ? true : false;
+    if (c->debounce_enabled && c->debounce_ms > 0) co["debounce_ms"] = c->debounce_ms;
+  }
+
+  // ── TIMERS ──
+  JsonArray timers = doc["timers"].to<JsonArray>();
+  for (int i = 0; i < TIMER_COUNT; i++) {
+    const TimerConfig *t = &g_persist_config.timers[i];
+    if (!t->enabled) continue;
+    JsonObject ti = timers.add<JsonObject>();
+    ti["id"] = i + 1;
+    const char *tmode = "DISABLED";
+    switch (t->mode) {
+      case TIMER_MODE_1_ONESHOT:         tmode = "ONESHOT"; break;
+      case TIMER_MODE_2_MONOSTABLE:      tmode = "MONOSTABLE"; break;
+      case TIMER_MODE_3_ASTABLE:         tmode = "ASTABLE"; break;
+      case TIMER_MODE_4_INPUT_TRIGGERED: tmode = "INPUT_TRIGGERED"; break;
+      default: break;
+    }
+    ti["mode"] = tmode;
+    ti["output_coil"] = t->output_coil;
+    if (t->ctrl_reg != 0xFFFF) ti["ctrl_reg"] = t->ctrl_reg;
+    switch (t->mode) {
+      case TIMER_MODE_1_ONESHOT:
+        ti["phase1_ms"] = t->phase1_duration_ms;
+        ti["phase2_ms"] = t->phase2_duration_ms;
+        ti["phase3_ms"] = t->phase3_duration_ms;
+        break;
+      case TIMER_MODE_2_MONOSTABLE:
+        ti["pulse_ms"] = t->pulse_duration_ms;
+        break;
+      case TIMER_MODE_3_ASTABLE:
+        ti["on_ms"] = t->on_duration_ms;
+        ti["off_ms"] = t->off_duration_ms;
+        break;
+      case TIMER_MODE_4_INPUT_TRIGGERED:
+        ti["input_dis"] = t->input_dis;
+        ti["delay_ms"] = t->delay_ms;
+        break;
+      default: break;
+    }
+  }
+
+  // ── GPIO MAPPINGS ──
+  JsonArray gpios = doc["gpio"].to<JsonArray>();
+  for (int i = 0; i < g_persist_config.var_map_count; i++) {
+    const VariableMapping *m = &g_persist_config.var_maps[i];
+    if (m->source_type != MAPPING_SOURCE_GPIO) continue;
+    JsonObject g = gpios.add<JsonObject>();
+    g["pin"] = m->gpio_pin;
+    g["direction"] = m->is_input ? "input" : "output";
+    if (m->is_input) {
+      g["register"] = m->input_reg;
+    } else {
+      g["coil"] = m->coil_reg;
+    }
+  }
+
+  // ── ST LOGIC ──
   JsonObject logic = doc["st_logic"].to<JsonObject>();
   logic["interval_ms"] = g_persist_config.st_logic_interval_ms;
+  st_logic_engine_state_t *st_state = st_logic_get_state();
+  if (st_state) {
+    logic["enabled"] = st_state->enabled ? true : false;
+    JsonArray progs = logic["programs"].to<JsonArray>();
+    for (int i = 0; i < ST_LOGIC_MAX_PROGRAMS; i++) {
+      st_logic_program_config_t *p = &st_state->programs[i];
+      if (p->source_size == 0 && !p->compiled) continue;
+      JsonObject pr = progs.add<JsonObject>();
+      pr["id"] = i + 1;
+      pr["name"] = p->name;
+      pr["enabled"] = p->enabled ? true : false;
+      pr["compiled"] = p->compiled ? true : false;
+      pr["source_size"] = p->source_size;
+      pr["bindings"] = p->binding_count;
+    }
+  }
 
-  size_t json_len = serializeJson(doc, buf, HTTP_SERVER_MAX_RESP_SIZE);
-  if (json_len >= HTTP_SERVER_MAX_RESP_SIZE) {
+  // ── MODULES ──
+  JsonObject modules = doc["modules"].to<JsonObject>();
+  modules["counters"] = (g_persist_config.module_flags & MODULE_FLAG_COUNTERS_DISABLED) ? false : true;
+  modules["timers"] = (g_persist_config.module_flags & MODULE_FLAG_TIMERS_DISABLED) ? false : true;
+  modules["st_logic"] = (g_persist_config.module_flags & MODULE_FLAG_ST_LOGIC_DISABLED) ? false : true;
+
+  // ── PERSISTENCE ──
+  JsonObject persist = doc["persistence"].to<JsonObject>();
+  persist["enabled"] = g_persist_config.persist_regs.enabled ? true : false;
+  uint8_t grp_count = g_persist_config.persist_regs.group_count;
+  if (grp_count > PERSIST_MAX_GROUPS) grp_count = PERSIST_MAX_GROUPS;
+  persist["group_count"] = grp_count;
+
+  size_t json_len = serializeJson(doc, buf, BUF_SIZE);
+  if (json_len >= BUF_SIZE) {
     free(buf);
     return api_send_error(req, 500, "Response too large");
   }

@@ -2104,11 +2104,13 @@ void cli_cmd_set_http(uint8_t argc, char* argv[]) {
     debug_println("  Usage: set http <option> <value>");
     debug_println("");
     debug_println("  Options:");
-    debug_println("    enabled <on|off>    - Enable/disable HTTP REST API");
-    debug_println("    port <port>         - Set HTTP port (default: 80)");
+    debug_println("    enabled <on|off>    - Enable/disable HTTP server");
+    debug_println("    port <port>         - Set HTTP port (default: 80, HTTPS: 443)");
     debug_println("    auth <on|off>       - Enable/disable Basic Auth");
     debug_println("    username <user>     - Set HTTP username");
     debug_println("    password <pass>     - Set HTTP password");
+    debug_println("    api <on|off>        - Enable/disable API endpoints");
+    debug_println("    tls <on|off>        - Enable/disable HTTPS/TLS (requires reboot)");
     debug_println("");
     debug_println("  Note: Use 'save' to persist settings to NVS");
     return;
@@ -2177,10 +2179,32 @@ void cli_cmd_set_http(uint8_t argc, char* argv[]) {
     g_persist_config.network.http.password[HTTP_AUTH_PASSWORD_MAX_LEN - 1] = '\0';
     debug_println("HTTP password set (hidden for security)");
 
+  } else if (!strcmp(option, "api")) {
+    if (!strcmp(value, "on") || !strcmp(value, "ON") || !strcmp(value, "1") || !strcmp(value, "enable")) {
+      g_persist_config.network.http.api_enabled = 1;
+      debug_println("HTTP API endpoints enabled");
+    } else if (!strcmp(value, "off") || !strcmp(value, "OFF") || !strcmp(value, "0") || !strcmp(value, "disable")) {
+      g_persist_config.network.http.api_enabled = 0;
+      debug_println("HTTP API endpoints disabled");
+    } else {
+      debug_println("SET HTTP API: invalid value (use: on|off)");
+    }
+
+  } else if (!strcmp(option, "tls")) {
+    if (!strcmp(value, "on") || !strcmp(value, "ON") || !strcmp(value, "1") || !strcmp(value, "enable")) {
+      g_persist_config.network.http.tls_enabled = 1;
+      debug_println("HTTPS/TLS enabled (requires reboot)");
+    } else if (!strcmp(value, "off") || !strcmp(value, "OFF") || !strcmp(value, "0") || !strcmp(value, "disable")) {
+      g_persist_config.network.http.tls_enabled = 0;
+      debug_println("HTTPS/TLS disabled (plain HTTP, requires reboot)");
+    } else {
+      debug_println("SET HTTP TLS: invalid value (use: on|off)");
+    }
+
   } else {
     debug_print("SET HTTP: unknown option '");
     debug_print(option);
-    debug_println("' (use: enabled, port, auth, username, password)");
+    debug_println("' (use: enabled, port, auth, username, password, api, tls)");
   }
 
   debug_println("Hint: Use 'save' to persist configuration to NVS");

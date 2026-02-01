@@ -16,6 +16,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Print string followed by newline
  * @param str String to print (null-terminated)
@@ -57,5 +61,9 @@ void debug_newline(void);
  * @param ... Variable arguments
  */
 void debug_printf(const char* fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // debug_H

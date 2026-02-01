@@ -16,6 +16,7 @@
 #include <mbedtls/base64.h>
 
 #include "http_server.h"
+#include "https_wrapper.h"
 #include "api_handlers.h"
 #include "constants.h"
 #include "debug.h"
@@ -47,7 +48,9 @@ static struct {
  * ============================================================================ */
 
 // These are implemented in api_handlers.cpp
+extern esp_err_t api_handler_endpoints(httpd_req_t *req);
 extern esp_err_t api_handler_status(httpd_req_t *req);
+extern esp_err_t api_handler_config_get(httpd_req_t *req);
 extern esp_err_t api_handler_counters(httpd_req_t *req);
 extern esp_err_t api_handler_counter_single(httpd_req_t *req);
 extern esp_err_t api_handler_timers(httpd_req_t *req);
@@ -58,12 +61,36 @@ extern esp_err_t api_handler_ir_read(httpd_req_t *req);
 extern esp_err_t api_handler_coil_read(httpd_req_t *req);
 extern esp_err_t api_handler_coil_write(httpd_req_t *req);
 extern esp_err_t api_handler_di_read(httpd_req_t *req);
+extern esp_err_t api_handler_gpio(httpd_req_t *req);
+extern esp_err_t api_handler_gpio_single(httpd_req_t *req);
+extern esp_err_t api_handler_gpio_write(httpd_req_t *req);
 extern esp_err_t api_handler_logic(httpd_req_t *req);
 extern esp_err_t api_handler_logic_single(httpd_req_t *req);
+extern esp_err_t api_handler_logic_delete(httpd_req_t *req);
+extern esp_err_t api_handler_debug_get(httpd_req_t *req);
+extern esp_err_t api_handler_debug_set(httpd_req_t *req);
+extern esp_err_t api_handler_system_reboot(httpd_req_t *req);
+extern esp_err_t api_handler_system_save(httpd_req_t *req);
+extern esp_err_t api_handler_system_load(httpd_req_t *req);
+extern esp_err_t api_handler_system_defaults(httpd_req_t *req);
 
 /* ============================================================================
  * URI DEFINITIONS
  * ============================================================================ */
+
+static const httpd_uri_t uri_endpoints = {
+  .uri      = "/api",
+  .method   = HTTP_GET,
+  .handler  = api_handler_endpoints,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_endpoints_slash = {
+  .uri      = "/api/",
+  .method   = HTTP_GET,
+  .handler  = api_handler_endpoints,
+  .user_ctx = NULL
+};
 
 static const httpd_uri_t uri_status = {
   .uri      = "/api/status",
@@ -79,9 +106,25 @@ static const httpd_uri_t uri_counters = {
   .user_ctx = NULL
 };
 
-static const httpd_uri_t uri_counter_single = {
+static const httpd_uri_t uri_config = {
+  .uri      = "/api/config",
+  .method   = HTTP_GET,
+  .handler  = api_handler_config_get,
+  .user_ctx = NULL
+};
+
+// Single wildcard handles GET /api/counters/{id} and internal suffix routing
+// for POST /api/counters/{id}/reset, /start, /stop (ESP-IDF wildcard only at end)
+static const httpd_uri_t uri_counter_single_get = {
   .uri      = "/api/counters/*",
   .method   = HTTP_GET,
+  .handler  = api_handler_counter_single,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_counter_single_post = {
+  .uri      = "/api/counters/*",
+  .method   = HTTP_POST,
   .handler  = api_handler_counter_single,
   .user_ctx = NULL
 };
@@ -142,6 +185,27 @@ static const httpd_uri_t uri_di_read = {
   .user_ctx = NULL
 };
 
+static const httpd_uri_t uri_gpio = {
+  .uri      = "/api/gpio",
+  .method   = HTTP_GET,
+  .handler  = api_handler_gpio,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_gpio_single = {
+  .uri      = "/api/gpio/*",
+  .method   = HTTP_GET,
+  .handler  = api_handler_gpio_single,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_gpio_write = {
+  .uri      = "/api/gpio/*",
+  .method   = HTTP_POST,
+  .handler  = api_handler_gpio_write,
+  .user_ctx = NULL
+};
+
 static const httpd_uri_t uri_logic = {
   .uri      = "/api/logic",
   .method   = HTTP_GET,
@@ -149,10 +213,68 @@ static const httpd_uri_t uri_logic = {
   .user_ctx = NULL
 };
 
-static const httpd_uri_t uri_logic_single = {
+// Single wildcard handles all /api/logic/{id}/* with internal suffix routing
+// (ESP-IDF wildcard only supports * at end of URI)
+static const httpd_uri_t uri_logic_single_get = {
   .uri      = "/api/logic/*",
   .method   = HTTP_GET,
   .handler  = api_handler_logic_single,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_logic_single_post = {
+  .uri      = "/api/logic/*",
+  .method   = HTTP_POST,
+  .handler  = api_handler_logic_single,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_logic_single_delete = {
+  .uri      = "/api/logic/*",
+  .method   = HTTP_DELETE,
+  .handler  = api_handler_logic_delete,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_debug_get = {
+  .uri      = "/api/debug",
+  .method   = HTTP_GET,
+  .handler  = api_handler_debug_get,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_debug_set = {
+  .uri      = "/api/debug",
+  .method   = HTTP_POST,
+  .handler  = api_handler_debug_set,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_system_reboot = {
+  .uri      = "/api/system/reboot",
+  .method   = HTTP_POST,
+  .handler  = api_handler_system_reboot,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_system_save = {
+  .uri      = "/api/system/save",
+  .method   = HTTP_POST,
+  .handler  = api_handler_system_save,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_system_load = {
+  .uri      = "/api/system/load",
+  .method   = HTTP_POST,
+  .handler  = api_handler_system_load,
+  .user_ctx = NULL
+};
+
+static const httpd_uri_t uri_system_defaults = {
+  .uri      = "/api/system/defaults",
+  .method   = HTTP_POST,
+  .handler  = api_handler_system_defaults,
   .user_ctx = NULL
 };
 
@@ -197,34 +319,78 @@ int http_server_start(const HttpConfig *config)
   // Store config
   memcpy(&http_state.config, config, sizeof(HttpConfig));
 
-  // Configure HTTP server
-  httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
-  httpd_config.server_port = config->port;
-  httpd_config.max_uri_handlers = 16;
-  httpd_config.stack_size = 4096;
-  httpd_config.uri_match_fn = httpd_uri_match_wildcard;
+  // Start server (HTTPS or HTTP depending on tls_enabled)
+  if (config->tls_enabled) {
+    // HTTPS mode: use custom TLS wrapper with heap-limited connections
+    uint8_t prio = (config->priority == 0) ? 3 : (config->priority == 2) ? 6 : 5;
+    int ret = https_wrapper_start(&http_state.server,
+                                   config->port,
+                                   28,       // max URI handlers
+                                   10240,    // stack (TLS handshake needs ~8-10KB)
+                                   prio,
+                                   1);       // core 1
+    if (ret != 0) {
+      ESP_LOGE(TAG, "Failed to start HTTPS server on port %d", config->port);
+      return -1;
+    }
+    http_state.tls_active = 1;
+  } else {
+    // Plain HTTP mode
+    httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
+    httpd_config.server_port = config->port;
+    httpd_config.max_uri_handlers = 28;
+    httpd_config.stack_size = 4096;
+    httpd_config.uri_match_fn = httpd_uri_match_wildcard;
 
-  // Start server
-  esp_err_t err = httpd_start(&http_state.server, &httpd_config);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to start HTTP server: %d", err);
-    return -1;
+    esp_err_t err = httpd_start(&http_state.server, &httpd_config);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to start HTTP server: %d", err);
+      return -1;
+    }
+    http_state.tls_active = 0;
   }
 
-  // Register URI handlers
+  // Register URI handlers (26 total)
+  // NOTE: ESP-IDF httpd_uri_match_wildcard only supports * at END of URI.
+  // Middle-wildcards like /api/logic/*/source NEVER match.
+  // Instead, wildcard handlers do internal suffix-based routing.
+  //
+  // Discovery + status
+  httpd_register_uri_handler(http_state.server, &uri_endpoints);
+  httpd_register_uri_handler(http_state.server, &uri_endpoints_slash);
   httpd_register_uri_handler(http_state.server, &uri_status);
+  httpd_register_uri_handler(http_state.server, &uri_config);
+  // Counters (wildcard handles GET + suffix routing for POST /reset, /start, /stop)
   httpd_register_uri_handler(http_state.server, &uri_counters);
-  httpd_register_uri_handler(http_state.server, &uri_counter_single);
+  httpd_register_uri_handler(http_state.server, &uri_counter_single_get);
+  httpd_register_uri_handler(http_state.server, &uri_counter_single_post);
+  // Timers
   httpd_register_uri_handler(http_state.server, &uri_timers);
   httpd_register_uri_handler(http_state.server, &uri_timer_single);
+  // Registers
   httpd_register_uri_handler(http_state.server, &uri_hr_read);
   httpd_register_uri_handler(http_state.server, &uri_hr_write);
   httpd_register_uri_handler(http_state.server, &uri_ir_read);
   httpd_register_uri_handler(http_state.server, &uri_coil_read);
   httpd_register_uri_handler(http_state.server, &uri_coil_write);
   httpd_register_uri_handler(http_state.server, &uri_di_read);
+  // GPIO
+  httpd_register_uri_handler(http_state.server, &uri_gpio);
+  httpd_register_uri_handler(http_state.server, &uri_gpio_single);
+  httpd_register_uri_handler(http_state.server, &uri_gpio_write);
+  // ST Logic (wildcard handles GET/POST/DELETE + suffix routing)
   httpd_register_uri_handler(http_state.server, &uri_logic);
-  httpd_register_uri_handler(http_state.server, &uri_logic_single);
+  httpd_register_uri_handler(http_state.server, &uri_logic_single_get);
+  httpd_register_uri_handler(http_state.server, &uri_logic_single_post);
+  httpd_register_uri_handler(http_state.server, &uri_logic_single_delete);
+  // Debug
+  httpd_register_uri_handler(http_state.server, &uri_debug_get);
+  httpd_register_uri_handler(http_state.server, &uri_debug_set);
+  // System
+  httpd_register_uri_handler(http_state.server, &uri_system_reboot);
+  httpd_register_uri_handler(http_state.server, &uri_system_save);
+  httpd_register_uri_handler(http_state.server, &uri_system_load);
+  httpd_register_uri_handler(http_state.server, &uri_system_defaults);
 
   http_state.running = 1;
   ESP_LOGI(TAG, "HTTP server started on port %d", config->port);
@@ -239,15 +405,20 @@ int http_server_stop(void)
     return 0;
   }
 
-  esp_err_t err = httpd_stop(http_state.server);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to stop HTTP server: %d", err);
-    return -1;
+  if (http_state.tls_active) {
+    https_wrapper_stop(http_state.server);
+  } else {
+    esp_err_t err = httpd_stop(http_state.server);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to stop HTTP server: %d", err);
+      return -1;
+    }
   }
 
   http_state.server = NULL;
   http_state.running = 0;
-  ESP_LOGI(TAG, "HTTP server stopped");
+  http_state.tls_active = 0;
+  ESP_LOGI(TAG, "HTTP%s server stopped", http_state.tls_active ? "S" : "");
 
   return 0;
 }
@@ -376,7 +547,9 @@ void http_server_print_status(void)
   debug_printf("Status:           %s\n", http_state.running ? "Running" : "Stopped");
 
   if (http_state.running) {
+    debug_printf("Protocol:         %s\n", http_state.tls_active ? "HTTPS (TLS)" : "HTTP");
     debug_printf("Port:             %d\n", http_state.config.port);
+    debug_printf("API Endpoints:    %s\n", http_state.config.api_enabled ? "Enabled" : "Disabled");
     debug_printf("Auth Enabled:     %s\n", http_state.config.auth_enabled ? "Yes" : "No");
     if (http_state.config.auth_enabled) {
       debug_printf("Username:         %s\n", http_state.config.username);

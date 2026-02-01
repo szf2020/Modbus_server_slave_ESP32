@@ -8,6 +8,10 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Get debug flags structure
  */
@@ -47,5 +51,9 @@ void debug_flags_set_http_api(uint8_t enabled);
  * @brief Enable/disable all debug flags
  */
 void debug_flags_set_all(uint8_t enabled);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DEBUG_FLAGS_H

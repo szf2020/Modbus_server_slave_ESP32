@@ -302,11 +302,13 @@ static void print_wifi_help(void) {
 static void print_http_help(void) {
   debug_println("");
   debug_println("Available 'set http' commands:");
-  debug_println("  set http enabled <on|off>  - Aktivér/deaktivér HTTP REST API");
-  debug_println("  set http port <port>       - Sæt HTTP port (default 80)");
+  debug_println("  set http enabled <on|off>  - Aktivér/deaktivér HTTP server");
+  debug_println("  set http port <port>       - Sæt HTTP port (default 80, HTTPS: 443)");
   debug_println("  set http auth <on|off>     - Aktivér/deaktivér Basic Auth");
   debug_println("  set http username <user>   - Sæt HTTP username");
   debug_println("  set http password <pass>   - Sæt HTTP password");
+  debug_println("  set http api <on|off>      - Aktivér/deaktivér API endpoints");
+  debug_println("  set http tls <on|off>      - Aktivér/deaktivér HTTPS/TLS (kræver reboot)");
   debug_println("");
   debug_println("API Endpoints:");
   debug_println("  GET  /api/status           - System info (version, uptime, heap)");

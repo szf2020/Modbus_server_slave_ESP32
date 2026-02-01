@@ -176,6 +176,12 @@
 | BUG-198 | Manglende defaults for api_enabled og priority | ✅ FIXED | 🟠 MEDIUM | v6.0.4 | Ved første boot/migration var api_enabled=0 (disabled). FIX: Defaults api_enabled=1, priority=1 i config_struct/config_load/network_config (Build #1126) |
 | BUG-199 | show config mangler sektionsfiltrering | ✅ FIXED | 🟠 MEDIUM | v6.0.4 | "show config wifi" virkede ikke - ingen section-parameter support. FIX: cli_cmd_show_config(section) med filter for WIFI/MODBUS/COUNTER/etc (cli_show.cpp, cli_parser.cpp) (Build #1126) |
 | BUG-200 | Privat TLS-nøgle ikke beskyttet i .gitignore | ✅ FIXED | 🔴 CRITICAL | v6.0.4 | certs/prvtkey.pem kunne committes ved uheld. FIX: Tilføjet certs/prvtkey.pem og certs/*.key til .gitignore (Build #1126) |
+| BUG-201 | ESP-IDF middle-wildcard URI routing matcher aldrig | ✅ FIXED | 🔴 CRITICAL | v6.0.5 | `httpd_uri_match_wildcard` understøtter kun `*` i ENDEN af URI. `/api/logic/*/source` matchede aldrig. FIX: Fjernet 8 middle-wildcard URIs, intern suffix-routing i wildcard handlers (http_server.cpp, api_handlers.cpp) (Build #1162) |
+| BUG-202 | Source pool entries ikke null-termineret - strlen læser naboer | ✅ FIXED | 🔴 CRITICAL | v6.0.5 | `st_logic_get_source_code()` returnerer pointer i shared pool UDEN null-terminator. `strlen()` læste ind i efterfølgende programmer. FIX: Brug `prog->source_size`, opret null-termineret kopi (api_handlers.cpp) (Build #1162) |
+| BUG-203 | /api/config returnerer ufuldstændig konfiguration | ✅ FIXED | 🟡 HIGH | v6.0.5 | Manglede modbus master, counter detaljer, timer detaljer, GPIO, ST Logic, modules, persistence. FIX: Komplet rewrite med alle sektioner matchende `show config` (api_handlers.cpp) (Build #1162) |
+| BUG-204 | WWW-Authenticate header tabt pga. httpd response rækkefølge | ✅ FIXED | 🟡 HIGH | v6.0.5 | Header sat FØR `set_type`/`set_status` blev overskrevet. FIX: Flyttet til `api_send_error()` EFTER set_type/set_status men FØR sendstr (api_handlers.cpp) (Build #1162) |
+| BUG-205 | API responses cached af browser - manglende Cache-Control | ✅ FIXED | 🟡 HIGH | v6.0.5 | Uden `Cache-Control` header cachede browsere API responses aggressivt. Efter reflash viste browser gammel data. FIX: `Cache-Control: no-store, no-cache, must-revalidate` på alle API svar (api_handlers.cpp) (Build #1162) |
+| BUG-206 | /api/ trailing slash returnerer 404 | ✅ FIXED | 🔵 LOW | v6.0.5 | Kun `/api` var registreret, `/api/` gav 404. FIX: Tilføjet separat URI registration for `/api/` (http_server.cpp) (Build #1162) |
 
 ## Feature Requests / Enhancements
 
@@ -192,7 +198,7 @@
 | FEAT-009 | ST Logic STRUCT type support | ❌ OPEN | 🔵 LOW | v6.0.0 | Brugerdefinerede strukturer: `TYPE MyStruct: STRUCT x: INT; y: REAL; END_STRUCT END_TYPE`. Avanceret - lav prioritet |
 | FEAT-010 | ST Logic program prioriteter/scheduling | ❌ OPEN | 🔵 LOW | v6.0.0 | Differenteret execution interval per program, interrupt-drevet high-priority execution. Nyttigt til real-time krav |
 | FEAT-011 | HTTP REST API v6.0.0 | ✅ DONE | 🟡 HIGH | v6.0.0 | REST API med 20+ endpoints for counters, timers, logic, registers, GPIO, system control. (api_handlers.cpp) (Build #1108) |
-| FEAT-012 | HTTPS/TLS support | ✅ DONE | 🟠 MEDIUM | v6.0.4 | Custom TLS wrapper med heap-baseret connection limiting. ECDSA P-256 certifikat embedded i flash. (https_wrapper.c) (Build #1126) |
+| FEAT-012 | HTTPS/TLS support | ✅ DONE | 🟠 MEDIUM | v6.0.4 | esp_https_server component (httpd_ssl_start) med ECDSA P-256 certifikat embedded i flash. (https_wrapper.c) (Build #1126) |
 | FEAT-013 | Dynamisk parser/compiler RAM-allokering | ✅ DONE | 🟡 HIGH | v6.0.4 | Parser/compiler malloc'd under kompilering, frigivet efter. Sparer ~12KB permanent RAM. Upload-buffer også dynamisk (~5KB). (st_logic_config.cpp, cli_shell.cpp) (Build #1126) |
 | FEAT-014 | ST_LOGIC_MAX_PROGRAMS refactoring | ✅ DONE | 🟠 MEDIUM | v6.0.4 | Alle hardkodede 4-værdier erstattet med konstant. Module enable/disable flags. (constants.h, 10+ filer) (Build #1126) |
 | FEAT-015 | Telnet IAC negotiation + ANSI-kompatibel history | ✅ DONE | 🟠 MEDIUM | v6.0.4 | Korrekt IAC WILL ECHO/SUPPRESS-GO-AHEAD ved connection. ANSI-fri line clearing for alle terminaler. (telnet_server.cpp) (Build #1126) |
@@ -241,6 +247,8 @@
 - **BUG-157:** Stack overflow risk i parser recursion (FIXED Build #1018)
 - **BUG-158:** NULL pointer dereference i st_vm_exec_call_builtin (FIXED Build #1018)
 - **BUG-183:** start_value kun uint16_t - begrænser 32/64-bit counters (FIXED Build #1077)
+- **BUG-201:** ESP-IDF middle-wildcard URI routing matcher aldrig (FIXED Build #1162)
+- **BUG-202:** Source pool entries ikke null-termineret (FIXED Build #1162)
 
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-003:** Bounds checking on var index
@@ -308,6 +316,9 @@
 ### 🟡 HIGH Priority (SHOULD FIX)
 - **BUG-180:** Counter overflow mister ekstra counts ved wraparound (FIXED Build #1052)
 - **BUG-184:** Frequency measurement giver forkerte resultater for DOWN counting (FIXED Build #1074)
+- **BUG-203:** /api/config returnerer ufuldstændig konfiguration (FIXED Build #1162)
+- **BUG-204:** WWW-Authenticate header tabt pga. httpd response rækkefølge (FIXED Build #1162)
+- **BUG-205:** API responses cached af browser - manglende Cache-Control (FIXED Build #1162)
 
 ### 🟠 MEDIUM Priority (NICE TO HAVE)
 - **BUG-187:** Timer ctrl_reg ikke initialiseret i defaults (FIXED Build #1074)
@@ -325,6 +336,7 @@
 - **BUG-175:** FILTER function med zero cycle time (FIXED Build #1040)
 - **BUG-176:** HYSTERESIS function med inverterede thresholds (FIXED Build #1019)
 - **BUG-177:** strcpy uden bounds check i lexer (FIXED Build #1038)
+- **BUG-206:** /api/ trailing slash returnerer 404 (FIXED Build #1162)
 
 ### ✔️ NOT BUGS (DESIGN CHOICES)
 - **BUG-013:** Binding display order (intentional)

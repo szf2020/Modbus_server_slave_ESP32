@@ -296,7 +296,7 @@ typedef struct __attribute__((packed)) {
   char password[HTTP_AUTH_PASSWORD_MAX_LEN];    // Basic auth password
   uint8_t api_enabled;                          // API endpoints enabled (1) or disabled (0)
   uint8_t priority;                             // Task priority: 0=LOW, 1=NORMAL, 2=HIGH
-  uint8_t tls_enabled;                          // Future: HTTPS (currently unused)
+  uint8_t tls_enabled;                          // HTTPS/TLS via custom wrapper (FEAT-016)
   uint8_t reserved[3];                          // Alignment/future use
 } HttpConfig;
 
