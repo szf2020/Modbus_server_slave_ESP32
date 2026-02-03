@@ -33,6 +33,8 @@
 #include "config_load.h"
 #include "config_apply.h"
 #include "gpio_driver.h"
+#include "network_manager.h"
+#include "modbus_master.h"
 
 static const char *TAG = "API_HDLR";
 
@@ -53,6 +55,8 @@ esp_err_t api_handler_logic_stats(httpd_req_t *req);
 esp_err_t api_handler_counter_reset(httpd_req_t *req);
 esp_err_t api_handler_counter_start(httpd_req_t *req);
 esp_err_t api_handler_counter_stop(httpd_req_t *req);
+static esp_err_t api_handler_counter_config_post(httpd_req_t *req);
+static esp_err_t api_handler_counter_control_post(httpd_req_t *req);
 
 /* ============================================================================
  * UTILITY FUNCTIONS
@@ -166,14 +170,14 @@ esp_err_t api_handler_endpoints(httpd_req_t *req)
   http_server_stat_request();
   CHECK_AUTH(req);
 
-  // Use heap allocation for larger response (endpoints list ~5KB with v6.0.4+ additions)
-  char *buf = (char *)malloc(6144);
+  // Use heap allocation for larger response (endpoints list ~8KB with v6.1.0+ GAP additions)
+  char *buf = (char *)malloc(8192);
   if (!buf) {
     return api_send_error(req, 500, "Out of memory");
   }
 
   // Build JSON manually for efficiency
-  int len = snprintf(buf, 6144,
+  int len = snprintf(buf, 8192,
     "{"
     "\"name\":\"Modbus ESP32 REST API\","
     "\"version\":\"%s\","
@@ -184,11 +188,16 @@ esp_err_t api_handler_endpoints(httpd_req_t *req)
     "{\"method\":\"GET\",\"path\":\"/api/config\",\"desc\":\"Full configuration\"},"
     "{\"method\":\"GET\",\"path\":\"/api/counters\",\"desc\":\"All counters\"},"
     "{\"method\":\"GET\",\"path\":\"/api/counters/{1-4}\",\"desc\":\"Single counter\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/counters/{1-4}\",\"desc\":\"Configure counter\"},"
     "{\"method\":\"POST\",\"path\":\"/api/counters/{1-4}/reset\",\"desc\":\"Reset counter\"},"
     "{\"method\":\"POST\",\"path\":\"/api/counters/{1-4}/start\",\"desc\":\"Start counter\"},"
     "{\"method\":\"POST\",\"path\":\"/api/counters/{1-4}/stop\",\"desc\":\"Stop counter\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/counters/{1-4}/control\",\"desc\":\"Counter control\"},"
+    "{\"method\":\"DELETE\",\"path\":\"/api/counters/{1-4}\",\"desc\":\"Delete counter\"},"
     "{\"method\":\"GET\",\"path\":\"/api/timers\",\"desc\":\"All timers\"},"
     "{\"method\":\"GET\",\"path\":\"/api/timers/{1-4}\",\"desc\":\"Single timer\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/timers/{1-4}\",\"desc\":\"Configure timer\"},"
+    "{\"method\":\"DELETE\",\"path\":\"/api/timers/{1-4}\",\"desc\":\"Delete timer\"},"
     "{\"method\":\"GET\",\"path\":\"/api/registers/hr/{addr}\",\"desc\":\"Read HR\"},"
     "{\"method\":\"POST\",\"path\":\"/api/registers/hr/{addr}\",\"desc\":\"Write HR\"},"
     "{\"method\":\"GET\",\"path\":\"/api/registers/ir/{addr}\",\"desc\":\"Read IR\"},"
@@ -198,6 +207,7 @@ esp_err_t api_handler_endpoints(httpd_req_t *req)
     "{\"method\":\"GET\",\"path\":\"/api/gpio\",\"desc\":\"All GPIO mappings\"},"
     "{\"method\":\"GET\",\"path\":\"/api/gpio/{pin}\",\"desc\":\"Single GPIO\"},"
     "{\"method\":\"POST\",\"path\":\"/api/gpio/{pin}\",\"desc\":\"Write GPIO\"},"
+    "{\"method\":\"DELETE\",\"path\":\"/api/gpio/{pin}\",\"desc\":\"Remove GPIO mapping\"},"
     "{\"method\":\"GET\",\"path\":\"/api/logic\",\"desc\":\"ST Logic programs\"},"
     "{\"method\":\"GET\",\"path\":\"/api/logic/{1-4}\",\"desc\":\"Single program\"},"
     "{\"method\":\"GET\",\"path\":\"/api/logic/{1-4}/source\",\"desc\":\"Download ST code\"},"
@@ -206,6 +216,18 @@ esp_err_t api_handler_endpoints(httpd_req_t *req)
     "{\"method\":\"POST\",\"path\":\"/api/logic/{1-4}/disable\",\"desc\":\"Disable program\"},"
     "{\"method\":\"DELETE\",\"path\":\"/api/logic/{1-4}\",\"desc\":\"Delete program\"},"
     "{\"method\":\"GET\",\"path\":\"/api/logic/{1-4}/stats\",\"desc\":\"Program stats\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/logic/settings\",\"desc\":\"Logic engine settings\"},"
+    "{\"method\":\"GET\",\"path\":\"/api/modbus/slave\",\"desc\":\"Slave config+stats\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/modbus/slave\",\"desc\":\"Configure slave\"},"
+    "{\"method\":\"GET\",\"path\":\"/api/modbus/master\",\"desc\":\"Master config+stats\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/modbus/master\",\"desc\":\"Configure master\"},"
+    "{\"method\":\"GET\",\"path\":\"/api/wifi\",\"desc\":\"WiFi config+status\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/wifi\",\"desc\":\"Configure WiFi\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/wifi/connect\",\"desc\":\"Connect WiFi\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/wifi/disconnect\",\"desc\":\"Disconnect WiFi\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/http\",\"desc\":\"Configure HTTP server\"},"
+    "{\"method\":\"GET\",\"path\":\"/api/modules\",\"desc\":\"Module flags\"},"
+    "{\"method\":\"POST\",\"path\":\"/api/modules\",\"desc\":\"Set module flags\"},"
     "{\"method\":\"GET\",\"path\":\"/api/debug\",\"desc\":\"Debug flags\"},"
     "{\"method\":\"POST\",\"path\":\"/api/debug\",\"desc\":\"Set debug flags\"},"
     "{\"method\":\"POST\",\"path\":\"/api/system/reboot\",\"desc\":\"Reboot ESP32\"},"
@@ -216,7 +238,7 @@ esp_err_t api_handler_endpoints(httpd_req_t *req)
     "}",
     PROJECT_VERSION, BUILD_NUMBER);
 
-  if (len < 0 || len >= 6144) {
+  if (len < 0 || len >= 8192) {
     free(buf);
     return api_send_error(req, 500, "Buffer overflow");
   }
@@ -318,6 +340,16 @@ esp_err_t api_handler_counter_single(httpd_req_t *req)
     }
     if (uri_len >= 5 && strcmp(uri + uri_len - 5, "/stop") == 0) {
       return api_handler_counter_stop(req);
+    }
+    if (uri_len >= 8 && strcmp(uri + uri_len - 8, "/control") == 0) {
+      return api_handler_counter_control_post(req);
+    }
+    // POST /api/counters/{id} (no suffix) = counter config
+    // Check: no '/' after the id digit
+    const char *after_prefix = uri + strlen("/api/counters/");
+    const char *slash = strchr(after_prefix, '/');
+    if (slash == NULL) {
+      return api_handler_counter_config_post(req);
     }
   }
 
@@ -514,6 +546,7 @@ esp_err_t api_handler_hr_read(httpd_req_t *req)
 
 /* ============================================================================
  * POST /api/registers/hr/{addr}
+ * Type-aware write: uint (default), int, dint, dword, real (GAP-8)
  * ============================================================================ */
 
 esp_err_t api_handler_hr_write(httpd_req_t *req)
@@ -527,7 +560,7 @@ esp_err_t api_handler_hr_write(httpd_req_t *req)
   }
 
   // Read request body
-  char content[128];
+  char content[256];
   int ret = httpd_req_recv(req, content, sizeof(content) - 1);
   if (ret <= 0) {
     return api_send_error(req, 400, "Failed to read request body");
@@ -545,16 +578,74 @@ esp_err_t api_handler_hr_write(httpd_req_t *req)
     return api_send_error(req, 400, "Missing 'value' field");
   }
 
-  uint16_t value = doc["value"].as<uint16_t>();
-
-  // Write register
-  registers_set_holding_register(addr, value);
+  // Get type (default: uint)
+  const char *type_str = "uint";
+  if (doc.containsKey("type")) {
+    type_str = doc["type"].as<const char*>();
+    if (!type_str) type_str = "uint";
+  }
 
   // Response
   JsonDocument resp;
   resp["address"] = addr;
-  resp["value"] = value;
-  resp["status"] = "ok";
+  resp["status"] = 200;
+
+  if (strcmp(type_str, "uint") == 0) {
+    // 16-bit unsigned (default)
+    uint16_t value = doc["value"].as<uint16_t>();
+    registers_set_holding_register(addr, value);
+    resp["value"] = value;
+    resp["type"] = "uint";
+  }
+  else if (strcmp(type_str, "int") == 0) {
+    // 16-bit signed
+    int16_t value = doc["value"].as<int16_t>();
+    registers_set_holding_register(addr, (uint16_t)value);
+    resp["value"] = value;
+    resp["type"] = "int";
+  }
+  else if (strcmp(type_str, "dint") == 0) {
+    // 32-bit signed (2 registers)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      return api_send_error(req, 400, "DINT requires 2 registers, address out of range");
+    }
+    int32_t value = doc["value"].as<int32_t>();
+    uint32_t uval = (uint32_t)value;
+    registers_set_holding_register(addr, (uint16_t)(uval >> 16));      // High word
+    registers_set_holding_register(addr + 1, (uint16_t)(uval & 0xFFFF)); // Low word
+    resp["value"] = value;
+    resp["type"] = "dint";
+    resp["registers"] = 2;
+  }
+  else if (strcmp(type_str, "dword") == 0) {
+    // 32-bit unsigned (2 registers)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      return api_send_error(req, 400, "DWORD requires 2 registers, address out of range");
+    }
+    uint32_t value = doc["value"].as<uint32_t>();
+    registers_set_holding_register(addr, (uint16_t)(value >> 16));      // High word
+    registers_set_holding_register(addr + 1, (uint16_t)(value & 0xFFFF)); // Low word
+    resp["value"] = value;
+    resp["type"] = "dword";
+    resp["registers"] = 2;
+  }
+  else if (strcmp(type_str, "real") == 0) {
+    // 32-bit float (2 registers, IEEE 754)
+    if (addr + 1 >= HOLDING_REGS_SIZE) {
+      return api_send_error(req, 400, "REAL requires 2 registers, address out of range");
+    }
+    float value = doc["value"].as<float>();
+    uint32_t uval;
+    memcpy(&uval, &value, sizeof(float));
+    registers_set_holding_register(addr, (uint16_t)(uval >> 16));      // High word
+    registers_set_holding_register(addr + 1, (uint16_t)(uval & 0xFFFF)); // Low word
+    resp["value"] = value;
+    resp["type"] = "real";
+    resp["registers"] = 2;
+  }
+  else {
+    return api_send_error(req, 400, "Invalid type (use: uint, int, dint, dword, real)");
+  }
 
   char buf[256];
   serializeJson(resp, buf, sizeof(buf));
@@ -662,7 +753,7 @@ esp_err_t api_handler_coil_write(httpd_req_t *req)
   JsonDocument resp;
   resp["address"] = addr;
   resp["value"] = value ? true : false;
-  resp["status"] = "ok";
+  resp["status"] = 200;
 
   char buf[256];
   serializeJson(resp, buf, sizeof(buf));
@@ -770,6 +861,10 @@ esp_err_t api_handler_logic_single(httpd_req_t *req)
     }
     if (uri_len >= 8 && strcmp(uri + uri_len - 8, "/disable") == 0) {
       return api_handler_logic_disable(req);
+    }
+    // GAP-13: Variable binding
+    if (uri_len >= 5 && strcmp(uri + uri_len - 5, "/bind") == 0) {
+      return api_handler_logic_bind_post(req);
     }
   }
 
@@ -994,7 +1089,7 @@ esp_err_t api_handler_logic_source_post(httpd_req_t *req)
   st_logic_program_config_t *prog = &state->programs[id - 1];
 
   JsonDocument resp;
-  resp["status"] = "ok";
+  resp["status"] = 200;
   resp["id"] = id;
   resp["name"] = prog->name;
   resp["compiled"] = prog->compiled ? true : false;
@@ -1020,7 +1115,7 @@ esp_err_t api_handler_system_reboot(httpd_req_t *req)
   CHECK_AUTH(req);
 
   JsonDocument doc;
-  doc["status"] = "ok";
+  doc["status"] = 200;
   doc["message"] = "Rebooting in 1 second...";
 
   char buf[256];
@@ -1042,9 +1137,13 @@ esp_err_t api_handler_system_save(httpd_req_t *req)
 
   bool success = config_save_to_nvs(&g_persist_config);
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to save configuration");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
-  doc["message"] = success ? "Configuration saved to NVS" : "Failed to save configuration";
+  doc["status"] = 200;
+  doc["message"] = "Configuration saved to NVS";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1062,9 +1161,13 @@ esp_err_t api_handler_system_load(httpd_req_t *req)
     success = config_apply(&g_persist_config);
   }
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to load configuration");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
-  doc["message"] = success ? "Configuration loaded and applied" : "Failed to load configuration";
+  doc["status"] = 200;
+  doc["message"] = "Configuration loaded and applied";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1080,9 +1183,13 @@ esp_err_t api_handler_system_defaults(httpd_req_t *req)
   config_struct_create_default();
   bool success = config_apply(&g_persist_config);
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to apply defaults");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
-  doc["message"] = success ? "Reset to factory defaults (not saved)" : "Failed to apply defaults";
+  doc["status"] = 200;
+  doc["message"] = "Reset to factory defaults (not saved)";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1107,7 +1214,7 @@ esp_err_t api_handler_counter_reset(httpd_req_t *req)
   counter_engine_reset(id);
 
   JsonDocument doc;
-  doc["status"] = "ok";
+  doc["status"] = 200;
   doc["counter"] = id;
   doc["message"] = "Counter reset to start value";
 
@@ -1142,7 +1249,7 @@ esp_err_t api_handler_counter_start(httpd_req_t *req)
   registers_set_holding_register(cfg.ctrl_reg, ctrl_val);
 
   JsonDocument doc;
-  doc["status"] = "ok";
+  doc["status"] = 200;
   doc["counter"] = id;
   doc["message"] = "Counter started";
 
@@ -1177,7 +1284,7 @@ esp_err_t api_handler_counter_stop(httpd_req_t *req)
   registers_set_holding_register(cfg.ctrl_reg, ctrl_val);
 
   JsonDocument doc;
-  doc["status"] = "ok";
+  doc["status"] = 200;
   doc["counter"] = id;
   doc["message"] = "Counter stopped";
 
@@ -1276,6 +1383,13 @@ esp_err_t api_handler_gpio_write(httpd_req_t *req)
   http_server_stat_request();
   CHECK_AUTH(req);
 
+  // GAP-11: Suffix routing for /config
+  const char *uri = req->uri;
+  size_t uri_len = strlen(uri);
+  if (uri_len >= 7 && strcmp(uri + uri_len - 7, "/config") == 0) {
+    return api_handler_gpio_config_post(req);
+  }
+
   int pin = api_extract_id_from_uri(req, "/api/gpio/");
   if (pin < 0 || pin > 39) {
     return api_send_error(req, 400, "Invalid GPIO pin (must be 0-39)");
@@ -1324,7 +1438,7 @@ esp_err_t api_handler_gpio_write(httpd_req_t *req)
   gpio_write(pin, value);
 
   JsonDocument resp;
-  resp["status"] = "ok";
+  resp["status"] = 200;
   resp["pin"] = pin;
   resp["value"] = value ? 1 : 0;
 
@@ -1355,11 +1469,15 @@ esp_err_t api_handler_logic_enable(httpd_req_t *req)
 
   bool success = st_logic_set_enabled(state, id - 1, 1);
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to enable program");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
+  doc["status"] = 200;
   doc["program"] = id;
   doc["enabled"] = true;
-  doc["message"] = success ? "Program enabled" : "Failed to enable program";
+  doc["message"] = "Program enabled";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1384,11 +1502,15 @@ esp_err_t api_handler_logic_disable(httpd_req_t *req)
 
   bool success = st_logic_set_enabled(state, id - 1, 0);
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to disable program");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
+  doc["status"] = 200;
   doc["program"] = id;
   doc["enabled"] = false;
-  doc["message"] = success ? "Program disabled" : "Failed to disable program";
+  doc["message"] = "Program disabled";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1413,10 +1535,14 @@ esp_err_t api_handler_logic_delete(httpd_req_t *req)
 
   bool success = st_logic_delete(state, id - 1);
 
+  if (!success) {
+    return api_send_error(req, 500, "Failed to delete program");
+  }
+
   JsonDocument doc;
-  doc["status"] = success ? "ok" : "error";
+  doc["status"] = 200;
   doc["program"] = id;
-  doc["message"] = success ? "Program deleted" : "Failed to delete program";
+  doc["message"] = "Program deleted";
 
   char buf[256];
   serializeJson(doc, buf, sizeof(buf));
@@ -1756,7 +1882,7 @@ esp_err_t api_handler_debug_set(httpd_req_t *req)
   DebugFlags *dbg = debug_flags_get();
 
   JsonDocument resp;
-  resp["status"] = "ok";
+  resp["status"] = 200;
   resp["all"] = dbg->all ? true : false;
   resp["config_save"] = dbg->config_save ? true : false;
   resp["config_load"] = dbg->config_load ? true : false;
@@ -1769,4 +1895,1234 @@ esp_err_t api_handler_debug_set(httpd_req_t *req)
   serializeJson(resp, buf, sizeof(buf));
 
   return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * GET /api/modbus/* - Modbus slave/master config + stats (GAP-4, GAP-5, GAP-18)
+ * ============================================================================ */
+
+esp_err_t api_handler_modbus_get(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  const char *uri = req->uri;
+
+  // Route based on suffix: /api/modbus/slave or /api/modbus/master
+  bool is_slave = (strstr(uri, "/slave") != NULL);
+  bool is_master = (strstr(uri, "/master") != NULL);
+
+  if (!is_slave && !is_master) {
+    return api_send_error(req, 400, "Use /api/modbus/slave or /api/modbus/master");
+  }
+
+  JsonDocument doc;
+
+  if (is_slave) {
+    JsonObject cfg = doc["config"].to<JsonObject>();
+    cfg["enabled"] = g_persist_config.modbus_slave.enabled ? true : false;
+    cfg["slave_id"] = g_persist_config.modbus_slave.slave_id;
+    cfg["baudrate"] = g_persist_config.modbus_slave.baudrate;
+    const char *par = "none";
+    if (g_persist_config.modbus_slave.parity == 1) par = "even";
+    else if (g_persist_config.modbus_slave.parity == 2) par = "odd";
+    cfg["parity"] = par;
+    cfg["stop_bits"] = g_persist_config.modbus_slave.stop_bits;
+    cfg["inter_frame_delay_ms"] = g_persist_config.modbus_slave.inter_frame_delay;
+
+    JsonObject stats = doc["stats"].to<JsonObject>();
+    stats["total_requests"] = g_persist_config.modbus_slave.total_requests;
+    stats["successful_requests"] = g_persist_config.modbus_slave.successful_requests;
+    stats["crc_errors"] = g_persist_config.modbus_slave.crc_errors;
+    stats["exception_errors"] = g_persist_config.modbus_slave.exception_errors;
+  } else {
+    JsonObject cfg = doc["config"].to<JsonObject>();
+    cfg["enabled"] = g_modbus_master_config.enabled ? true : false;
+    cfg["baudrate"] = g_modbus_master_config.baudrate;
+    const char *par = "none";
+    if (g_modbus_master_config.parity == 1) par = "even";
+    else if (g_modbus_master_config.parity == 2) par = "odd";
+    cfg["parity"] = par;
+    cfg["stop_bits"] = g_modbus_master_config.stop_bits;
+    cfg["timeout_ms"] = g_modbus_master_config.timeout_ms;
+    cfg["inter_frame_delay_ms"] = g_modbus_master_config.inter_frame_delay;
+    cfg["max_requests_per_cycle"] = g_modbus_master_config.max_requests_per_cycle;
+
+    JsonObject stats = doc["stats"].to<JsonObject>();
+    stats["total_requests"] = g_modbus_master_config.total_requests;
+    stats["successful_requests"] = g_modbus_master_config.successful_requests;
+    stats["timeout_errors"] = g_modbus_master_config.timeout_errors;
+    stats["crc_errors"] = g_modbus_master_config.crc_errors;
+    stats["exception_errors"] = g_modbus_master_config.exception_errors;
+  }
+
+  char buf[HTTP_JSON_DOC_SIZE];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/modbus/* - Configure Modbus slave/master (GAP-4, GAP-5, GAP-18)
+ * ============================================================================ */
+
+esp_err_t api_handler_modbus_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  const char *uri = req->uri;
+  bool is_slave = (strstr(uri, "/slave") != NULL);
+  bool is_master = (strstr(uri, "/master") != NULL);
+
+  if (!is_slave && !is_master) {
+    return api_send_error(req, 400, "Use /api/modbus/slave or /api/modbus/master");
+  }
+
+  // Read request body
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  if (is_slave) {
+    if (doc.containsKey("slave_id")) {
+      uint8_t sid = doc["slave_id"].as<uint8_t>();
+      if (sid < 1 || sid > 247) {
+        return api_send_error(req, 400, "slave_id must be 1-247");
+      }
+      g_persist_config.modbus_slave.slave_id = sid;
+    }
+    if (doc.containsKey("baudrate")) {
+      g_persist_config.modbus_slave.baudrate = doc["baudrate"].as<uint32_t>();
+    }
+    if (doc.containsKey("parity")) {
+      const char *p = doc["parity"].as<const char*>();
+      if (p) {
+        if (strcmp(p, "none") == 0) g_persist_config.modbus_slave.parity = 0;
+        else if (strcmp(p, "even") == 0) g_persist_config.modbus_slave.parity = 1;
+        else if (strcmp(p, "odd") == 0) g_persist_config.modbus_slave.parity = 2;
+      }
+    }
+    if (doc.containsKey("stop_bits")) {
+      g_persist_config.modbus_slave.stop_bits = doc["stop_bits"].as<uint8_t>();
+    }
+    if (doc.containsKey("inter_frame_delay_ms")) {
+      g_persist_config.modbus_slave.inter_frame_delay = doc["inter_frame_delay_ms"].as<uint16_t>();
+    }
+  } else {
+    if (doc.containsKey("enabled")) {
+      g_modbus_master_config.enabled = doc["enabled"].as<bool>();
+      g_persist_config.modbus_master.enabled = g_modbus_master_config.enabled;
+    }
+    if (doc.containsKey("baudrate")) {
+      uint32_t baud = doc["baudrate"].as<uint32_t>();
+      g_modbus_master_config.baudrate = baud;
+      g_persist_config.modbus_master.baudrate = baud;
+    }
+    if (doc.containsKey("parity")) {
+      const char *p = doc["parity"].as<const char*>();
+      if (p) {
+        uint8_t pval = 0;
+        if (strcmp(p, "even") == 0) pval = 1;
+        else if (strcmp(p, "odd") == 0) pval = 2;
+        g_modbus_master_config.parity = pval;
+        g_persist_config.modbus_master.parity = pval;
+      }
+    }
+    if (doc.containsKey("stop_bits")) {
+      uint8_t sb = doc["stop_bits"].as<uint8_t>();
+      g_modbus_master_config.stop_bits = sb;
+      g_persist_config.modbus_master.stop_bits = sb;
+    }
+    if (doc.containsKey("timeout_ms")) {
+      uint16_t t = doc["timeout_ms"].as<uint16_t>();
+      g_modbus_master_config.timeout_ms = t;
+      g_persist_config.modbus_master.timeout_ms = t;
+    }
+    if (doc.containsKey("inter_frame_delay_ms")) {
+      uint16_t d = doc["inter_frame_delay_ms"].as<uint16_t>();
+      g_modbus_master_config.inter_frame_delay = d;
+      g_persist_config.modbus_master.inter_frame_delay = d;
+    }
+    if (doc.containsKey("max_requests_per_cycle")) {
+      uint8_t m = doc["max_requests_per_cycle"].as<uint8_t>();
+      g_modbus_master_config.max_requests_per_cycle = m;
+      g_persist_config.modbus_master.max_requests_per_cycle = m;
+    }
+    // Reconfigure if master is enabled
+    if (g_modbus_master_config.enabled) {
+      modbus_master_reconfigure();
+    }
+  }
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["message"] = is_slave ? "Modbus slave config updated" : "Modbus master config updated";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * GET /api/wifi - Extended WiFi status (GAP-6, GAP-19, GAP-21)
+ * ============================================================================ */
+
+esp_err_t api_handler_wifi_get(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  JsonDocument doc;
+
+  // Config
+  JsonObject cfg = doc["config"].to<JsonObject>();
+  cfg["enabled"] = g_persist_config.network.enabled ? true : false;
+  cfg["ssid"] = g_persist_config.network.ssid;
+  cfg["dhcp"] = g_persist_config.network.dhcp_enabled ? true : false;
+  cfg["power_save"] = g_persist_config.network.wifi_power_save ? true : false;
+
+  if (!g_persist_config.network.dhcp_enabled) {
+    char ip_buf[16];
+    struct in_addr addr;
+    addr.s_addr = g_persist_config.network.static_ip;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    cfg["static_ip"] = (const char*)ip_buf;
+    addr.s_addr = g_persist_config.network.static_gateway;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    cfg["static_gateway"] = (const char*)ip_buf;
+    addr.s_addr = g_persist_config.network.static_netmask;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    cfg["static_netmask"] = (const char*)ip_buf;
+    addr.s_addr = g_persist_config.network.static_dns;
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    cfg["static_dns"] = (const char*)ip_buf;
+  }
+
+  // Runtime status
+  JsonObject runtime = doc["runtime"].to<JsonObject>();
+  runtime["connected"] = wifi_driver_is_connected() ? true : false;
+
+  if (wifi_driver_is_connected()) {
+    struct in_addr addr;
+    char ip_buf[16];
+
+    addr.s_addr = wifi_driver_get_local_ip();
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    runtime["ip"] = (const char*)ip_buf;
+
+    addr.s_addr = wifi_driver_get_gateway();
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    runtime["gateway"] = (const char*)ip_buf;
+
+    addr.s_addr = wifi_driver_get_netmask();
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    runtime["netmask"] = (const char*)ip_buf;
+
+    addr.s_addr = wifi_driver_get_dns();
+    strncpy(ip_buf, inet_ntoa(addr), 15); ip_buf[15] = '\0';
+    runtime["dns"] = (const char*)ip_buf;
+
+    runtime["rssi"] = wifi_driver_get_rssi();
+    runtime["uptime_ms"] = wifi_driver_get_uptime_ms();
+
+    char ssid_buf[WIFI_SSID_MAX_LEN];
+    if (wifi_driver_get_ssid(ssid_buf) == 0) {
+      runtime["ssid"] = (const char*)ssid_buf;
+    }
+  }
+
+  runtime["state"] = wifi_driver_get_state_string();
+
+  char buf[HTTP_JSON_DOC_SIZE];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/wifi/* - WiFi config/connect/disconnect (GAP-6, GAP-19, GAP-21)
+ * ============================================================================ */
+
+esp_err_t api_handler_wifi_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  const char *uri = req->uri;
+  size_t uri_len = strlen(uri);
+
+  // POST /api/wifi/connect
+  if (uri_len >= 8 && strcmp(uri + uri_len - 8, "/connect") == 0) {
+    int result = network_manager_connect(&g_persist_config.network);
+    if (result != 0) {
+      return api_send_error(req, 500, "Failed to connect WiFi");
+    }
+    JsonDocument doc;
+    doc["status"] = 200;
+    doc["message"] = "WiFi connect initiated";
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    return api_send_json(req, buf);
+  }
+
+  // POST /api/wifi/disconnect
+  if (uri_len >= 11 && strcmp(uri + uri_len - 11, "/disconnect") == 0) {
+    int result = network_manager_stop();
+    if (result != 0) {
+      return api_send_error(req, 500, "Failed to disconnect WiFi");
+    }
+    JsonDocument doc;
+    doc["status"] = 200;
+    doc["message"] = "WiFi disconnected";
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    return api_send_json(req, buf);
+  }
+
+  // POST /api/wifi - WiFi configuration
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  if (doc.containsKey("ssid")) {
+    const char *ssid = doc["ssid"].as<const char*>();
+    if (ssid) {
+      strncpy(g_persist_config.network.ssid, ssid, WIFI_SSID_MAX_LEN - 1);
+      g_persist_config.network.ssid[WIFI_SSID_MAX_LEN - 1] = '\0';
+    }
+  }
+  if (doc.containsKey("password")) {
+    const char *pw = doc["password"].as<const char*>();
+    if (pw) {
+      strncpy(g_persist_config.network.password, pw, WIFI_PASSWORD_MAX_LEN - 1);
+      g_persist_config.network.password[WIFI_PASSWORD_MAX_LEN - 1] = '\0';
+    }
+  }
+  if (doc.containsKey("dhcp")) {
+    g_persist_config.network.dhcp_enabled = doc["dhcp"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("enabled")) {
+    g_persist_config.network.enabled = doc["enabled"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("power_save")) {
+    g_persist_config.network.wifi_power_save = doc["power_save"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("static_ip")) {
+    const char *ip = doc["static_ip"].as<const char*>();
+    if (ip) g_persist_config.network.static_ip = inet_addr(ip);
+  }
+  if (doc.containsKey("static_gateway")) {
+    const char *gw = doc["static_gateway"].as<const char*>();
+    if (gw) g_persist_config.network.static_gateway = inet_addr(gw);
+  }
+  if (doc.containsKey("static_netmask")) {
+    const char *nm = doc["static_netmask"].as<const char*>();
+    if (nm) g_persist_config.network.static_netmask = inet_addr(nm);
+  }
+  if (doc.containsKey("static_dns")) {
+    const char *dns = doc["static_dns"].as<const char*>();
+    if (dns) g_persist_config.network.static_dns = inet_addr(dns);
+  }
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["message"] = "WiFi config updated";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * POST /api/http - HTTP server configuration (GAP-7)
+ * ============================================================================ */
+
+esp_err_t api_handler_http_config_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  if (doc.containsKey("enabled")) {
+    g_persist_config.network.http.enabled = doc["enabled"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("port")) {
+    g_persist_config.network.http.port = doc["port"].as<uint16_t>();
+  }
+  if (doc.containsKey("auth_enabled")) {
+    g_persist_config.network.http.auth_enabled = doc["auth_enabled"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("api_enabled")) {
+    g_persist_config.network.http.api_enabled = doc["api_enabled"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("tls_enabled")) {
+    g_persist_config.network.http.tls_enabled = doc["tls_enabled"].as<bool>() ? 1 : 0;
+  }
+  if (doc.containsKey("username")) {
+    const char *u = doc["username"].as<const char*>();
+    if (u) {
+      strncpy(g_persist_config.network.http.username, u, HTTP_AUTH_USERNAME_MAX_LEN - 1);
+      g_persist_config.network.http.username[HTTP_AUTH_USERNAME_MAX_LEN - 1] = '\0';
+    }
+  }
+  if (doc.containsKey("password")) {
+    const char *p = doc["password"].as<const char*>();
+    if (p) {
+      strncpy(g_persist_config.network.http.password, p, HTTP_AUTH_PASSWORD_MAX_LEN - 1);
+      g_persist_config.network.http.password[HTTP_AUTH_PASSWORD_MAX_LEN - 1] = '\0';
+    }
+  }
+  if (doc.containsKey("priority")) {
+    const char *prio = doc["priority"].as<const char*>();
+    if (prio) {
+      if (strcmp(prio, "LOW") == 0 || strcmp(prio, "low") == 0) g_persist_config.network.http.priority = 0;
+      else if (strcmp(prio, "HIGH") == 0 || strcmp(prio, "high") == 0) g_persist_config.network.http.priority = 2;
+      else g_persist_config.network.http.priority = 1;
+    }
+  }
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["message"] = "HTTP config updated (reboot required for port/TLS changes)";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * Counter config POST + control (GAP-1, GAP-2, GAP-16) - suffix routing
+ * ============================================================================ */
+
+static esp_err_t api_handler_counter_config_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int id = api_extract_id_from_uri(req, "/api/counters/");
+  if (id < 1 || id > COUNTER_COUNT) {
+    return api_send_error(req, 400, "Invalid counter ID (must be 1-4)");
+  }
+
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  // Get current config as base
+  CounterConfig cfg;
+  counter_config_get(id, &cfg);
+
+  if (doc.containsKey("enabled")) cfg.enabled = doc["enabled"].as<bool>() ? 1 : 0;
+  if (doc.containsKey("hw_mode")) {
+    const char *m = doc["hw_mode"].as<const char*>();
+    if (m) {
+      if (strcmp(m, "sw") == 0 || strcmp(m, "SW") == 0) cfg.hw_mode = COUNTER_HW_SW;
+      else if (strcmp(m, "sw_isr") == 0 || strcmp(m, "SW_ISR") == 0) cfg.hw_mode = COUNTER_HW_SW_ISR;
+      else if (strcmp(m, "hw") == 0 || strcmp(m, "HW_PCNT") == 0 || strcmp(m, "hw_pcnt") == 0) cfg.hw_mode = COUNTER_HW_PCNT;
+    }
+  }
+  if (doc.containsKey("edge")) {
+    const char *e = doc["edge"].as<const char*>();
+    if (e) {
+      if (strcmp(e, "rising") == 0) cfg.edge_type = COUNTER_EDGE_RISING;
+      else if (strcmp(e, "falling") == 0) cfg.edge_type = COUNTER_EDGE_FALLING;
+      else if (strcmp(e, "both") == 0) cfg.edge_type = COUNTER_EDGE_BOTH;
+    }
+  }
+  if (doc.containsKey("direction")) {
+    const char *d = doc["direction"].as<const char*>();
+    if (d) {
+      cfg.direction = (strcmp(d, "down") == 0) ? COUNTER_DIR_DOWN : COUNTER_DIR_UP;
+    }
+  }
+  if (doc.containsKey("prescaler")) cfg.prescaler = doc["prescaler"].as<uint16_t>();
+  if (doc.containsKey("bit_width")) cfg.bit_width = doc["bit_width"].as<uint8_t>();
+  if (doc.containsKey("scale_factor")) cfg.scale_factor = doc["scale_factor"].as<float>();
+  if (doc.containsKey("value_reg")) cfg.value_reg = doc["value_reg"].as<uint16_t>();
+  if (doc.containsKey("raw_reg")) cfg.raw_reg = doc["raw_reg"].as<uint16_t>();
+  if (doc.containsKey("freq_reg")) cfg.freq_reg = doc["freq_reg"].as<uint16_t>();
+  if (doc.containsKey("ctrl_reg")) cfg.ctrl_reg = doc["ctrl_reg"].as<uint16_t>();
+  if (doc.containsKey("start_value")) cfg.start_value = doc["start_value"].as<uint64_t>();
+  if (doc.containsKey("hw_gpio")) cfg.hw_gpio = doc["hw_gpio"].as<uint8_t>();
+  if (doc.containsKey("interrupt_pin")) cfg.interrupt_pin = doc["interrupt_pin"].as<uint8_t>();
+  if (doc.containsKey("input_dis")) cfg.input_dis = doc["input_dis"].as<uint8_t>();
+  if (doc.containsKey("debounce_ms")) {
+    cfg.debounce_ms = doc["debounce_ms"].as<uint16_t>();
+    cfg.debounce_enabled = (cfg.debounce_ms > 0) ? 1 : 0;
+  }
+  if (doc.containsKey("compare_enabled")) cfg.compare_enabled = doc["compare_enabled"].as<bool>() ? 1 : 0;
+  if (doc.containsKey("compare_value")) cfg.compare_value = doc["compare_value"].as<uint64_t>();
+  if (doc.containsKey("compare_mode")) cfg.compare_mode = doc["compare_mode"].as<uint8_t>();
+
+  // Apply
+  counter_config_set(id, &cfg);
+  counter_engine_configure(id, &cfg);
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["counter"] = id;
+  resp["message"] = "Counter configured";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+static esp_err_t api_handler_counter_control_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int id = api_extract_id_from_uri(req, "/api/counters/");
+  if (id < 1 || id > COUNTER_COUNT) {
+    return api_send_error(req, 400, "Invalid counter ID (must be 1-4)");
+  }
+
+  char content[256];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  CounterConfig cfg;
+  if (!counter_engine_get_config(id, &cfg)) {
+    return api_send_error(req, 404, "Counter not configured");
+  }
+
+  if (cfg.ctrl_reg >= HOLDING_REGS_SIZE) {
+    return api_send_error(req, 500, "Counter has no control register");
+  }
+
+  uint16_t ctrl_val = registers_get_holding_register(cfg.ctrl_reg);
+
+  if (doc.containsKey("running")) {
+    if (doc["running"].as<bool>()) {
+      ctrl_val |= 0x0002;  // Start bit
+    } else {
+      ctrl_val &= ~0x0002;
+      ctrl_val |= 0x0004;  // Stop
+    }
+  }
+  if (doc.containsKey("reset") && doc["reset"].as<bool>()) {
+    ctrl_val |= 0x0001;  // Reset bit
+  }
+
+  registers_set_holding_register(cfg.ctrl_reg, ctrl_val);
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["counter"] = id;
+  resp["message"] = "Counter control updated";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * DELETE /api/counters/{id} - Delete counter (GAP-16)
+ * ============================================================================ */
+
+esp_err_t api_handler_counter_delete(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int id = api_extract_id_from_uri(req, "/api/counters/");
+  if (id < 1 || id > COUNTER_COUNT) {
+    return api_send_error(req, 400, "Invalid counter ID (must be 1-4)");
+  }
+
+  // Reset to defaults (disabled)
+  CounterConfig cfg = counter_config_defaults(id);
+  counter_config_set(id, &cfg);
+  counter_engine_configure(id, &cfg);
+
+  JsonDocument doc;
+  doc["status"] = 200;
+  doc["counter"] = id;
+  doc["message"] = "Counter deleted (reset to defaults)";
+
+  char buf[256];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/timers/{id} - Configure timer (GAP-3)
+ * ============================================================================ */
+
+esp_err_t api_handler_timer_config_post(httpd_req_t *req)
+{
+  const char *uri = req->uri;
+
+  // Extract timer ID
+  int id = api_extract_id_from_uri(req, "/api/timers/");
+  if (id < 1 || id > TIMER_COUNT) {
+    return api_send_error(req, 400, "Invalid timer ID (must be 1-4)");
+  }
+
+  // Check if URI is exactly /api/timers/{id} (no suffix)
+  char expected_uri[32];
+  snprintf(expected_uri, sizeof(expected_uri), "/api/timers/%d", id);
+  if (strcmp(uri, expected_uri) != 0) {
+    return api_send_error(req, 404, "Unknown timer action");
+  }
+
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  // Get current config as base
+  TimerConfig cfg;
+  timer_engine_get_config(id, &cfg);
+
+  if (doc.containsKey("enabled")) cfg.enabled = doc["enabled"].as<bool>() ? 1 : 0;
+  if (doc.containsKey("mode")) {
+    const char *m = doc["mode"].as<const char*>();
+    if (m) {
+      if (strcmp(m, "ONESHOT") == 0 || strcmp(m, "oneshot") == 0) cfg.mode = TIMER_MODE_1_ONESHOT;
+      else if (strcmp(m, "MONOSTABLE") == 0 || strcmp(m, "monostable") == 0) cfg.mode = TIMER_MODE_2_MONOSTABLE;
+      else if (strcmp(m, "ASTABLE") == 0 || strcmp(m, "astable") == 0) cfg.mode = TIMER_MODE_3_ASTABLE;
+      else if (strcmp(m, "INPUT_TRIGGERED") == 0 || strcmp(m, "input_triggered") == 0) cfg.mode = TIMER_MODE_4_INPUT_TRIGGERED;
+    }
+  }
+  if (doc.containsKey("output_coil")) cfg.output_coil = doc["output_coil"].as<uint16_t>();
+  if (doc.containsKey("ctrl_reg")) cfg.ctrl_reg = doc["ctrl_reg"].as<uint16_t>();
+
+  // Mode-specific params
+  if (doc.containsKey("phase1_duration_ms")) cfg.phase1_duration_ms = doc["phase1_duration_ms"].as<uint32_t>();
+  if (doc.containsKey("phase2_duration_ms")) cfg.phase2_duration_ms = doc["phase2_duration_ms"].as<uint32_t>();
+  if (doc.containsKey("phase3_duration_ms")) cfg.phase3_duration_ms = doc["phase3_duration_ms"].as<uint32_t>();
+  if (doc.containsKey("pulse_duration_ms")) cfg.pulse_duration_ms = doc["pulse_duration_ms"].as<uint32_t>();
+  if (doc.containsKey("on_duration_ms") || doc.containsKey("on_ms")) {
+    cfg.on_duration_ms = doc.containsKey("on_duration_ms") ? doc["on_duration_ms"].as<uint32_t>() : doc["on_ms"].as<uint32_t>();
+  }
+  if (doc.containsKey("off_duration_ms") || doc.containsKey("off_ms")) {
+    cfg.off_duration_ms = doc.containsKey("off_duration_ms") ? doc["off_duration_ms"].as<uint32_t>() : doc["off_ms"].as<uint32_t>();
+  }
+  if (doc.containsKey("input_dis")) cfg.input_dis = doc["input_dis"].as<uint8_t>();
+  if (doc.containsKey("delay_ms")) cfg.delay_ms = doc["delay_ms"].as<uint32_t>();
+
+  // Apply config
+  memcpy(&g_persist_config.timers[id - 1], &cfg, sizeof(TimerConfig));
+  timer_engine_configure(id, &cfg);
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["timer"] = id;
+  resp["message"] = "Timer configured";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * DELETE /api/timers/{id} - Delete timer (GAP-3)
+ * ============================================================================ */
+
+esp_err_t api_handler_timer_delete(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int id = api_extract_id_from_uri(req, "/api/timers/");
+  if (id < 1 || id > TIMER_COUNT) {
+    return api_send_error(req, 400, "Invalid timer ID (must be 1-4)");
+  }
+
+  // Reset to disabled
+  TimerConfig cfg;
+  memset(&cfg, 0, sizeof(TimerConfig));
+  cfg.mode = TIMER_MODE_DISABLED;
+  cfg.output_coil = 0xFFFF;
+  cfg.ctrl_reg = 0xFFFF;
+
+  memcpy(&g_persist_config.timers[id - 1], &cfg, sizeof(TimerConfig));
+  timer_engine_configure(id, &cfg);
+
+  JsonDocument doc;
+  doc["status"] = 200;
+  doc["timer"] = id;
+  doc["message"] = "Timer deleted (reset to defaults)";
+
+  char buf[256];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * DELETE /api/gpio/{pin} - Remove GPIO mapping (GAP-11)
+ * ============================================================================ */
+
+esp_err_t api_handler_gpio_config_delete(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int pin = api_extract_id_from_uri(req, "/api/gpio/");
+  if (pin < 0 || pin > 39) {
+    return api_send_error(req, 400, "Invalid GPIO pin (must be 0-39)");
+  }
+
+  // Find and remove mapping
+  bool found = false;
+  for (int i = 0; i < g_persist_config.var_map_count; i++) {
+    if (g_persist_config.var_maps[i].source_type == MAPPING_SOURCE_GPIO &&
+        g_persist_config.var_maps[i].gpio_pin == pin) {
+      // Shift remaining mappings down
+      for (int j = i; j < g_persist_config.var_map_count - 1; j++) {
+        memcpy(&g_persist_config.var_maps[j], &g_persist_config.var_maps[j + 1], sizeof(VariableMapping));
+      }
+      g_persist_config.var_map_count--;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    return api_send_error(req, 404, "GPIO pin not mapped");
+  }
+
+  JsonDocument doc;
+  doc["status"] = 200;
+  doc["pin"] = pin;
+  doc["message"] = "GPIO mapping removed";
+
+  char buf[256];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/gpio/{pin}/config - Configure GPIO mapping (GAP-11)
+ * ============================================================================ */
+
+esp_err_t api_handler_gpio_config_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int pin = api_extract_id_from_uri(req, "/api/gpio/");
+  if (pin < 0 || pin > 39) {
+    return api_send_error(req, 400, "Invalid GPIO pin (must be 0-39)");
+  }
+
+  // Check if URI ends with /config
+  const char *uri = req->uri;
+  if (strstr(uri, "/config") == NULL) {
+    // Not a config request, this shouldn't happen due to routing
+    return api_send_error(req, 400, "Use /api/gpio/{pin}/config");
+  }
+
+  char content[256];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  // Validate required field: direction
+  if (!doc.containsKey("direction")) {
+    return api_send_error(req, 400, "Missing 'direction' field (input/output)");
+  }
+
+  const char *dir = doc["direction"].as<const char*>();
+  if (!dir || (strcmp(dir, "input") != 0 && strcmp(dir, "output") != 0)) {
+    return api_send_error(req, 400, "direction must be 'input' or 'output'");
+  }
+
+  bool is_input = (strcmp(dir, "input") == 0);
+
+  // Get register/coil address
+  uint16_t reg_addr = 0xFFFF;
+  if (is_input) {
+    // Input mode: needs a discrete input index or register
+    if (doc.containsKey("register")) {
+      reg_addr = doc["register"].as<uint16_t>();
+      if (reg_addr >= HOLDING_REGS_SIZE) {
+        return api_send_error(req, 400, "register must be 0-255");
+      }
+    } else {
+      return api_send_error(req, 400, "Input mode requires 'register' field");
+    }
+  } else {
+    // Output mode: needs a coil index
+    if (doc.containsKey("coil")) {
+      reg_addr = doc["coil"].as<uint16_t>();
+      if (reg_addr >= 256) {
+        return api_send_error(req, 400, "coil must be 0-255");
+      }
+    } else {
+      return api_send_error(req, 400, "Output mode requires 'coil' field");
+    }
+  }
+
+  // Find or create mapping
+  VariableMapping *existing = NULL;
+  for (int i = 0; i < g_persist_config.var_map_count; i++) {
+    if (g_persist_config.var_maps[i].source_type == MAPPING_SOURCE_GPIO &&
+        g_persist_config.var_maps[i].gpio_pin == pin) {
+      existing = &g_persist_config.var_maps[i];
+      break;
+    }
+  }
+
+  if (!existing) {
+    // Create new mapping
+    if (g_persist_config.var_map_count >= 32) {
+      return api_send_error(req, 500, "Maximum GPIO mappings (32) reached");
+    }
+    existing = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(existing, 0, sizeof(VariableMapping));
+    existing->source_type = MAPPING_SOURCE_GPIO;
+    existing->gpio_pin = pin;
+    existing->associated_counter = 0xFF;
+    existing->associated_timer = 0xFF;
+    existing->st_program_id = 0xFF;
+    existing->st_var_index = 0xFF;
+    existing->input_reg = 0xFFFF;
+    existing->coil_reg = 0xFFFF;
+  }
+
+  // Update mapping
+  existing->is_input = is_input ? 1 : 0;
+  if (is_input) {
+    existing->input_reg = reg_addr;
+    existing->input_type = 0;  // Holding register
+  } else {
+    existing->coil_reg = reg_addr;
+    existing->output_type = 1;  // Coil
+  }
+  existing->word_count = 1;
+
+  // Configure GPIO direction
+  gpio_set_direction(pin, is_input ? GPIO_INPUT : GPIO_OUTPUT);
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["pin"] = pin;
+  resp["direction"] = dir;
+  if (is_input) {
+    resp["register"] = reg_addr;
+  } else {
+    resp["coil"] = reg_addr;
+  }
+  resp["message"] = "GPIO mapping configured";
+
+  char buf[256];
+  serializeJson(resp, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/logic/{id}/bind - ST Logic variable binding (GAP-13)
+ * ============================================================================ */
+
+esp_err_t api_handler_logic_bind_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  int id = api_extract_id_from_uri(req, "/api/logic/");
+  if (id < 1 || id > ST_LOGIC_MAX_PROGRAMS) {
+    return api_send_error(req, 400, "Invalid logic ID (must be 1-4)");
+  }
+
+  // Get logic state
+  st_logic_engine_state_t *logic_state = st_logic_get_state();
+  if (!logic_state) {
+    return api_send_error(req, 500, "Logic engine not initialized");
+  }
+
+  st_logic_program_config_t *prog = st_logic_get_program(logic_state, id - 1);
+  if (!prog || !prog->compiled) {
+    return api_send_error(req, 400, "Program not compiled. Upload source code first.");
+  }
+
+  char content[512];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  // Required: variable name
+  if (!doc.containsKey("variable")) {
+    return api_send_error(req, 400, "Missing 'variable' field");
+  }
+  const char *var_name = doc["variable"].as<const char*>();
+  if (!var_name || strlen(var_name) == 0) {
+    return api_send_error(req, 400, "Invalid variable name");
+  }
+
+  // Required: binding spec (reg:N, coil:N, or input:N)
+  if (!doc.containsKey("binding")) {
+    return api_send_error(req, 400, "Missing 'binding' field (e.g., 'reg:100', 'coil:10', 'input:5')");
+  }
+  const char *binding = doc["binding"].as<const char*>();
+  if (!binding || strlen(binding) == 0) {
+    return api_send_error(req, 400, "Invalid binding spec");
+  }
+
+  // Optional: direction override
+  const char *direction = NULL;
+  if (doc.containsKey("direction")) {
+    direction = doc["direction"].as<const char*>();
+  }
+
+  // Find variable by name
+  uint8_t var_index = 0xFF;
+  for (uint8_t i = 0; i < prog->bytecode.var_count; i++) {
+    if (strcmp(prog->bytecode.var_names[i], var_name) == 0) {
+      var_index = i;
+      break;
+    }
+  }
+
+  if (var_index == 0xFF) {
+    // Build list of available variables
+    char vars_list[256] = "";
+    int pos = 0;
+    for (uint8_t i = 0; i < prog->bytecode.var_count && pos < 250; i++) {
+      if (i > 0) pos += snprintf(vars_list + pos, sizeof(vars_list) - pos, ", ");
+      pos += snprintf(vars_list + pos, sizeof(vars_list) - pos, "%s", prog->bytecode.var_names[i]);
+    }
+    char errmsg[384];
+    snprintf(errmsg, sizeof(errmsg), "Variable '%s' not found. Available: %s", var_name, vars_list);
+    return api_send_error(req, 404, errmsg);
+  }
+
+  // Parse binding spec
+  uint16_t register_addr = 0;
+  uint8_t input_type = 0;  // 0=HR, 1=DI, 2=Coil
+  uint8_t output_type = 0; // 0=HR, 1=Coil
+  const char *default_dir = "output";
+
+  if (strncmp(binding, "reg:", 4) == 0) {
+    register_addr = atoi(binding + 4);
+    input_type = 0;  // HR
+    output_type = 0; // HR
+    default_dir = "output";
+  } else if (strncmp(binding, "coil:", 5) == 0) {
+    register_addr = atoi(binding + 5);
+    input_type = 2;  // Coil for input
+    output_type = 1; // Coil
+    default_dir = "output";
+  } else if (strncmp(binding, "input:", 6) == 0 || strncmp(binding, "input-dis:", 10) == 0) {
+    register_addr = (strncmp(binding, "input-dis:", 10) == 0) ? atoi(binding + 10) : atoi(binding + 6);
+    input_type = 1;  // DI
+    output_type = 0;
+    default_dir = "input";
+  } else {
+    return api_send_error(req, 400, "Invalid binding (use 'reg:N', 'coil:N', or 'input:N')");
+  }
+
+  // Validate register range
+  if (register_addr >= HOLDING_REGS_SIZE) {
+    return api_send_error(req, 400, "Register address out of range (0-255)");
+  }
+
+  // Use direction override or default
+  if (!direction) direction = default_dir;
+  if (strcmp(direction, "input") != 0 && strcmp(direction, "output") != 0 && strcmp(direction, "both") != 0) {
+    return api_send_error(req, 400, "direction must be 'input', 'output', or 'both'");
+  }
+
+  bool is_input = (strcmp(direction, "input") == 0 || strcmp(direction, "both") == 0);
+  bool is_output = (strcmp(direction, "output") == 0 || strcmp(direction, "both") == 0);
+
+  // Delete existing bindings for this variable
+  for (int i = 0; i < g_persist_config.var_map_count; i++) {
+    VariableMapping *m = &g_persist_config.var_maps[i];
+    if (m->source_type == MAPPING_SOURCE_ST_VAR &&
+        m->st_program_id == (id - 1) &&
+        m->st_var_index == var_index) {
+      // Shift down
+      for (int j = i; j < g_persist_config.var_map_count - 1; j++) {
+        memcpy(&g_persist_config.var_maps[j], &g_persist_config.var_maps[j + 1], sizeof(VariableMapping));
+      }
+      g_persist_config.var_map_count--;
+      i--;
+    }
+  }
+
+  // Create new binding(s)
+  int created = 0;
+  if (is_input) {
+    if (g_persist_config.var_map_count >= 32) {
+      return api_send_error(req, 500, "Maximum variable mappings (32) reached");
+    }
+    VariableMapping *m = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(m, 0, sizeof(VariableMapping));
+    m->source_type = MAPPING_SOURCE_ST_VAR;
+    m->st_program_id = id - 1;
+    m->st_var_index = var_index;
+    m->is_input = 1;
+    m->input_type = input_type;
+    m->input_reg = register_addr;
+    m->coil_reg = 0xFFFF;
+    m->gpio_pin = 0xFF;
+    m->associated_counter = 0xFF;
+    m->associated_timer = 0xFF;
+    m->word_count = 1;
+    // Check variable type for 32-bit
+    if (prog->bytecode.var_types[var_index] == ST_TYPE_DINT ||
+        prog->bytecode.var_types[var_index] == ST_TYPE_DWORD ||
+        prog->bytecode.var_types[var_index] == ST_TYPE_REAL) {
+      m->word_count = 2;
+    }
+    created++;
+  }
+  if (is_output) {
+    if (g_persist_config.var_map_count >= 32) {
+      return api_send_error(req, 500, "Maximum variable mappings (32) reached");
+    }
+    VariableMapping *m = &g_persist_config.var_maps[g_persist_config.var_map_count++];
+    memset(m, 0, sizeof(VariableMapping));
+    m->source_type = MAPPING_SOURCE_ST_VAR;
+    m->st_program_id = id - 1;
+    m->st_var_index = var_index;
+    m->is_input = 0;
+    m->output_type = output_type;
+    m->coil_reg = register_addr;
+    m->input_reg = 0xFFFF;
+    m->gpio_pin = 0xFF;
+    m->associated_counter = 0xFF;
+    m->associated_timer = 0xFF;
+    m->word_count = 1;
+    if (prog->bytecode.var_types[var_index] == ST_TYPE_DINT ||
+        prog->bytecode.var_types[var_index] == ST_TYPE_DWORD ||
+        prog->bytecode.var_types[var_index] == ST_TYPE_REAL) {
+      m->word_count = 2;
+    }
+    created++;
+  }
+
+  // Update binding count cache
+  st_logic_update_binding_counts(logic_state);
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["program"] = id;
+  resp["variable"] = var_name;
+  resp["binding"] = binding;
+  resp["direction"] = direction;
+  resp["mappings_created"] = created;
+  resp["message"] = "Variable binding created";
+
+  char buf[512];
+  serializeJson(resp, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/logic/settings - ST Logic engine settings (GAP-26)
+ * ============================================================================ */
+
+esp_err_t api_handler_logic_settings_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  char content[256];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  if (doc.containsKey("interval_ms")) {
+    uint32_t interval = doc["interval_ms"].as<uint32_t>();
+    if (interval < 1 || interval > 60000) {
+      return api_send_error(req, 400, "interval_ms must be 1-60000");
+    }
+    g_persist_config.st_logic_interval_ms = interval;
+
+    // Also update runtime state
+    st_logic_engine_state_t *state = st_logic_get_state();
+    if (state) {
+      state->execution_interval_ms = interval;
+    }
+  }
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["interval_ms"] = g_persist_config.st_logic_interval_ms;
+  resp["message"] = "Logic settings updated";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
+}
+
+/* ============================================================================
+ * GET /api/modules - Module flags (GAP-28)
+ * ============================================================================ */
+
+esp_err_t api_handler_modules_get(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  JsonDocument doc;
+  doc["counters"] = (g_persist_config.module_flags & MODULE_FLAG_COUNTERS_DISABLED) ? false : true;
+  doc["timers"] = (g_persist_config.module_flags & MODULE_FLAG_TIMERS_DISABLED) ? false : true;
+  doc["st_logic"] = (g_persist_config.module_flags & MODULE_FLAG_ST_LOGIC_DISABLED) ? false : true;
+
+  char buf[256];
+  serializeJson(doc, buf, sizeof(buf));
+
+  return api_send_json(req, buf);
+}
+
+/* ============================================================================
+ * POST /api/modules - Set module flags (GAP-28)
+ * ============================================================================ */
+
+esp_err_t api_handler_modules_post(httpd_req_t *req)
+{
+  http_server_stat_request();
+  CHECK_AUTH(req);
+
+  char content[256];
+  int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+  if (ret <= 0) {
+    return api_send_error(req, 400, "Failed to read request body");
+  }
+  content[ret] = '\0';
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, content);
+  if (error) {
+    return api_send_error(req, 400, "Invalid JSON");
+  }
+
+  uint8_t flags = g_persist_config.module_flags;
+
+  if (doc.containsKey("counters")) {
+    if (doc["counters"].as<bool>()) {
+      flags &= ~MODULE_FLAG_COUNTERS_DISABLED;
+    } else {
+      flags |= MODULE_FLAG_COUNTERS_DISABLED;
+    }
+  }
+  if (doc.containsKey("timers")) {
+    if (doc["timers"].as<bool>()) {
+      flags &= ~MODULE_FLAG_TIMERS_DISABLED;
+    } else {
+      flags |= MODULE_FLAG_TIMERS_DISABLED;
+    }
+  }
+  if (doc.containsKey("st_logic")) {
+    if (doc["st_logic"].as<bool>()) {
+      flags &= ~MODULE_FLAG_ST_LOGIC_DISABLED;
+    } else {
+      flags |= MODULE_FLAG_ST_LOGIC_DISABLED;
+    }
+  }
+
+  g_persist_config.module_flags = flags;
+
+  JsonDocument resp;
+  resp["status"] = 200;
+  resp["counters"] = (flags & MODULE_FLAG_COUNTERS_DISABLED) ? false : true;
+  resp["timers"] = (flags & MODULE_FLAG_TIMERS_DISABLED) ? false : true;
+  resp["st_logic"] = (flags & MODULE_FLAG_ST_LOGIC_DISABLED) ? false : true;
+  resp["message"] = "Module flags updated";
+
+  char buf2[256];
+  serializeJson(resp, buf2, sizeof(buf2));
+
+  return api_send_json(req, buf2);
 }

@@ -320,6 +320,65 @@ static bool st_vm_exec_add(st_vm_t *vm, st_bytecode_instr_t *instr) {
   return st_vm_push_typed(vm, result, ST_TYPE_INT);
 }
 
+// BUG-159 FIX: Checked addition for FOR loops - detects overflow
+static bool st_vm_exec_add_checked(st_vm_t *vm, st_bytecode_instr_t *instr) {
+  st_value_t right, left, result;
+  st_datatype_t right_type, left_type;
+
+  if (!st_vm_pop_typed(vm, &right, &right_type)) return false;
+  if (!st_vm_pop_typed(vm, &left, &left_type)) return false;
+
+  // BOOL not allowed in arithmetic
+  if (left_type == ST_TYPE_BOOL || right_type == ST_TYPE_BOOL) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg),
+             "Type error: Arithmetic operation on BOOL type");
+    return false;
+  }
+
+  // REAL type - use regular ADD (NaN/INF already checked there)
+  if (left_type == ST_TYPE_REAL || right_type == ST_TYPE_REAL) {
+    float left_f = (left_type == ST_TYPE_REAL) ? left.real_val :
+                   (left_type == ST_TYPE_INT) ? (float)left.int_val :
+                   (float)left.dint_val;
+    float right_f = (right_type == ST_TYPE_REAL) ? right.real_val :
+                    (right_type == ST_TYPE_INT) ? (float)right.int_val :
+                    (float)right.dint_val;
+    result.real_val = left_f + right_f;
+    if (isnan(result.real_val) || isinf(result.real_val)) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg), "FOR loop overflow (NaN/INF)");
+      return false;
+    }
+    return st_vm_push_typed(vm, result, ST_TYPE_REAL);
+  }
+
+  // DINT overflow check (32-bit)
+  if (left_type == ST_TYPE_DINT || right_type == ST_TYPE_DINT) {
+    int32_t left_d = (left_type == ST_TYPE_DINT) ? left.dint_val : (int32_t)left.int_val;
+    int32_t right_d = (right_type == ST_TYPE_DINT) ? right.dint_val : (int32_t)right.int_val;
+
+    // Check for signed overflow: (a > 0 && b > 0 && a > MAX - b) || (a < 0 && b < 0 && a < MIN - b)
+    if ((right_d > 0 && left_d > INT32_MAX - right_d) ||
+        (right_d < 0 && left_d < INT32_MIN - right_d)) {
+      snprintf(vm->error_msg, sizeof(vm->error_msg),
+               "FOR loop overflow: %ld + %ld exceeds DINT range", (long)left_d, (long)right_d);
+      return false;
+    }
+    result.dint_val = left_d + right_d;
+    return st_vm_push_typed(vm, result, ST_TYPE_DINT);
+  }
+
+  // INT overflow check (16-bit) - primary use case for BUG-159
+  int32_t sum = (int32_t)left.int_val + (int32_t)right.int_val;
+  if (sum > INT16_MAX || sum < INT16_MIN) {
+    snprintf(vm->error_msg, sizeof(vm->error_msg),
+             "FOR loop overflow: %d + %d = %ld exceeds INT range [-32768, 32767]",
+             left.int_val, right.int_val, (long)sum);
+    return false;
+  }
+  result.int_val = (int16_t)sum;
+  return st_vm_push_typed(vm, result, ST_TYPE_INT);
+}
+
 static bool st_vm_exec_sub(st_vm_t *vm, st_bytecode_instr_t *instr) {
   st_value_t right, left, result;
   st_datatype_t right_type, left_type;
@@ -1542,6 +1601,7 @@ bool st_vm_step(st_vm_t *vm) {
     case ST_OP_DUP:             result = st_vm_exec_dup(vm, instr); break;
     case ST_OP_POP:             result = st_vm_exec_pop(vm, instr); break;
     case ST_OP_ADD:             result = st_vm_exec_add(vm, instr); break;
+    case ST_OP_ADD_CHECKED:     result = st_vm_exec_add_checked(vm, instr); break;  // BUG-159
     case ST_OP_SUB:             result = st_vm_exec_sub(vm, instr); break;
     case ST_OP_MUL:             result = st_vm_exec_mul(vm, instr); break;
     case ST_OP_DIV:             result = st_vm_exec_div(vm, instr); break;

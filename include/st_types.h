@@ -327,6 +327,7 @@ typedef enum {
 
   // Arithmetic
   ST_OP_ADD,                // Pop 2, push sum
+  ST_OP_ADD_CHECKED,        // Pop 2, push sum with overflow check (BUG-159: FOR loops)
   ST_OP_SUB,                // Pop 2, push difference
   ST_OP_MUL,                // Pop 2, push product
   ST_OP_DIV,                // Pop 2, push quotient

@@ -768,7 +768,9 @@ static bool st_compiler_compile_for(st_compiler_t *compiler, st_ast_node_t *node
     }
   }
 
-  if (!st_compiler_emit(compiler, ST_OP_ADD)) {
+  // BUG-159 FIX: Use ST_OP_ADD_CHECKED for FOR loops to detect overflow
+  // This prevents infinite loops when loop variable wraps (e.g., FOR i := 32760 TO 32770)
+  if (!st_compiler_emit(compiler, ST_OP_ADD_CHECKED)) {
     return false;
   }
   if (!st_compiler_emit_var(compiler, ST_OP_STORE_VAR, var_index)) {

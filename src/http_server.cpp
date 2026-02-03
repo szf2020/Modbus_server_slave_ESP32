@@ -73,6 +73,19 @@ extern esp_err_t api_handler_system_reboot(httpd_req_t *req);
 extern esp_err_t api_handler_system_save(httpd_req_t *req);
 extern esp_err_t api_handler_system_load(httpd_req_t *req);
 extern esp_err_t api_handler_system_defaults(httpd_req_t *req);
+// GAP-ANALYSE handlers (v6.1.0+)
+extern esp_err_t api_handler_counter_delete(httpd_req_t *req);
+extern esp_err_t api_handler_timer_config_post(httpd_req_t *req);
+extern esp_err_t api_handler_timer_delete(httpd_req_t *req);
+extern esp_err_t api_handler_modbus_get(httpd_req_t *req);
+extern esp_err_t api_handler_modbus_post(httpd_req_t *req);
+extern esp_err_t api_handler_wifi_get(httpd_req_t *req);
+extern esp_err_t api_handler_wifi_post(httpd_req_t *req);
+extern esp_err_t api_handler_http_config_post(httpd_req_t *req);
+extern esp_err_t api_handler_gpio_config_delete(httpd_req_t *req);
+extern esp_err_t api_handler_logic_settings_post(httpd_req_t *req);
+extern esp_err_t api_handler_modules_get(httpd_req_t *req);
+extern esp_err_t api_handler_modules_post(httpd_req_t *req);
 
 /* ============================================================================
  * URI DEFINITIONS
@@ -279,6 +292,114 @@ static const httpd_uri_t uri_system_defaults = {
 };
 
 /* ============================================================================
+ * GAP-ANALYSE URI DEFINITIONS (v6.1.0+)
+ * ============================================================================ */
+
+// Counter DELETE (GAP-16)
+static const httpd_uri_t uri_counter_delete = {
+  .uri      = "/api/counters/*",
+  .method   = HTTP_DELETE,
+  .handler  = api_handler_counter_delete,
+  .user_ctx = NULL
+};
+
+// Timer POST (GAP-3) - config via wildcard
+static const httpd_uri_t uri_timer_config_post = {
+  .uri      = "/api/timers/*",
+  .method   = HTTP_POST,
+  .handler  = api_handler_timer_config_post,
+  .user_ctx = NULL
+};
+
+// Timer DELETE (GAP-3)
+static const httpd_uri_t uri_timer_delete = {
+  .uri      = "/api/timers/*",
+  .method   = HTTP_DELETE,
+  .handler  = api_handler_timer_delete,
+  .user_ctx = NULL
+};
+
+// Modbus GET (GAP-4, GAP-5, GAP-18) - slave/master suffix routing
+static const httpd_uri_t uri_modbus_get = {
+  .uri      = "/api/modbus/*",
+  .method   = HTTP_GET,
+  .handler  = api_handler_modbus_get,
+  .user_ctx = NULL
+};
+
+// Modbus POST (GAP-4, GAP-5, GAP-18)
+static const httpd_uri_t uri_modbus_post = {
+  .uri      = "/api/modbus/*",
+  .method   = HTTP_POST,
+  .handler  = api_handler_modbus_post,
+  .user_ctx = NULL
+};
+
+// WiFi GET (GAP-6, GAP-19)
+static const httpd_uri_t uri_wifi_get = {
+  .uri      = "/api/wifi",
+  .method   = HTTP_GET,
+  .handler  = api_handler_wifi_get,
+  .user_ctx = NULL
+};
+
+// WiFi POST (GAP-6, GAP-19, GAP-21) - config/connect/disconnect suffix routing
+static const httpd_uri_t uri_wifi_post = {
+  .uri      = "/api/wifi/*",
+  .method   = HTTP_POST,
+  .handler  = api_handler_wifi_post,
+  .user_ctx = NULL
+};
+
+// WiFi POST for /api/wifi (no suffix = config)
+static const httpd_uri_t uri_wifi_config_post = {
+  .uri      = "/api/wifi",
+  .method   = HTTP_POST,
+  .handler  = api_handler_wifi_post,
+  .user_ctx = NULL
+};
+
+// HTTP config POST (GAP-7)
+static const httpd_uri_t uri_http_config_post = {
+  .uri      = "/api/http",
+  .method   = HTTP_POST,
+  .handler  = api_handler_http_config_post,
+  .user_ctx = NULL
+};
+
+// GPIO DELETE (GAP-11)
+static const httpd_uri_t uri_gpio_delete = {
+  .uri      = "/api/gpio/*",
+  .method   = HTTP_DELETE,
+  .handler  = api_handler_gpio_config_delete,
+  .user_ctx = NULL
+};
+
+// Logic settings POST (GAP-26)
+static const httpd_uri_t uri_logic_settings_post = {
+  .uri      = "/api/logic/settings",
+  .method   = HTTP_POST,
+  .handler  = api_handler_logic_settings_post,
+  .user_ctx = NULL
+};
+
+// Modules GET (GAP-28)
+static const httpd_uri_t uri_modules_get = {
+  .uri      = "/api/modules",
+  .method   = HTTP_GET,
+  .handler  = api_handler_modules_get,
+  .user_ctx = NULL
+};
+
+// Modules POST (GAP-28)
+static const httpd_uri_t uri_modules_post = {
+  .uri      = "/api/modules",
+  .method   = HTTP_POST,
+  .handler  = api_handler_modules_post,
+  .user_ctx = NULL
+};
+
+/* ============================================================================
  * INITIALIZATION & CONTROL
  * ============================================================================ */
 
@@ -325,7 +446,7 @@ int http_server_start(const HttpConfig *config)
     uint8_t prio = (config->priority == 0) ? 3 : (config->priority == 2) ? 6 : 5;
     int ret = https_wrapper_start(&http_state.server,
                                    config->port,
-                                   28,       // max URI handlers
+                                   48,       // max URI handlers
                                    10240,    // stack (TLS handshake needs ~8-10KB)
                                    prio,
                                    1);       // core 1
@@ -338,7 +459,7 @@ int http_server_start(const HttpConfig *config)
     // Plain HTTP mode
     httpd_config_t httpd_config = HTTPD_DEFAULT_CONFIG();
     httpd_config.server_port = config->port;
-    httpd_config.max_uri_handlers = 28;
+    httpd_config.max_uri_handlers = 48;
     httpd_config.stack_size = 4096;
     httpd_config.uri_match_fn = httpd_uri_match_wildcard;
 
@@ -350,7 +471,7 @@ int http_server_start(const HttpConfig *config)
     http_state.tls_active = 0;
   }
 
-  // Register URI handlers (26 total)
+  // Register URI handlers (38 total)
   // NOTE: ESP-IDF httpd_uri_match_wildcard only supports * at END of URI.
   // Middle-wildcards like /api/logic/*/source NEVER match.
   // Instead, wildcard handlers do internal suffix-based routing.
@@ -391,6 +512,20 @@ int http_server_start(const HttpConfig *config)
   httpd_register_uri_handler(http_state.server, &uri_system_save);
   httpd_register_uri_handler(http_state.server, &uri_system_load);
   httpd_register_uri_handler(http_state.server, &uri_system_defaults);
+  // GAP-ANALYSE routes (v6.1.0+)
+  httpd_register_uri_handler(http_state.server, &uri_counter_delete);
+  httpd_register_uri_handler(http_state.server, &uri_timer_config_post);
+  httpd_register_uri_handler(http_state.server, &uri_timer_delete);
+  httpd_register_uri_handler(http_state.server, &uri_modbus_get);
+  httpd_register_uri_handler(http_state.server, &uri_modbus_post);
+  httpd_register_uri_handler(http_state.server, &uri_wifi_get);
+  httpd_register_uri_handler(http_state.server, &uri_wifi_post);
+  httpd_register_uri_handler(http_state.server, &uri_wifi_config_post);
+  httpd_register_uri_handler(http_state.server, &uri_http_config_post);
+  httpd_register_uri_handler(http_state.server, &uri_gpio_delete);
+  httpd_register_uri_handler(http_state.server, &uri_logic_settings_post);
+  httpd_register_uri_handler(http_state.server, &uri_modules_get);
+  httpd_register_uri_handler(http_state.server, &uri_modules_post);
 
   http_state.running = 1;
   ESP_LOGI(TAG, "HTTP server started on port %d", config->port);

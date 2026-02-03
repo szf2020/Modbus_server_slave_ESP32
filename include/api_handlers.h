@@ -101,6 +101,119 @@ esp_err_t api_handler_logic(httpd_req_t *req);
 esp_err_t api_handler_logic_single(httpd_req_t *req);
 
 /* ============================================================================
+ * COUNTER/TIMER CONFIG ENDPOINTS (GAP-1, GAP-2, GAP-3, GAP-16)
+ * ============================================================================ */
+
+/**
+ * POST /api/counters/{id} - Configure counter
+ * POST /api/counters/{id}/control - Counter control flags
+ * (Routed via suffix in existing counter_single handler)
+ */
+
+/**
+ * DELETE /api/counters/{id} - Delete/disable counter
+ */
+esp_err_t api_handler_counter_delete(httpd_req_t *req);
+
+/**
+ * POST /api/timers/{id} - Configure timer
+ * (Routed via suffix in timer wildcard handler)
+ */
+esp_err_t api_handler_timer_config_post(httpd_req_t *req);
+
+/**
+ * DELETE /api/timers/{id} - Delete/disable timer
+ */
+esp_err_t api_handler_timer_delete(httpd_req_t *req);
+
+/* ============================================================================
+ * MODBUS CONFIG ENDPOINTS (GAP-4, GAP-5, GAP-18)
+ * ============================================================================ */
+
+/**
+ * GET /api/modbus/slave - Slave config + stats
+ * GET /api/modbus/master - Master config + stats
+ */
+esp_err_t api_handler_modbus_get(httpd_req_t *req);
+
+/**
+ * POST /api/modbus/slave - Configure slave
+ * POST /api/modbus/master - Configure master
+ */
+esp_err_t api_handler_modbus_post(httpd_req_t *req);
+
+/* ============================================================================
+ * WIFI ENDPOINTS (GAP-6, GAP-19, GAP-21)
+ * ============================================================================ */
+
+/**
+ * GET /api/wifi - Extended WiFi status (config + runtime RSSI, MAC, etc.)
+ */
+esp_err_t api_handler_wifi_get(httpd_req_t *req);
+
+/**
+ * POST /api/wifi - WiFi configuration
+ * POST /api/wifi/connect - Connect WiFi
+ * POST /api/wifi/disconnect - Disconnect WiFi
+ */
+esp_err_t api_handler_wifi_post(httpd_req_t *req);
+
+/* ============================================================================
+ * HTTP CONFIG ENDPOINT (GAP-7)
+ * ============================================================================ */
+
+/**
+ * POST /api/http - HTTP server configuration
+ */
+esp_err_t api_handler_http_config_post(httpd_req_t *req);
+
+/* ============================================================================
+ * GPIO CONFIG ENDPOINT (GAP-11)
+ * ============================================================================ */
+
+/**
+ * POST /api/gpio/{pin}/config - Configure GPIO mapping
+ */
+esp_err_t api_handler_gpio_config_post(httpd_req_t *req);
+
+/**
+ * DELETE /api/gpio/{pin} - Remove GPIO mapping
+ */
+esp_err_t api_handler_gpio_config_delete(httpd_req_t *req);
+
+/* ============================================================================
+ * LOGIC BIND ENDPOINT (GAP-13)
+ * ============================================================================ */
+
+/**
+ * POST /api/logic/{id}/bind - ST Logic variable binding
+ */
+esp_err_t api_handler_logic_bind_post(httpd_req_t *req);
+
+/* ============================================================================
+ * LOGIC SETTINGS ENDPOINT (GAP-26)
+ * ============================================================================ */
+
+/**
+ * POST /api/logic/settings - ST Logic engine settings
+ */
+esp_err_t api_handler_logic_settings_post(httpd_req_t *req);
+
+/* ============================================================================
+ * MODULE FLAGS ENDPOINTS (GAP-28)
+ * ============================================================================ */
+
+/**
+ * GET /api/modules - Module enabled/disabled status
+ */
+esp_err_t api_handler_modules_get(httpd_req_t *req);
+
+/**
+ * POST /api/modules - Set module flags
+ */
+esp_err_t api_handler_modules_post(httpd_req_t *req);
+
+/* ============================================================================
  * UTILITY FUNCTIONS
  * ============================================================================ */
 
